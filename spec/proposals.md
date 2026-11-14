@@ -299,7 +299,10 @@ Version impact: additive.
 
 ## Variant refinement
 
-Version impact: additive.
+Version impact: additive. On hold: a variant carrying a named product
+(`| Drawn PlotDrawn`) takes the product's factors directly (see "Arguments
+in state patterns" in `spec-v1.md`), which covers what refinement was for
+and keeps the payload visible in the sum.
 
     PMode.ShowMission = List | Selected Mission
 

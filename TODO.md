@@ -116,12 +116,12 @@ update before any code:
       expansion. Replaces a `form` shorthand for setters, and shortens the
       long guards of a layer (`App(core.Core(core.AircraftLink...))`).
 - [ ] Dependent types and generic types.
-- [ ] A variant whose payload is a named product takes the product's
-      factors directly: `Plot.Drawn(Boundary)` for
-      `Plot.Drawn(PlotDrawn(Boundary))` with `| Drawn PlotDrawn`. Additive
-      (an error today); keeps the payload visible in the sum, instead of
-      variant refinement.
-- [ ] Variant refinement (`PMode.ShowMission = ...`).
+- [x] Arguments through a named product: a variant or a newtype that holds
+      a named product takes the product's factors directly, one level
+      only (see "Arguments in state patterns" in `spec/spec-v1.md`).
+      Preferred over variant refinement and a type `__alias`.
+- [ ] Variant refinement (`PMode.ShowMission = ...`): on hold, see
+      "Arguments in state patterns" in `spec/spec-v1.md`.
 - [ ] Several events with one transition (`g, h :: Y -> Z`).
 - [ ] `<-` shorthand.
 - [x] Named constants (`BatteryLowThreshold = BatteryCharge(15)`): in

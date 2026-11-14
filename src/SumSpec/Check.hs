@@ -1528,11 +1528,17 @@ elaborate env = \case
     BoundValue base -> PatternElement names key [explicit base n]
     _ -> PatternElement names key []
   PatternPath names args
+    | BoundValue base <- pathBound env names
+    , Just inner <- throughProduct env base args ->
+        PatternPath names [elaborate env inner]
     | BoundValue _ <- pathBound env names
     , Just e <- multiplied args ->
         PatternPath names [PatternExpr e]
     | otherwise -> PatternPath names (map (elaborate env) args)
   PatternElement names key args
+    | BoundValue base <- elementBound env names (keyName key)
+    , Just inner <- throughProduct env base args ->
+        PatternElement names key [elaborate env inner]
     | BoundValue _ <- elementBound env names (keyName key)
     , Just e <- multiplied args ->
         PatternElement names key [PatternExpr e]
@@ -1558,6 +1564,32 @@ elaborate env = \case
       PatternPath (c :| []) [] -> Just (ExprConst c)
       PatternExpr e -> Just e
       _ -> Nothing
+
+-- | The arguments of a head that holds one value of the named product
+-- @base@, written as the product's factors, as the product they stand
+-- for: @Plot.Drawn(Boundary)@ is @Plot.Drawn(PlotDrawn(Boundary))@, one
+-- level deep. Several arguments are factors (never a multiplication: a
+-- product isn't a number), and so is one headed by another type. A lone
+-- name or constant may be the whole value or a factor, which only its
+-- type tells: 'checkArgs' reads it. 'Nothing' when nothing is to be read
+-- so.
+throughProduct :: Model -> Name -> [Pattern] -> Maybe Pattern
+throughProduct env base args = case typeBody env (nameText base) of
+  Just (TypeProduct _) -> case args of
+    _ : _ : _ -> wrap
+    [arg] | Just h <- typeHead (bare arg), nameText h /= nameText base -> wrap
+    _ -> Nothing
+  _ -> Nothing
+  where
+    wrap = Just (PatternPath (Name (argsPos args) (nameText base) :| []) args)
+    typeHead = \case
+      PatternPath (h :| _) _ | isType env (nameText h) -> Just h
+      PatternElement (h :| _) _ _ -> Just h
+      PatternAlts (h :| _) _ -> Just h
+      _ -> Nothing
+    argsPos = \case
+      arg : _ -> namePos (patternHead arg)
+      [] -> initialPos ""
 
 -- | Reads a constant as an argument of a target or @__init@ as the value it
 -- names (@Attempts(MaxTries)@): the parser can't tell it from a type.
@@ -1586,23 +1618,39 @@ elaborateEvent env event =
     }
   where
     transition t =
-      t {transitionBranches = branch (null (transitionShared t)) <$> transitionBranches t}
-    -- Under a shared path, each side of a branch is arguments.
-    branch whole b =
-      b
-        { branchFrom = elaborate env <$> branchFrom b
-        , branchGuard = guard <$> branchGuard b
-        , branchTo =
-            (if whole then elaborateValues env else valueArg env) . elaborate env
-              <$> branchTo b
+      t
+        { transitionBranches =
+            branch (null (transitionShared t)) (held (transitionShared t))
+              <$> transitionBranches t
         }
-    guard = \case
-      GuardPattern p -> GuardPattern (elaborate env p)
+    -- Under a shared path, each side of a branch is arguments, and so is
+    -- each pattern of its guard. When the innermost path holds one value of
+    -- a named product, they may be its factors ('throughProduct').
+    branch whole base b =
+      b
+        { branchFrom = through base (elaborate env <$> branchFrom b)
+        , branchGuard = guard base <$> branchGuard b
+        , branchTo =
+            through base $
+              (if whole then elaborateValues env else valueArg env) . elaborate env
+                <$> branchTo b
+        }
+    held paths = case reverse paths of
+      Shared names Nothing : _ | BoundValue base <- pathBound env names -> Just base
+      Shared names (Just key) : _
+        | BoundValue base <- elementBound env names (keyName key) ->
+            Just base
+      _ -> Nothing
+    through base side = case base >>= \b -> throughProduct env b (NE.toList side) of
+      Just inner -> inner :| []
+      Nothing -> side
+    guard base = \case
+      GuardPattern p -> GuardPattern (NE.head (through base (elaborate env p :| [])))
       g@(GuardCompare {}) -> g
       g@(GuardIn {}) -> g
-      GuardNot g -> GuardNot (guard g)
-      GuardAnd gs -> GuardAnd (guard <$> gs)
-      GuardOr gs -> GuardOr (guard <$> gs)
+      GuardNot g -> GuardNot (guard base g)
+      GuardAnd gs -> GuardAnd (guard base <$> gs)
+      GuardOr gs -> GuardOr (guard base <$> gs)
 
 -- | Every pattern written in an event.
 eventPatterns :: Event -> [Pattern]
@@ -1836,6 +1884,14 @@ checkArgs env names node at args = case nodeBody node of
         PatternName _ -> True
         _ -> False
   Just (TypeTerm term) -> case args of
+    -- A lone name or constant under a head that holds a named product may
+    -- stand for one of its factors (see 'elaborate'), by its type.
+    [arg]
+      | TermName p <- term
+      , Just body@(TypeProduct (map factorTerm -> factors)) <- typeBody env (nameText p)
+      , Just key <- argKey env names arg
+      , key /= nameText p ->
+          checkFactors env names (Node (nameText p) (Just body)) factors [arg]
     [arg] -> checkArg env names term arg
     _ ->
       [ errorAt at $

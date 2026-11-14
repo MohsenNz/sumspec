@@ -1,0 +1,26 @@
+-- Arguments through a named product: only one level deep, only the
+-- product's factors, each at most once.
+__atomics { Text = __text  Count = __int }
+__events { twoLevels notAFactor twice wrongName }
+
+__init :: App(Outer(Inner(Mid(A.On))))
+
+App = Outer * Other
+
+-- Two levels: Outer holds Inner, a newtype, not a product.
+Outer = Inner
+Inner = Mid
+Mid = A * B
+
+A = On | Off
+B = Text
+Other = X | Y
+
+twoLevels :: Outer(A.On) -> Outer(A.Off)
+
+-- Inner holds Mid; Other is not one of Mid's factors.
+notAFactor :: Inner(Other.X) -> Inner(Other.Y)
+
+twice :: Inner(A.On * A.Off) -> Inner(A.Off)
+
+wrongName Other#o :: Inner(A.On) -> Inner(o)

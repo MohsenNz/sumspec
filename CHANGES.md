@@ -10,6 +10,12 @@ release" in `VERSIONING.md`).
 
 ### Language
 
+- Arguments through a named product: a variant carrying one named product
+  (`| Drawn PlotDrawn`), or a newtype of one (`B = D`, `D = G * H`), takes
+  the product's factors directly, one level deep: `Plot.Drawn(Boundary)`
+  for `Plot.Drawn(PlotDrawn(Boundary))`, `B(G * H)` for `B(D(G * H))`. A
+  lone name stands for the whole value or a factor, by its type. The long
+  form stays valid; the short one was an error.
 - Layered specs: a spec may import base specs, `__imports { core
   "todo-core.sumspec" }`, and write everything the base declares with the
   qualifier, one token (`core.Todos`, `core.toggleTodo`). The layer's root

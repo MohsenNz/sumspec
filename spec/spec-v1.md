@@ -260,6 +260,7 @@ When arguments are written, they must fit what they follow:
 - A product, or a variant carrying a product, takes some or all of its factors, in any order, each at most once: `Z(C * Y.V1)`, `Z(C)`.
 - A variant carrying one type takes one argument headed by that type: `Y.V3(A)`, `Plot.Drawn(Boundary)`.
 - A newtype takes one argument headed by its base type. With `Boundary = Ring`, write `Boundary(Ring.Enclosed)`, not `Boundary.Enclosed`.
+- When the one type a variant carries, or a newtype's base, is a named product, its factors may be written directly, one level deep. With `Plot = Empty | Drawn PlotDrawn` and `PlotDrawn = Boundary * Markings`, `Plot.Drawn(Boundary)` means `Plot.Drawn(PlotDrawn(Boundary))`; with `B = D` and `D = G * H`, `B(G * H)` means `B(D(G * H))`. The long form is valid too. A lone name or constant stands for the whole value or for a factor, by its type. Only one level is skipped: with `B = C` and `C = D`, write `B(C(G * H))`.
 - A sum takes no arguments; pick a variant with `.` instead, or several with `.{` (see "Alternatives").
 - An atomic type, and a variant without a payload, take no arguments.
 - A list type takes no arguments; pick an element with an element path instead (`Todos[id](...)`).

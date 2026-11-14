@@ -457,8 +457,11 @@ character     = ? any Unicode character ? ;
    - written arguments fit what they follow: some or all factors of a
      product, in any order, each at most once (A * A' writes A twice);
      one argument headed by the type of a single payload or the base of
-     a newtype; none for a sum, an atomic, or a variant without a
-     payload. See "Arguments in state patterns" in spec-v1.md;
+     a newtype, or, when that type is a named product, its factors
+     directly, one level deep (Plot.Drawn(Boundary) for
+     Plot.Drawn(PlotDrawn(Boundary)); a lone name stands for the whole or
+     a factor, by its type); none for a sum, an atomic, or a variant
+     without a payload. See "Arguments in state patterns" in spec-v1.md;
    - the source and target of a transition are headed by the same type
      (an element path L[x] by its list type L). See "Arguments in state
      patterns" in spec-v1.md;

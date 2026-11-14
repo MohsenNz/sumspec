@@ -1,0 +1,36 @@
+test/check/error-named-product-args.sumspec:19:20:
+   |
+19 | twoLevels :: Outer(A.On) -> Outer(A.Off)
+   |                    ^
+expected Inner here, not A
+
+test/check/error-named-product-args.sumspec:19:35:
+   |
+19 | twoLevels :: Outer(A.On) -> Outer(A.Off)
+   |                                   ^
+expected Inner here, not A
+
+test/check/error-named-product-args.sumspec:22:21:
+   |
+22 | notAFactor :: Inner(Other.X) -> Inner(Other.Y)
+   |                     ^
+Other is not a factor of Mid (A * B)
+
+test/check/error-named-product-args.sumspec:22:39:
+   |
+22 | notAFactor :: Inner(Other.X) -> Inner(Other.Y)
+   |                                       ^
+Other is not a factor of Mid (A * B)
+
+test/check/error-named-product-args.sumspec:24:23:
+   |
+24 | twice :: Inner(A.On * A.Off) -> Inner(A.Off)
+   |                       ^
+factor A is written twice
+
+test/check/error-named-product-args.sumspec:26:43:
+   |
+26 | wrongName Other#o :: Inner(A.On) -> Inner(o)
+   |                                           ^
+o (of type Other) is not a factor of Mid (A * B)
+

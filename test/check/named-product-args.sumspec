@@ -1,0 +1,54 @@
+-- Arguments through a named product: a variant or a newtype that holds a
+-- named product takes the product's factors directly, one level deep.
+-- Each is written short and long; both read the same.
+__atomics { Text = __text  Count = __int }
+__events { draw clear redraw label count reset fill }
+
+__init :: App(Plot.Empty * Tally(Total(0) * Note))
+
+App = Plot * Tally
+
+-- A variant carrying a named product.
+Plot = Empty | Drawn PlotDrawn
+PlotDrawn = Edge * Fill * Label
+Edge = Open | Closed
+Fill = None | Solid
+Label = Text
+
+-- A newtype of a product.
+Tally = Counts
+Counts = Total * Note
+Total = Count
+Note = Text
+
+-- Short in the target, long in the source.
+draw :: App => Plot.Empty -> Plot.Drawn(Edge.Open * Fill.None)
+
+-- Short in the source; long in the target.
+clear
+  :: Plot.Drawn(Edge.Closed)
+  -> Plot.Drawn(PlotDrawn(Fill.None))
+
+-- One short and one long transition of one event, picking different
+-- variants: they exclude each other, so no overlap warning.
+redraw
+  :: Plot.Drawn(Edge.Open) -> Plot.Drawn(Edge.Closed)
+  :: Plot.Drawn(PlotDrawn(Edge.Closed)) -> Plot.Drawn(Edge.Open)
+
+-- A lone name, of a factor and of the whole value; a guard, short.
+label Label#l
+  :: Plot.Drawn(Fill#f) // Plot.Drawn(Edge.Closed) -> Plot.Drawn(l * f)
+
+-- Through a newtype of a product, short and long.
+count
+  :: Tally(Total(#n)) -> Tally(Total(n + 1))
+
+reset PlotDrawn#d
+  :: App => Tally(Counts(Total)) * Plot -> Tally(Total(0)) * Plot.Drawn(d)
+
+-- Under a shared path, a branch's sides and its guard patterns are the
+-- path's arguments, so they may be the factors too.
+fill
+  :: Plot.Drawn
+  => Fill.None // Edge.Closed -> Fill.Solid
+  => PlotDrawn(Fill.Solid) // PlotDrawn(Edge.Open) -> PlotDrawn(Fill.None)
