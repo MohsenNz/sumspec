@@ -96,7 +96,31 @@ update before any code:
 - [ ] The dispatch warning by coverage: warn when a dispatch's source can
       hold in some state where the event can't happen, not only when it
       excludes every source of the event.
+- [ ] `__const`: a named constant written with a keyword,
+      `__const MaxPort = Port(100)`, so it no longer reads like a newtype
+      and the parser needs no lookahead to tell it from a type (the
+      "Constant or type" note in `grammar.ebnf`). Breaking before the
+      first release: the plain `C = T(15)` form goes; migrate the drone
+      example and the constants tests. Later, with literal patterns, a
+      constant may also stand where a pattern goes (`Settings(DefaultPort)`).
+- [ ] `__pattern`: a named state pattern, with parameters that stand for
+      arguments, expanded before checking (as `=>` and `/` are):
+      `__pattern Setting v = PlotEditor(Draft(core.Plot.Drawn(core.RouteSettings(v))))`,
+      then `setRouteSpacing core.RouteSpacing#v :: Route -> Setting(v)`.
+      Usable in sources, targets, guards and shared paths. Rules: the name
+      is uppercase and clashes with no type or constant; a parameter
+      stands for a whole argument, never a path segment; the body names
+      nothing (`#x`) and uses only its parameters; a pattern may use
+      another, but no cycle. Errors at the use site, pointing into the
+      body; the printer keeps the pattern as written, and hover shows its
+      expansion. Replaces a `form` shorthand for setters, and shortens the
+      long guards of a layer (`App(core.Core(core.AircraftLink...))`).
 - [ ] Dependent types and generic types.
+- [ ] A variant whose payload is a named product takes the product's
+      factors directly: `Plot.Drawn(Boundary)` for
+      `Plot.Drawn(PlotDrawn(Boundary))` with `| Drawn PlotDrawn`. Additive
+      (an error today); keeps the payload visible in the sum, instead of
+      variant refinement.
 - [ ] Variant refinement (`PMode.ShowMission = ...`).
 - [ ] Several events with one transition (`g, h :: Y -> Z`).
 - [ ] `<-` shorthand.
