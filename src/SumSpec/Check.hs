@@ -8,6 +8,10 @@ module SumSpec.Check
   ( CheckError (..)
   , Severity (..)
   , checkSpec
+  , checkSpecWith
+  , Imported (..)
+  , ImportResult (..)
+  , importFailed
   , hasErrors
   , renderCheckErrors
   ) where
@@ -25,13 +29,16 @@ import Data.Set qualified as Set
 import Data.Text (Text)
 import Data.Text qualified as T
 import SumSpec.Model
-  ( Model (..)
+  ( Base (..)
+  , BaseInfo (..)
+  , EventInfo (..)
+  , Model (..)
   , StepError (..)
   , TypeInfo (..)
   , TypeShape (..)
   , VariantInfo (..)
   , isType
-  , model
+  , modelWith
   , step
   , underlying
   , variantOwnerPath
@@ -70,32 +77,70 @@ hasErrors = any ((== Error) . errorSeverity)
 -- transition with shared paths (@/@ and @=>@) is checked as its expanded
 -- form, one transition per branch.
 checkSpec :: FilePath -> Text -> Spec -> [CheckError]
-checkSpec file source spec =
-  sortOn (position . errorPos) . nubOrdOn key $
-    concat
-      [ checkHeaders spec
-      , checkAnnotations spec
-      , concatMap
-          (checkBoundHeads env)
-          (map snd rawInits <> concatMap eventPatterns rawEvents)
-      , checkAlternatives (map snd rawInits) rawEvents
-      , checkInit file env inits
-      , checkTypeDefs env typeDefs
-      , checkConsts env consts
-      , checkEvents env spec events
-      , concatMap checkWrittenKeys events
-      , checkTransitions env transitions
-      , checkGuards env transitions
-      , checkListPlaces typeDefs (map snd inits) transitions
-      , warnListElements env root transitions
-      , warnReachability env (map snd (take 1 inits)) transitions
-      , warnOverlaps env transitions
-      , warnSuffixSpaces
-          source
-          ( mapMaybe eventInput rawEvents
-              <> concat [[from, to] | Flat _ _ from to _ _ <- concatMap flatten rawEvents]
-          )
-      ]
+checkSpec = checkSpecWith []
+
+-- | An entry of a spec's @__imports@, and what the loader found at its
+-- file.
+data Imported = Imported
+  { importedDecl :: Import
+  , importedResult :: ImportResult
+  }
+
+data ImportResult
+  = -- | The file can't be read: its path as shown, and why.
+    ImportUnreadable FilePath Text
+  | -- | The file imports, directly or not, the spec importing it: the
+    -- files on the way, from this import back to the importer.
+    ImportCycle [FilePath]
+  | -- | The file doesn't parse.
+    ImportUnparsable FilePath
+  | -- | The base, whether it has errors, and every file it reaches (its
+    -- own included), each as one canonical path and as shown.
+    ImportLoaded Base Bool [(FilePath, FilePath)]
+
+-- | An import that gives no base to check against: the spec is checked no
+-- further than its imports.
+importFailed :: Imported -> Bool
+importFailed i = case importedResult i of
+  ImportLoaded _ hasErrs _ -> hasErrs
+  _ -> True
+
+-- | 'checkSpec' for a spec with imports, given what the loader found at
+-- each (see "SumSpec.Load"). When an import fails, only the imports and the
+-- header blocks are checked: the rest would be checked against a base that
+-- isn't there.
+checkSpecWith :: [Imported] -> FilePath -> Text -> Spec -> [CheckError]
+checkSpecWith imports file source spec
+  | any importFailed imports =
+      sortOn (position . errorPos) (checkImports imports <> checkHeaders spec)
+  | otherwise =
+      sortOn (position . errorPos) . nubOrdOn key $
+        concat
+          [ checkImports imports
+          , checkLayer env inits rawEvents events
+          , checkHeaders spec
+          , checkAnnotations spec
+          , concatMap
+              (checkBoundHeads env)
+              (map snd rawInits <> concatMap eventPatterns rawEvents)
+          , checkAlternatives (map snd rawInits) rawEvents
+          , checkInit file env inits
+          , checkTypeDefs env typeDefs
+          , checkConsts env consts
+          , checkEvents env spec events
+          , concatMap checkWrittenKeys events
+          , checkTransitions env transitions
+          , checkGuards env transitions
+          , checkListPlaces typeDefs (map snd inits) transitions
+          , warnListElements env root transitions
+          , warnReachability env (map snd (take 1 inits)) transitions
+          , warnOverlaps env transitions
+          , warnSuffixSpaces
+              source
+              ( mapMaybe eventInput rawEvents
+                  <> concat [[from, to] | Flat _ _ from to _ _ <- concatMap flatten rawEvents]
+              )
+          ]
   where
     position pos = (unPos (sourceLine pos), unPos (sourceColumn pos))
     -- A shared path is part of both sides, so a problem in it is found
@@ -113,7 +158,7 @@ checkSpec file source spec =
     root = case inits of
       (_, p) : _ | isType env (patternKey p) -> Just (patternKey p)
       _ -> Nothing
-    env = model spec
+    env = modelWith [b | Imported _ (ImportLoaded b _ _) <- imports] spec
 
 -- | Renders errors like parse errors: position, source line, caret and
 -- message, with a blank line between errors.
@@ -138,6 +183,377 @@ renderCheckErrors source = unlines . map render
         line = case drop (unPos (sourceLine pos) - 1) sourceLines of
           l : _ -> l
           [] -> ""
+
+-- ---------- Layered specs ----------
+
+-- | The imports: one per qualifier, and a file each can read, parse and
+-- check, reached through one import only. See "Import" in spec-v1.md.
+checkImports :: [Imported] -> [CheckError]
+checkImports imports =
+  [ errorAt n $
+      nameText n
+        <> " is imported twice (first on line "
+        <> lineOf first
+        <> "); give each import its own qualifier"
+  | (n, first) <- repeats nameText (map (importName . importedDecl) imports)
+  ]
+    <> concatMap problem imports
+    <> [ errorAtPos (importPathPos (importedDecl j)) $
+           T.pack (shown j)
+             <> " and "
+             <> T.pack (shown i)
+             <> " (line "
+             <> lineOf (importName (importedDecl i))
+             <> ") both reach "
+             <> T.pack shared
+             <> "; a spec reaches each file through one import"
+       | (k, j) <- indexed
+       , Just (i, shared) <-
+           [listToMaybe [(i, f) | (k', i) <- indexed, k' < k, f <- common i j]]
+       , qualifier i /= qualifier j -- reported above
+       ]
+  where
+    indexed = zip [0 :: Int ..] imports
+    qualifier = nameText . importName . importedDecl
+    reached i = case importedResult i of
+      ImportLoaded _ _ files -> files
+      _ -> []
+    common i j = [shown' | (f, shown') <- reached j, f `elem` map fst (reached i)]
+    shown i = case importedResult i of
+      ImportLoaded b _ _ -> baseFile b
+      ImportUnreadable f _ -> f
+      ImportUnparsable f -> f
+      ImportCycle _ -> T.unpack (importPath (importedDecl i))
+    problem (Imported decl result) =
+      let
+        at = errorAtPos (importPathPos decl)
+        file = T.pack (shown (Imported decl result))
+        check = "; run sumspec check " <> file
+      in
+        case result of
+          ImportUnreadable _ why -> [at ("can't read " <> file <> ": " <> why)]
+          ImportCycle files ->
+            [ at $
+                "importing "
+                  <> importPath decl
+                  <> " makes a cycle: "
+                  <> T.intercalate " imports " (map T.pack files)
+                  <> "; a base can't import a spec layered over it"
+            ]
+          ImportUnparsable _ -> [at (file <> " doesn't parse" <> check)]
+          ImportLoaded _ True _ -> [at (file <> " has errors" <> check)]
+          ImportLoaded _ False _ -> []
+
+-- | A qualified name the base doesn't declare, or whose qualifier isn't
+-- imported. The kind is what the name was taken for: a type, an event.
+unknownQualified :: Model -> Name -> Text -> Text -> CheckError
+unknownQualified env n q kind = case Map.lookup q (modelImports env) of
+  Nothing ->
+    errorAt n $
+      q
+        <> " isn't imported, so "
+        <> nameText n
+        <> " is unknown; import the base spec that declares it: __imports { "
+        <> q
+        <> " \"file\" }"
+  Just b ->
+    errorAt n $
+      T.pack (baseInfoFile b)
+        <> " declares no "
+        <> kind
+        <> " "
+        <> nameLocal (nameText n)
+
+-- | The rules of a layer over its bases (see "Layered specs" in
+-- spec-v1.md): the root holds each base's root, nothing but the base's
+-- events writes the base's state, reactions and dispatches name the
+-- base's events, and a dispatch gives the input they take.
+checkLayer :: Model -> [(Name, Pattern)] -> [Event] -> [Event] -> [CheckError]
+checkLayer env inits rawEvents events =
+  checkLayerRoot env inits
+    <> concat [ownership True p | (_, p) <- inits]
+    <> concat
+      [ onBase to <> ownership False to
+      | Flat _ _ _ to _ _ <- concatMap flatten events
+      ]
+    <> concatMap
+      (checkReaction env)
+      [e | e <- rawEvents, isJust (nameQualifier (eventName e))]
+    <> concat
+      [ checkDispatch env f d
+      | e <- events
+      , isNothing (nameQualifier (eventName e))
+      , (f, d) <- dispatches e
+      ]
+    <> warnDispatches env events
+  where
+    baseRoots = [r | BaseInfo _ (Just r) <- Map.elems (modelImports env)]
+    isBaseRoot t = t `elem` map nameText baseRoots
+    -- A transition is on a type of the layer: one on a base's type would
+    -- apply inside the base's state.
+    onBase to =
+      [ errorAt h $
+          nameText h
+            <> " is part of "
+            <> q
+            <> "'s state, which only "
+            <> q
+            <> "'s events change; write the transition on this spec's state "
+            <> "and fire one of them with >>"
+      | let h = patternHead to
+      , Just q <- [nameQualifier h]
+      , Map.member q (modelImports env)
+      , isType env (nameText h)
+      , not (isBaseRoot (nameText h))
+      ]
+    -- Nothing inside the base's root is written: the base's part keeps
+    -- its value, or changes by the base's events.
+    ownership inInit p =
+      [ errorAt h $
+          nameText h
+            <> " is "
+            <> q
+            <> "'s state, "
+            <> ( if inInit
+                   then "which starts at " <> q <> "'s __init; leave it out of __init"
+                   else
+                     "which only "
+                       <> q
+                       <> "'s events change; leave it out of the target, "
+                       <> "and fire one of them with >>"
+               )
+      | h <- patternHeads p
+      , isBaseRoot (nameText h)
+      , Just q <- [nameQualifier h]
+      ]
+
+-- | The heads of a pattern and of every pattern inside it.
+patternHeads :: Pattern -> [Name]
+patternHeads = \case
+  PatternPath (h :| _) args -> h : concatMap patternHeads args
+  PatternElement (h :| _) _ args -> h : concatMap patternHeads args
+  PatternAlts (h :| _) alts -> h : concatMap patternHeads alts
+  PatternNamed p _ -> patternHeads p
+  PatternPrimed _ p -> patternHeads p
+  PatternList _ _ -> []
+  PatternName _ -> []
+  PatternBound _ -> []
+  PatternExpr _ -> []
+
+-- | A layer's root is a product with each base's root as a factor, and a
+-- base's root is used nowhere else.
+checkLayerRoot :: Model -> [(Name, Pattern)] -> [CheckError]
+checkLayerRoot env inits =
+  [ errorAt at $
+      "the root "
+        <> rootName
+        <> " has no factor "
+        <> nameText r
+        <> "; a layer holds its base's state as a factor of its root: "
+        <> rootName
+        <> " = ... * "
+        <> nameText r
+  | Just (rootName, at, factors) <- [rootFactors]
+  , r <- baseRoots
+  , nameText r `notElem` factors
+  ]
+    <> [ errorAt n $
+           nameText n
+             <> " is the root of "
+             <> T.pack (baseInfoFile b)
+             <> ", so it is a factor of this spec's root only"
+       | TypeDef d _ body <- Map.elems (modelTypeDefs env)
+       , isNothing (nameQualifier d)
+       , n <- termNames body
+       , Just q <- [nameQualifier n]
+       , Just b <- [Map.lookup q (modelImports env)]
+       , Just r <- [baseInfoRoot b]
+       , nameText n == nameText r
+       , not (Just (nameText d) == fmap (\(x, _, _) -> x) rootFactors && isFactor n body)
+       ]
+  where
+    baseRoots = [r | BaseInfo _ (Just r) <- Map.elems (modelImports env)]
+    rootFactors = case inits of
+      (_, p) : _
+        | not (null baseRoots)
+        , Just TypeDef {typeDefName = d, typeDefBody = body} <-
+            Map.lookup (patternKey p) (modelTypeDefs env) ->
+            Just
+              (nameText d, d, [nameText n | TypeProduct fs <- [body], Factor (TermName n) _ <- fs])
+      _ -> Nothing
+    isFactor n = \case
+      TypeProduct fs -> or [namePos m == namePos n | Factor (TermName m) _ <- fs]
+      _ -> False
+    termNames = \case
+      TypeSum vs -> concat [foldMap termNames p | Variant _ p _ <- vs]
+      TypeProduct fs -> concatMap (termNamesIn . factorTerm) fs
+      TypeTerm t -> termNamesIn t
+    termNamesIn = \case
+      TermName n -> [n]
+      TermList t key -> termNamesIn t <> maybeToList key
+
+-- | A reaction names an event of a base, writes its input with that
+-- event's input type, and fires nothing. See "Reactions" in spec-v1.md.
+checkReaction :: Model -> Event -> [CheckError]
+checkReaction env (Event n input transitions) = case baseEvent env n of
+  Left err -> [err]
+  Right base ->
+    [ errorAt (patternHead i) $
+        "the input of "
+          <> nameText n
+          <> " is a "
+          <> want
+          <> "; write "
+          <> want
+          <> " or leave the input out"
+    | Just i <- [input]
+    , Just want <- [patternKey <$> eventInput base]
+    , patternKey i /= want
+    ]
+      <> [ errorAt (patternHead i) (nameText n <> " takes no input; leave it out")
+         | Just i <- [input]
+         , isNothing (eventInput base)
+         ]
+      <> [ errorAt (dispatchEvent d) $
+             "a reaction fires nothing: it happens with "
+               <> nameText n
+               <> ", which fires it already"
+         | Transition _ branches <- NE.toList transitions
+         , Just d <- map branchDispatch (NE.toList branches)
+         ]
+
+-- | The event of a base a qualified name names.
+baseEvent :: Model -> Name -> Either CheckError Event
+baseEvent env n = case Map.lookup (nameText n) (modelBaseEvents env) of
+  Just e -> Right (eventInfo e)
+  Nothing -> case nameQualifier n of
+    Just q -> Left (unknownQualified env n q "event")
+    Nothing -> Left (errorAt n (nameText n <> " is an event of this spec, not of a base"))
+
+-- | Each transition of an event that fires a base event, with the
+-- dispatch, as 'flatten' gives it.
+dispatches :: Event -> [(Flat, Dispatch)]
+dispatches (Event n input transitions) =
+  [ (f, d)
+  | Transition paths branches <- NE.toList transitions
+  , b <- NE.toList branches
+  , Just d <- [branchDispatch b]
+  , f <- flatten (Event n input (Transition paths (b :| []) :| []))
+  ]
+
+-- | A dispatch names an event of a base and gives the input it takes:
+-- one name or value of the input's type, or the input type's arguments.
+-- See "Dispatch" in spec-v1.md.
+checkDispatch :: Model -> Flat -> Dispatch -> [CheckError]
+checkDispatch env f (Dispatch e args) = case baseEvent env e of
+  Left err -> [err]
+  Right base -> case (eventInput base, args) of
+    (Nothing, []) -> []
+    (Nothing, _ : _) ->
+      [errorAt e (nameText e <> " takes no input; write >> " <> nameText e <> " alone")]
+    (Just i, []) ->
+      [ errorAt e $
+          nameText e
+            <> " takes an input, a "
+            <> patternKey i
+            <> "; give it in parentheses: >> "
+            <> nameText e
+            <> "(...)"
+      ]
+    (Just i, _ : _) ->
+      let
+        want = patternKey i
+        value = elaborateValues env (elaborate env (argument want))
+      in
+        [ errorAtPos pos "the input of a dispatch takes no prime (')"
+        | PatternPrimed pos _ <- concatMap subPatterns args
+        ]
+          <> [ errorAt x $
+                 "the input of a dispatch names no value; write a name the "
+                   <> "transition gives, or a value"
+             | PatternNamed _ x <- concatMap subPatterns args
+             ]
+          <> checkPattern env names value
+          <> [ errorAt e $
+                 nameText e
+                   <> " takes a "
+                   <> want
+                   <> ", but this gives a "
+                   <> got
+             | Just got <- [argKey env names value]
+             , isType env got || Map.member (nameText (patternHead value)) names
+             , got /= want
+             ]
+  where
+    names = transitionNameMap env f
+    -- A name, or a pattern headed by a type, is the input itself; a value
+    -- or several arguments are the input type's arguments.
+    argument want = case args of
+      [a] | given (bare a) -> a
+      _ -> PatternPath (Name (namePos e) want :| []) args
+    given = \case
+      PatternName _ -> True
+      PatternPath (h :| _) _ -> isType env (nameText h)
+      PatternElement {} -> True
+      PatternList {} -> True
+      _ -> False
+
+-- | A pattern and every pattern inside it.
+subPatterns :: Pattern -> [Pattern]
+subPatterns p =
+  p : case p of
+    PatternPath _ args -> concatMap subPatterns args
+    PatternElement _ _ args -> concatMap subPatterns args
+    PatternAlts _ alts -> concatMap subPatterns alts
+    PatternNamed q _ -> subPatterns q
+    PatternPrimed _ q -> subPatterns q
+    _ -> []
+
+-- | The warnings about dispatches: one that can never fire its event, as
+-- its source excludes every source of the event; and one whose event has
+-- a reaction that can apply in the same state, since the dispatching
+-- transition counts as one of the event's transitions too.
+warnDispatches :: Model -> [Event] -> [CheckError]
+warnDispatches env events =
+  [ warningAt (dispatchEvent d) $
+      nameText (dispatchEvent d)
+        <> " can't happen in any state this source matches: each of its sources "
+        <> "picks other variants; fire it from a state where it can happen"
+  | (f, d) <- fired
+  , Right base <- [baseEvent env (dispatchEvent d)]
+  , let sources = [from | Flat _ _ from _ _ _ <- flatten base]
+  , not (null sources)
+  , not (any (mayApply f) sources)
+  ]
+    <> [ warningAt (dispatchEvent d) $
+           "this transition fires "
+             <> nameText (dispatchEvent d)
+             <> ", whose reaction on line "
+             <> lineOf at
+             <> " can apply to the same state, and which one happens isn't said; "
+             <> "make their sources or guards exclude each other"
+       | (f@(Flat _ _ from _ _ _), d) <- fired
+       , r@(Flat _ _ other _ _ at) <- reactions
+       , nameText (eventName' r) == nameText (dispatchEvent d)
+       , patternKey from == patternKey other
+       , mayOverlap env f r
+       ]
+  where
+    fired =
+      [ (f, d)
+      | e <- events
+      , isNothing (nameQualifier (eventName e))
+      , (f, d) <- dispatches e
+      ]
+    reactions = concatMap flatten [e | e <- events, isJust (nameQualifier (eventName e))]
+    eventName' (Flat n _ _ _ _ _) = n
+    -- A source of the event may apply where the layer's source holds,
+    -- unless every part of the layer's source on the event source's type
+    -- picks other variants.
+    mayApply (Flat _ _ from _ _ _) source =
+      case [p | p <- subPatterns from, patternKey p == patternKey source] of
+        [] -> True
+        parts -> any (\p -> not (excludes (fixedVariants p) (fixedVariants source))) parts
 
 -- ---------- Environment ----------
 
@@ -384,7 +800,7 @@ flatten (Event n input transitions) =
       (expandGuard paths <$> guard)
       (fromMaybe (patternHead (NE.head from)) (listToMaybe picked))
   | Transition paths branches <- NE.toList transitions
-  , Branch from guard to _ <- NE.toList branches
+  , Branch from guard to _ _ <- NE.toList branches
   , (source, picked) <- expandSide from
   ]
   where
@@ -449,7 +865,7 @@ checkAlternatives inits events =
       [ misplaced "a target sets one state, so it has no alternatives; pick one variant" p
       | Event _ _ transitions <- events
       , Transition _ branches <- NE.toList transitions
-      , Branch _ _ to _ <- NE.toList branches
+      , Branch _ _ to _ _ <- NE.toList branches
       , p <- NE.toList to
       ]
     <> concatMap inGroups (inits <> concatMap eventPatterns events)
@@ -540,6 +956,7 @@ checkEvents env spec events =
   [ errorAt n ("event " <> nameText n <> " is not listed in __events")
   | Event n _ _ <- firsts (nameText . eventName) events
   , nameText n `Set.notMember` listed
+  , isNothing (nameQualifier n) -- a reaction: the event is the base's
   ]
     <> [ errorAt n $
            "event "
@@ -635,7 +1052,7 @@ checkWrittenKeys (Event _ _ transitions) =
            | (h, k@(keyName -> x)) <- concatMap manyKeys (maybe [] guardPatterns guard)
            ]
     | Transition _ branches <- NE.toList transitions
-    , Branch _ guard to _ <- NE.toList branches
+    , Branch _ guard to _ _ <- NE.toList branches
     ]
 
 -- | @L[each]@ or @L[each in xs]@ with the key named @p@, for a message
@@ -1194,7 +1611,7 @@ eventPatterns (Event _ input transitions) =
     <> concat
       [ NE.toList from <> foldMap guardPatterns guard <> NE.toList to
       | Transition _ branches <- NE.toList transitions
-      , Branch from guard to _ <- NE.toList branches
+      , Branch from guard to _ _ <- NE.toList branches
       ]
 
 -- | @Head(#n)@ needs a head that holds one value.
@@ -1994,12 +2411,18 @@ warnOverlaps env transitions =
   ]
   where
     indexed = zip [0 :: Int ..] transitions
-    overlaps t@(Flat n _ from _ g _) u@(Flat m _ other _ h _) =
+    overlaps t@(Flat n _ from _ _ _) u@(Flat m _ other _ _ _) =
       nameText n == nameText m
         && patternKey from == patternKey other
-        && not (excludes (variantsOf from) (variantsOf other))
-        && guardsMayHold env (transitionNameMap env t, g) (transitionNameMap env u, h)
-    variantsOf = fixedVariants
+        && mayOverlap env t u
+
+-- | Whether two transitions can apply to the same state: their sources
+-- pick no different variants at one place, and their guards can hold
+-- together.
+mayOverlap :: Model -> Flat -> Flat -> Bool
+mayOverlap env t@(Flat _ _ from _ g _) u@(Flat _ _ other _ h _) =
+  not (excludes (fixedVariants from) (fixedVariants other))
+    && guardsMayHold env (transitionNameMap env t, g) (transitionNameMap env u, h)
 
 -- | Two sets of variant positions exclude each other when a variant of one
 -- and a variant of the other are at the same place and differ: their
@@ -2546,6 +2969,7 @@ unknownType :: Model -> Name -> CheckError
 unknownType env n
   | Map.member (nameText n) (modelConsts env) =
       errorAt n (constantNotType (nameText n))
+  | Just q <- nameQualifier n = unknownQualified env n q "type"
   | otherwise =
       errorAt n $
         "unknown type " <> nameText n <> "; declare it in __atomics or define it"

@@ -1,0 +1,6 @@
+test/parse/error-import-no-file.sumspec:1:18:
+  |
+1 | __imports { core base.sumspec }
+  |                  ^
+unexpected 'b'
+expecting file name in quotes

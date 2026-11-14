@@ -86,9 +86,16 @@ update before any code:
       checked, arguments opaque.
 - [ ] Argument kinds for annotations (`@unless <pattern>`), and checking
       `@default` and `@range` (see proposals.md).
-- [ ] Core and UI specs: `__import`, qualified names, UI events that
-      dispatch core events (`>>`) or react to them (see "Core and UI
-      specs" in `spec/proposals.md`).
+- [x] Layered specs (core and UI): `__imports`, qualified names, events
+      that dispatch base events (`>>`) or react to them (see "Layered
+      specs" in `spec/spec-v1.md`).
+- [ ] Layered specs, more: occurrences and the "never dispatched"
+      warning, several dispatches, modules (shared bases, transitive
+      dispatch, `as`), splitting the drone example (see "Layered specs,
+      more" in `spec/proposals.md`).
+- [ ] The dispatch warning by coverage: warn when a dispatch's source can
+      hold in some state where the event can't happen, not only when it
+      excludes every source of the event.
 - [ ] Dependent types and generic types.
 - [ ] Variant refinement (`PMode.ShowMission = ...`).
 - [ ] Several events with one transition (`g, h :: Y -> Z`).

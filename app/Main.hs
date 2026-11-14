@@ -3,8 +3,10 @@ module Main (main) where
 import Control.Monad (when)
 import Data.Text.IO qualified as T
 import SumSpec
-  ( checkSpec
+  ( Loaded (..)
+  , checkSpecWith
   , hasErrors
+  , loadSpec
   , parseSpec
   , renderCheckErrors
   , renderParseError
@@ -24,11 +26,11 @@ main =
         Left err -> hPutStr stderr (renderParseError err) >> exitFailure
         Right spec -> T.putStr (renderSpec spec)
     ["check", file] -> do
-      source <- T.readFile file
-      case parseSpec file source of
+      Loaded source parsed imports <- loadSpec file
+      case parsed of
         Left err -> hPutStr stderr (renderParseError err) >> exitFailure
         Right spec -> do
-          let problems = checkSpec file source spec
+          let problems = checkSpecWith imports file source spec
           hPutStr stderr (renderCheckErrors source problems)
           when (hasErrors problems) exitFailure
     ["lsp"] -> do

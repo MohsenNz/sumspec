@@ -7,7 +7,7 @@
 
 (* The optional version header comes first. Then come the header blocks,
    before any definition, in any order: __atomics and __events once each,
-   __annotations at most once. *)
+   __annotations and __imports at most once. *)
 spec          = [ version_header ] , headers , { definition } ;
 
 (* The language version the spec is written for, major.minor. No header
@@ -16,7 +16,16 @@ version_header = "__version" , VERSION ;
 
 headers       = header_block , { header_block } ;
 
-header_block  = atomics_block | events_block | annotations_block ;
+header_block  = atomics_block | events_block | annotations_block
+              | imports_block ;
+
+(* The base specs this spec layers over (see "Layered specs" in
+   spec-v1.md). In each, LOWER is the qualifier for the names it
+   declares; the string is the file, relative to this one:
+     __imports { core "todo-core.sumspec" }                             *)
+imports_block = "__imports" , "{" , { import } , "}" ;
+
+import        = LOWER , STRING ;
 
 atomics_block = "__atomics" , "{" , { atomic } , "}" ;
 
@@ -60,8 +69,8 @@ type_def      = UPPER , { annotation } , "=" , type_expr ;
    value is a literal of a type, or a variant of a sum:
      BatteryLowThreshold = BatteryCharge(15)
      MinimumFix          = GPSFix.Fix3D                                 *)
-const_def     = UPPER , "=" , UPPER , ( "(" , literal , ")"
-                                      | "." , UPPER ) ;
+const_def     = UPPER , "=" , type_name , ( "(" , literal , ")"
+                                          | "." , UPPER ) ;
 
 (* A single type_term is a newtype:      MissionName = Text
    A list is a list type:                Missions    = [Mission]
@@ -101,8 +110,11 @@ factor        = type_term , { annotation } ;
    The grammar reads a list wherever a type_term goes; the type checker
    allows a list only as the whole body of a type definition (see
    "List" in spec-v1.md).                                              *)
-type_term     = UPPER
-              | "[" , type_term , [ "by" , UPPER ] , "]" ;
+type_term     = type_name
+              | "[" , type_term , [ "by" , type_name ] , "]" ;
+
+(* A type of this spec, or of a base spec, qualified (core.Todos). *)
+type_name     = UPPER | QUPPER ;
 
 
 (* ---------- Transitions ---------- *)
@@ -115,8 +127,12 @@ type_term     = UPPER
      press :: App(Mode.Off * Level.Low) -> App(Mode.On)
            :: App(Mode.Off) -> App(Level.High)
    A transition starts with "::", which can't begin a definition, so
-   layout doesn't matter.                                              *)
-event_def     = LOWER , [ input ] , transition , { transition } ;
+   layout doesn't matter.
+   A qualified name, QLOWER, gives a reaction: transitions this layer
+   adds to an event of a base spec (see "Reactions" in spec-v1.md):
+     core.clearCompleted :: App => View.Editing -> View.List            *)
+event_def     = ( LOWER | QLOWER ) , [ input ] , transition ,
+                { transition } ;
 
 (* A transition may start with shared paths, joined by "/": the path
    both sides share, written once. Then come its branches, each starting
@@ -135,10 +151,18 @@ event_def     = LOWER , [ input ] , transition , { transition } ;
             @effect notify "Mission saved"                              *)
 transition    = "::" , ( shared , { "/" , shared } , branch , { branch }
                        | pattern , [ guard ] , "->" , pattern ,
-                         { annotation } ) ;
+                         [ dispatch ] , { annotation } ) ;
 
 branch        = "=>" , arguments , [ guard ] , "->" , arguments ,
-                { annotation } ;
+                [ dispatch ] , { annotation } ;
+
+(* After the target: the event of a base spec this transition fires, in
+   the same step, with its input in parentheses (see "Dispatch" in
+   spec-v1.md):
+     clearClicked :: App => Filter -> Filter.All  >> core.clearCompleted
+     finish :: App => View.Editing(EditText(#e) * core.TodoId#id)
+            -> View.List  >> core.rename(id * e)                         *)
+dispatch      = DISPATCH , QLOWER , [ "(" , arguments , ")" ] ;
 
 (* A guard is a condition on the current state, after the source and
    before "->": the transition applies only while it holds (see "Guards"
@@ -249,7 +273,7 @@ alternative   = path , [ "." , "{" , alternatives , "}"
 
 element_key   = "[" , ( LOWER | "each" , [ NAMING ] , [ "in" , LOWER ] ) , "]" ;
 
-path          = UPPER , { "." , UPPER } ;
+path          = type_name , { "." , UPPER } ;
 
 
 (* ---------- Annotations ---------- *)
@@ -287,6 +311,13 @@ STRING        = '"' , { character - ( '"' | newline ) } , '"' ;
 
 CMP           = "==" | "!=" | "<=" | ">=" | "<" | ">" ;
 
+DISPATCH      = ">>" ;
+
+(* A qualified name is one token: no space around the ".". The LOWER
+   is a qualifier in __imports. *)
+QUPPER        = LOWER , "." , UPPER ;
+QLOWER        = LOWER , "." , LOWER ;
+
 (* A naming is one token: no space between "#" and the name. *)
 NAMING        = "#" , LOWER ;
 
@@ -322,8 +353,8 @@ character     = ? any Unicode character ? ;
    end of a line of code:
      Plot = Empty | Drawn (Boundary * Markings)  -- Empty: nothing drawn
    Tokens are matched longest first, so "->--x" is "->" followed by a
-   comment, "=>" is never "=" followed by ">", and "//" is never two
-   "/". No token contains "--", so "--" always starts a comment.
+   comment, "=>" is never "=" followed by ">", ">>" is never two ">",
+   and "//" is never two "/". No token contains "--", so "--" always starts a comment.
 
    Definition boundary: a variant's payload can be a bare UPPER, so
    "Failed FailureReason" is one variant. An UPPER followed by "=", or by
@@ -386,7 +417,27 @@ character     = ? any Unicode character ? ;
      the block uses none). Its arguments are not checked. See
      "Annotations" in spec-v1.md;
    - every event is listed in __events, and every name in __events has
-     at least one transition;
+     at least one transition; a reaction (a qualified event_def) isn't
+     listed;
+   - imports (see "Layered specs" in spec-v1.md): each qualifier is
+     imported once; the file exists, parses and checks with no errors
+     (else one error on its entry); no import cycle, and no file
+     reached through two imports. A qualified name has an imported
+     qualifier and is declared in that base; the base's own imports
+     aren't visible. Only the first name of a path is qualified, and a
+     base variant is reached only through its qualified type;
+   - in a spec with imports, the root is a product with each base's root
+     as a factor, and a base's root is used nowhere else;
+   - no target and no __init writes inside a base's root (no pattern
+     headed by it there, primed or not). See "The base's state" in
+     spec-v1.md;
+   - a reaction names an event of the base; its input, if written, is
+     headed by that event's input type; it has no dispatch;
+   - a dispatch (>>) names an event of a base, and is written in an
+     event of this spec, not a reaction. It has an argument exactly when
+     the event takes an input: one name or value of the input's type, or
+     the input type's arguments, checked as on the target side. See
+     "Dispatch" in spec-v1.md;
    - an event is defined once (one event_def), with all its
      transitions. See "Several transitions for one event" in
      spec-v1.md;
@@ -502,6 +553,11 @@ character     = ? any Unicode character ? ;
      two element paths are one element only if their keys have one name) and
      whose guards can hold in the same state (a guard is compared by the
      variants it requires and forbids, by the comparisons of a name with
-     a literal or variant, and by its memberships and element paths).
+     a literal or variant, and by its memberships and element paths). A
+     dispatching transition counts as a transition of the event it
+     fires, for its reactions;
+   - a dispatching transition whose source excludes every source of the
+     dispatched event, by their variants (the base's parts of the source,
+     headed by the type of each event source, are compared).
 
    Not in v1 (see proposals.md): "<-", "g, h ::", variant refinement (PMode.ShowMission = ...). *)

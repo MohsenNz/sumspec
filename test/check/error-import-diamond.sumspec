@@ -1,0 +1,13 @@
+-- Two imports that both reach base-shared.sumspec: a layer reaches each
+-- file through one import.
+__imports {
+  left "base-left.sumspec"
+  right "base-right.sumspec"
+}
+
+__atomics { }
+__events { }
+
+__init :: App
+
+App = left.Left * right.Right

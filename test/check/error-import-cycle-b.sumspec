@@ -1,0 +1,12 @@
+-- The other half of the cycle in error-import-cycle-a.sumspec.
+__imports {
+  a "error-import-cycle-a.sumspec"
+}
+
+__atomics { }
+__events { }
+
+__init :: App
+
+App = Mode * a.App
+Mode = On | Off

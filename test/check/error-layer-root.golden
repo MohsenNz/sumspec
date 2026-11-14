@@ -1,0 +1,24 @@
+test/check/error-layer-root.sumspec:12:1:
+   |
+12 | App = Mode * Copy
+   | ^
+the root App has no factor core.Core; a layer holds its base's state as a factor of its root: App = ... * core.Core
+
+test/check/error-layer-root.sumspec:13:13:
+   |
+13 | Mode = On | Off
+   |             ^
+warning: Mode.Off is never reached: neither __init nor any transition that can happen puts the app there
+
+test/check/error-layer-root.sumspec:14:8:
+   |
+14 | Copy = core.Core
+   |        ^
+core.Core is the root of test/check/base-todo.sumspec, so it is a factor of this spec's root only
+
+test/check/error-layer-root.sumspec:15:15:
+   |
+15 | Pair = Mode * core.Core
+   |               ^
+core.Core is the root of test/check/base-todo.sumspec, so it is a factor of this spec's root only
+

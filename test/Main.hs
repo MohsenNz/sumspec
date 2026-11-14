@@ -41,8 +41,8 @@ main = do
       "sumspec"
       [ testGroup "parse" [golden parseOnce c | c <- parseCases]
       , testGroup "round trip" [golden parseTwice c | c <- parseCases]
-      , testGroup "check" [golden check c | c <- checkCases]
-      , testGroup "model" [golden modelOf c | c <- modelCases]
+      , testGroup "check" [goldenIO check c | c <- checkCases]
+      , testGroup "model" [goldenIO modelOf c | c <- modelCases]
       , testGroup "model agrees with the checker" [agreement file | (file, _) <- checkCases]
       ]
 
@@ -56,12 +56,25 @@ corpus dir = do
       <> [(file, replaceExtension file ".golden") | file <- files]
 
 examples :: [FilePath]
-examples = ["example/drone.sumspec", "example/todomvc.sumspec", "example/git.sumspec"]
+examples =
+  [ "example/drone.sumspec"
+  , "example/todomvc.sumspec"
+  , "example/git.sumspec"
+  , "example/todo-core.sumspec"
+  , "example/todo-ui.sumspec"
+  ]
 
 golden :: (FilePath -> Text -> Text) -> (FilePath, FilePath) -> TestTree
 golden run (file, goldenFile) =
   goldenVsString (takeBaseName file) goldenFile $
     LBS.fromStrict . T.encodeUtf8 . run file <$> T.readFile file
+
+-- | A golden test whose output reads more files than the case: the bases
+-- a spec imports.
+goldenIO :: (FilePath -> IO Text) -> (FilePath, FilePath) -> TestTree
+goldenIO run (file, goldenFile) =
+  goldenVsString (takeBaseName file) goldenFile $
+    LBS.fromStrict . T.encodeUtf8 <$> run file
 
 -- | The canonical form of the spec, or the parse error.
 parseOnce :: FilePath -> Text -> Text
@@ -76,19 +89,26 @@ parseTwice file source = case parseSpec file source of
   Right spec -> parseOnce file (renderSpec spec)
 
 -- | "OK", or the type errors (or the parse error, if it doesn't parse).
-check :: FilePath -> Text -> Text
-check file source = case parseSpec file source of
-  Left err -> T.pack (renderParseError err)
-  Right spec -> case checkSpec file source spec of
-    [] -> T.pack "OK\n"
-    errors -> T.pack (renderCheckErrors source errors)
+-- The bases the spec imports are loaded from their files.
+check :: FilePath -> IO Text
+check file = do
+  Loaded source parsed imports <- loadSpec file
+  pure $ case parsed of
+    Left err -> T.pack (renderParseError err)
+    Right spec -> case checkSpecWith imports file source spec of
+      [] -> T.pack "OK\n"
+      errors -> T.pack (renderCheckErrors source errors)
 
--- | The model of the definitions that parse, or the parse error of the
--- header.
-modelOf :: FilePath -> Text -> Text
-modelOf file source = case parseSpecPartial file source of
-  Left err -> T.pack (renderParseError err)
-  Right (spec, _) -> renderModel (model spec)
+-- | The model of the definitions that parse, with the bases they import,
+-- or the parse error of the header.
+modelOf :: FilePath -> IO Text
+modelOf file = do
+  source <- T.readFile file
+  case parseSpecPartial file source of
+    Left err -> pure (T.pack (renderParseError err))
+    Right (spec, _) -> do
+      imports <- loadImports file spec
+      pure (renderModel (modelWith (importedBases imports) spec))
 
 -- | In a spec the checker accepts, every path resolves in the model with
 -- nothing unknown; and from a type, the strict rule ('step') accepts each
@@ -96,11 +116,11 @@ modelOf file source = case parseSpecPartial file source of
 -- A spec with errors, or that doesn't parse, is skipped.
 agreement :: FilePath -> TestTree
 agreement file = testCase (takeBaseName file) $ do
-  source <- T.readFile file
-  case parseSpec file source of
+  Loaded source parsed imports <- loadSpec file
+  case parsed of
     Right spec
-      | not (hasErrors (checkSpec file source spec)) ->
-          case concatMap (disagreement (model spec)) (specPaths spec) of
+      | not (hasErrors (checkSpecWith imports file source spec)) ->
+          case concatMap (disagreement (modelWith (importedBases imports) spec)) (specPaths spec) of
             [] -> pure ()
             problems -> assertFailure (T.unpack (T.unlines problems))
     _ -> pure ()
@@ -144,7 +164,7 @@ specPaths spec = concatMap definition (specDefinitions spec)
                 <> concatMap pattern (toList from <> toList to)
                 <> maybe [] guardPaths guard
             | Transition shared branches <- toList transitions
-            , Branch from guard to _ <- toList branches
+            , Branch from guard to _ _ <- toList branches
             ]
     pattern = \case
       PatternPath p args -> p : concatMap pattern args

@@ -1,0 +1,28 @@
+-- A base spec for the layer cases (layers.sumspec, error-layer-*.sumspec,
+-- error-dispatch.sumspec, ...). It is a case of its own too.
+__atomics { Text = __text  Count = __int  TodoId }
+__events { add toggle rename clear stop }
+
+__init :: Core(Link.Up)
+
+Core = Todos * Link
+Todos = [Todo by TodoId]
+Todo = Title * Completion
+Title = Text
+Completion = Active | Completed
+Link = Up | Down
+Rename = TodoId * Title
+MaxLength = Count(80)
+
+add Title#t :: Core => Todos -> Todos'
+
+toggle TodoId#id
+  :: Todos[id]
+  => Completion.Active -> Completion.Completed
+  => Completion.Completed -> Completion.Active
+
+rename Rename(TodoId#id * Title#t) :: Todos[id] => Title -> t
+
+clear :: Core => Link.Up -> Link.Up * Todos'
+
+stop :: Link.Up -> Link.Down

@@ -1,0 +1,53 @@
+types
+  App : product of NewTodo, Filter, Editing, core.Core
+  EditText : newtype of core.Title
+  Editing : sum of None, Row
+  Filter : sum of All, Active, Completed
+  NewTodo : sum of Blank, Typing
+  core.Completion : sum of Active, Completed
+  core.Core : product of core.Todos, core.ItemsLeft
+  core.Count : atomic __int
+  core.ItemsLeft : newtype of core.Count
+  core.Rename : product of core.TodoId, core.Title
+  core.Text : atomic __text
+  core.Title : newtype of core.Text
+  core.Todo : product of core.Title, core.Completion
+  core.TodoId : atomic
+  core.Todos : list of core.Todo by core.TodoId
+variants
+  Active : Filter
+  All : Filter
+  Blank : NewTodo
+  Completed : Filter
+  None : Editing
+  Row : Editing
+  Typing : NewTodo
+constants
+events
+  cancelEditing : 1 transition
+  clearClicked : 1 transition
+  core.deleteTodo : 1 transition, not listed
+  deleteClicked : 1 transition
+  finishEditing : 1 transition
+  showActive : 1 transition
+  showAll : 1 transition
+  showCompleted : 1 transition
+  startEditing : 1 transition
+  startTyping : 1 transition
+  submitTodo : 1 transition
+  toggleAllClicked : 1 transition
+  toggleClicked : 1 transition
+annotations
+root App
+imports
+  core : example/todo-core.sumspec, root core.Core
+base variants
+  Active : core.Completion
+  Completed : core.Completion
+base events
+  core.addTodo
+  core.clearCompleted
+  core.deleteTodo
+  core.rename
+  core.toggleAll
+  core.toggleTodo

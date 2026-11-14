@@ -1,0 +1,24 @@
+types
+  Completion : sum of Active, Completed
+  Core : product of Todos, ItemsLeft
+  Count : atomic __int
+  ItemsLeft : newtype of Count
+  Rename : product of TodoId, Title
+  Text : atomic __text
+  Title : newtype of Text
+  Todo : product of Title, Completion
+  TodoId : atomic
+  Todos : list of Todo by TodoId
+variants
+  Active : Completion
+  Completed : Completion
+constants
+events
+  addTodo : 1 transition
+  clearCompleted : 1 transition
+  deleteTodo : 1 transition
+  rename : 1 transition
+  toggleAll : 1 transition
+  toggleTodo : 2 transitions
+annotations
+root Core

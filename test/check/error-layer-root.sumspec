@@ -1,0 +1,15 @@
+-- The root of a layer holds the base's root as a factor, and the base's
+-- root is used nowhere else.
+__imports {
+  core "base-todo.sumspec"
+}
+
+__atomics { }
+__events { }
+
+__init :: App(Mode.On)
+
+App = Mode * Copy
+Mode = On | Off
+Copy = core.Core
+Pair = Mode * core.Core

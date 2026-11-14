@@ -1,0 +1,9 @@
+-- A base with an error: error-import.sumspec imports it.
+__atomics { }
+__events { go }
+
+__init :: Core
+
+Core = A | B
+
+go :: Core.A -> Missing

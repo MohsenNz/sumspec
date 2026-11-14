@@ -1,0 +1,18 @@
+-- A layer writes nothing inside the base's state: not in a target, not in
+-- __init, not with a transition on a base type.
+__imports {
+  core "base-todo.sumspec"
+}
+
+__atomics { }
+__events { reset prime write link }
+
+__init :: App(Mode.On * core.Core(core.Link.Down))
+
+App = Mode * core.Core
+Mode = On | Off
+
+reset :: App => Mode.On -> Mode.Off * core.Core(core.Link.Down)
+prime :: App => Mode.On -> Mode.Off * core.Core'
+write core.TodoId#id :: core.Todos[id] => core.Completion.Active -> core.Completion.Completed
+link :: App / core.Core => core.Link.Up -> core.Link.Down

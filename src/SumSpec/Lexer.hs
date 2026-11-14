@@ -13,7 +13,11 @@ module SumSpec.Lexer
   , equals
   , slash
   , upperName
+  , typeName
   , lowerName
+  , eventDefName
+  , qualifiedEvent
+  , dispatchOp
   , valueName
   , naming
   , annotationDecl
@@ -30,6 +34,7 @@ module SumSpec.Lexer
   , braces
   ) where
 
+import Control.Monad (void)
 import Data.Char (isAsciiLower, isAsciiUpper, isDigit, isSpace)
 import Data.Set qualified as Set
 import Data.Text (Text)
@@ -86,13 +91,61 @@ equals = lexeme (try (char '=' *> notFollowedBy (char '>'))) <?> "'='"
 upperName :: Parser Name
 upperName = identifier isAsciiUpper <?> "type or variant name"
 
--- | An event name: @LOWER@.
-lowerName :: Parser Name
-lowerName = identifier isAsciiLower <?> "event name"
+-- | A type name: @UPPER@, or @QUPPER@, a type of a base spec written with
+-- its qualifier (@core.Todos@), one token.
+typeName :: Parser Name
+typeName =
+  lexeme (try (qualified isAsciiUpper) <|> rawIdentifier isAsciiUpper)
+    <?> "type or variant name"
 
--- | A name for a value in a pattern: @LOWER@.
+-- | A plain event name: @LOWER@, not followed by a @.@.
+lowerName :: Parser Name
+lowerName = unqualified <?> "event name"
+
+-- | The name of an event definition: @LOWER@, or @QLOWER@ for a reaction
+-- to an event of a base spec (@core.clearCompleted@).
+eventDefName :: Parser Name
+eventDefName = lexeme (try (qualified isAsciiLower) <|> rawUnqualified) <?> "event name"
+
+-- | An event named after @>>@: @Right@ an event of a base spec, @QLOWER@
+-- (@core.clearCompleted@), or @Left@ a plain @LOWER@, which the parser
+-- reports at its start.
+qualifiedEvent :: Parser (Either Name Name)
+qualifiedEvent =
+  lexeme
+    ( do
+        Name pos q <- rawIdentifier isAsciiLower
+        choice
+          [ (\(Name _ e) -> Right (Name pos (q <> "." <> e)))
+              <$> (char '.' *> rawIdentifier isAsciiLower)
+          , pure (Left (Name pos q))
+          ]
+    )
+    <?> "event of a base spec, such as core.e"
+
+-- | A name for a value in a pattern: @LOWER@, not followed by a @.@ (that
+-- is a qualified name).
 valueName :: Parser Name
-valueName = identifier isAsciiLower <?> "value name"
+valueName = unqualified <?> "value name"
+
+-- | @LOWER.X@ with no space around the @.@: the qualifier and a name whose
+-- first letter satisfies the test, as one name at the qualifier's position.
+qualified :: (Char -> Bool) -> Parser Name
+qualified isFirst = do
+  Name pos q <- rawIdentifier isAsciiLower
+  _ <- char '.'
+  Name _ local <- rawIdentifier isFirst
+  pure (Name pos (q <> "." <> local))
+
+unqualified :: Parser Name
+unqualified = lexeme rawUnqualified
+
+rawUnqualified :: Parser Name
+rawUnqualified = try (rawIdentifier isAsciiLower <* notFollowedBy (char '.'))
+
+-- | @>>@, before the event a transition fires.
+dispatchOp :: Parser ()
+dispatchOp = void (symbol ">>")
 
 -- | @#x@, naming the value of the pattern before it. One token: no space
 -- between the @#@ and the name.
@@ -232,7 +285,7 @@ compareOp =
         , OpEq <$ chunk "=="
         , OpNe <$ chunk "!="
         , OpLt <$ char '<'
-        , OpGt <$ char '>'
+        , OpGt <$ try (char '>' <* notFollowedBy (char '>'))
         ]
     )
     <?> "comparison operator"

@@ -70,6 +70,7 @@ main =
             @?= [range 4 13 16, range 8 25 28, range 10 20 23, range 10 32 35]
       , testGroup "hover" hoverTests
       , testGroup "completion" completionTests
+      , testGroup "layered specs" layerTests
       , testCase "semantic tokens" $ do
           tokens <- withNav getSemanticTokens
           case tokens of
@@ -242,6 +243,79 @@ hoverTests =
 
 -- | Completion, mostly on a line being typed after 'described', which
 -- doesn't parse.
+-- | A layer over a base spec: the base is read from its file, relative to
+-- the document.
+layerTests :: [TestTree]
+layerTests =
+  [ testCase "a layer over its base has no diagnostics" $ do
+      diags <- diagnosticsOf "example/todo-ui.sumspec"
+      diags @?= []
+  , testCase "a base that can't be read is an error on its import" $ do
+      diags <-
+        diagnosticsOfText
+          "__imports { core \"no-such-file.sumspec\" }\n__atomics { }\n__events { }\n"
+      map summary diags
+        @?= [(DiagnosticSeverity_Error, Range (Position 0 17) (Position 0 39))]
+  , testCase "the definition of a base's type, in the base's file" $ do
+      defs <- withServer $ do
+        doc <- openDoc "example/todo-ui.sumspec" "sumspec"
+        _ <- waitForDiagnostics
+        getDefinitions doc (Position 37 6)
+      case defs of
+        InL (Definition (InL (Location uri r))) -> do
+          assertBool "in todo-core.sumspec" ("todo-core.sumspec" `T.isSuffixOf` getUri uri)
+          r @?= range 29 0 4
+        _ -> assertBool "one location" False
+  , testCase "after a qualifier, what the base declares" $ do
+      items <- withServer $ do
+        doc <- createDoc "example/layer.sumspec" "sumspec" layer
+        _ <- waitForDiagnostics
+        getCompletions doc (Position 6 11)
+      sort [i._label | i <- items]
+        @?= [ "Completion"
+            , "Core"
+            , "Count"
+            , "ItemsLeft"
+            , "Rename"
+            , "Text"
+            , "Title"
+            , "Todo"
+            , "TodoId"
+            , "Todos"
+            , "addTodo"
+            , "clearCompleted"
+            , "deleteTodo"
+            , "rename"
+            , "toggleAll"
+            , "toggleTodo"
+            ]
+  , testCase "a qualifier is a namespace, and the name after it keeps its kind" $ do
+      tokens <- withServer $ do
+        doc <- openDoc "example/todo-ui.sumspec" "sumspec"
+        _ <- waitForDiagnostics
+        getSemanticTokens doc
+      case tokens of
+        InL t ->
+          filter (\(l, _, _, _, _) -> l == 37) (decode t)
+            @?= [ (37, 2, 1, "operator", [])
+                , (37, 4, 4, "namespace", [])
+                , (37, 9, 4, "type", [])
+                ]
+        InR _ -> assertBool "no tokens" False
+  ]
+  where
+    summary d = (maybe DiagnosticSeverity_Hint id d._severity, d._range)
+    layer =
+      T.unlines
+        [ "__imports { core \"todo-core.sumspec\" }"
+        , "__atomics { }"
+        , "__events { go }"
+        , "__init :: App"
+        , "App = Mode * core.Core"
+        , "Mode = On | Off"
+        , "go :: core."
+        ]
+
 completionTests :: [TestTree]
 completionTests =
   [ testCase "after @, the declared annotations" $
@@ -265,7 +339,7 @@ completionTests =
         ==> ["go"]
   , testCase "at the start of a line, keywords and events not yet defined" $
       completeAt "__atomics { }\n__events { go }\nApp = A | B\ng" (Position 3 1)
-        ==> ["__annotations", "__init", "go"]
+        ==> ["__annotations", "__imports", "__init", "go"]
   , testCase "nothing in a comment" $ typing "-- App." ==> []
   ]
   where

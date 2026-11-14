@@ -1,0 +1,21 @@
+-- Dispatches: the input the base event takes, of its type, from names
+-- the transition gives; and only from this spec's events.
+__imports {
+  core "base-todo.sumspec"
+}
+
+__atomics { }
+__events { missing extra wrong primed named unknown pair }
+
+__init :: App(Mode.On)
+
+App = Mode * core.Core
+Mode = On | Off
+
+missing :: Mode.On -> Mode.Off  >> core.toggle
+extra core.TodoId#id :: Mode.On -> Mode.Off  >> core.stop(id)
+wrong core.Title#t :: Mode.On -> Mode.Off  >> core.toggle(t)
+primed core.TodoId#id :: Mode.On -> Mode.Off  >> core.toggle(id')
+named core.TodoId#id :: Mode.On -> Mode.Off  >> core.toggle(core.TodoId#x)
+unknown :: Mode.On -> Mode.Off  >> core.toggle(nobody)
+pair core.TodoId#id :: Mode.On -> Mode.Off  >> core.rename(id * id)

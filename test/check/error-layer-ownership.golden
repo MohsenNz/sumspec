@@ -1,0 +1,30 @@
+test/check/error-layer-ownership.sumspec:10:25:
+   |
+10 | __init :: App(Mode.On * core.Core(core.Link.Down))
+   |                         ^
+core.Core is core's state, which starts at core's __init; leave it out of __init
+
+test/check/error-layer-ownership.sumspec:15:39:
+   |
+15 | reset :: App => Mode.On -> Mode.Off * core.Core(core.Link.Down)
+   |                                       ^
+core.Core is core's state, which only core's events change; leave it out of the target, and fire one of them with >>
+
+test/check/error-layer-ownership.sumspec:16:39:
+   |
+16 | prime :: App => Mode.On -> Mode.Off * core.Core'
+   |                                       ^
+core.Core is core's state, which only core's events change; leave it out of the target, and fire one of them with >>
+
+test/check/error-layer-ownership.sumspec:17:25:
+   |
+17 | write core.TodoId#id :: core.Todos[id] => core.Completion.Active -> core.Completion.Completed
+   |                         ^
+core.Todos is part of core's state, which only core's events change; write the transition on this spec's state and fire one of them with >>
+
+test/check/error-layer-ownership.sumspec:18:15:
+   |
+18 | link :: App / core.Core => core.Link.Up -> core.Link.Down
+   |               ^
+core.Core is core's state, which only core's events change; leave it out of the target, and fire one of them with >>
+

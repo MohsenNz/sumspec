@@ -1,0 +1,4 @@
+__atomics { }
+__events { go }
+
+go :: A -> B >> other

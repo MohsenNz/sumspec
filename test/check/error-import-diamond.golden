@@ -1,0 +1,6 @@
+test/check/error-import-diamond.sumspec:5:9:
+  |
+5 |   right "base-right.sumspec"
+  |         ^
+test/check/base-right.sumspec and test/check/base-left.sumspec (line 4) both reach test/check/base-shared.sumspec; a spec reaches each file through one import
+

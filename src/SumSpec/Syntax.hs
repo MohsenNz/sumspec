@@ -8,6 +8,7 @@
 -- can report errors at the right place.
 module SumSpec.Syntax
   ( Spec (..)
+  , Import (..)
   , Definition (..)
   , TypeDef (..)
   , ConstDef (..)
@@ -23,6 +24,7 @@ module SumSpec.Syntax
   , Event (..)
   , Transition (..)
   , Branch (..)
+  , Dispatch (..)
   , Guard (..)
   , CompareOp (..)
   , compareWord
@@ -38,11 +40,14 @@ module SumSpec.Syntax
   , keyBinder
   , Pattern (..)
   , Name (..)
+  , nameQualifier
+  , nameLocal
   ) where
 
 import Data.List.NonEmpty (NonEmpty)
 import Data.Maybe (fromMaybe)
 import Data.Text (Text)
+import Data.Text qualified as T
 import SumSpec.Version (LanguageVersion)
 import Text.Megaparsec (SourcePos)
 
@@ -52,6 +57,8 @@ data Spec = Spec
   { specVersion :: Maybe LanguageVersion
   -- ^ The version in @__version 1.0@; 'Nothing' without a header, which
   -- means 'SumSpec.Version.defaultVersion'.
+  , specImports :: [Import]
+  -- ^ The base specs in @__imports { name "file" }@, in source order.
   , specAtomics :: [Atomic]
   -- ^ Types declared in @__atomics { ... }@.
   , specEvents :: [Name]
@@ -60,6 +67,18 @@ data Spec = Spec
   -- ^ Names declared in @__annotations { ... }@, without the @\@@;
   -- 'Nothing' without the block.
   , specDefinitions :: [Definition]
+  }
+  deriving stock (Eq, Show)
+
+-- | @core "todo-core.sumspec"@ in @__imports@: a base spec this spec layers
+-- over. The names the base declares are written with the qualifier.
+data Import = Import
+  { importName :: Name
+  -- ^ The qualifier, @core@.
+  , importPathPos :: SourcePos
+  -- ^ Where the path's string starts.
+  , importPath :: Text
+  -- ^ The file, as written: relative to the importing file.
   }
   deriving stock (Eq, Show)
 
@@ -202,6 +221,18 @@ data Branch = Branch
   -- ^ The target, written like the source.
   , branchAnnotations :: [Annotation]
   -- ^ The annotations after the target.
+  , branchDispatch :: Maybe Dispatch
+  -- ^ The base event fired after the target, @>> core.e(x)@.
+  }
+  deriving stock (Eq, Show)
+
+-- | @>> core.e(args)@: the event of a base spec a transition fires, in the
+-- same step, with the arguments of its input. No arguments when it takes
+-- none.
+data Dispatch = Dispatch
+  { dispatchEvent :: Name
+  -- ^ The event, qualified (@core.e@).
+  , dispatchArgs :: [Pattern]
   }
   deriving stock (Eq, Show)
 
@@ -350,9 +381,22 @@ data Pattern
     PatternExpr Expr
   deriving stock (Eq, Show)
 
--- | An identifier and where it was written.
+-- | An identifier and where it was written. A qualified name, @core.Todos@,
+-- is one name whose text holds the qualifier, at the qualifier's position.
 data Name = Name
   { namePos :: SourcePos
   , nameText :: Text
   }
   deriving stock (Eq, Show)
+
+-- | The qualifier of a qualified name: @core@ in @core.Todos@.
+nameQualifier :: Name -> Maybe Text
+nameQualifier n = case T.breakOn "." (nameText n) of
+  (q, rest) | not (T.null rest) -> Just q
+  _ -> Nothing
+
+-- | A name without its qualifier: @Todos@ in @core.Todos@.
+nameLocal :: Text -> Text
+nameLocal t = case T.breakOnEnd "." t of
+  ("", _) -> t
+  (_, local) -> local

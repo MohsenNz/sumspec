@@ -44,6 +44,8 @@ data Kind
     KConst
   | -- | A value named in a transition: @#x@, and the @x@ that uses it.
     KValue
+  | -- | A qualifier in @__imports@, and in the names it qualifies.
+    KQualifier
   deriving stock (Eq, Show)
 
 -- | A name as written in the spec.
@@ -66,7 +68,8 @@ occurrences spec = occurrencesWith (model spec) spec
 occurrencesWith :: Model -> Spec -> [Occurrence]
 occurrencesWith env spec =
   sortOn (position . occName) $
-    [define KType (atomicName a) | a <- specAtomics spec]
+    [define KQualifier (importName i) | i <- specImports spec]
+      <> [define KType (atomicName a) | a <- specAtomics spec]
       <> [ use KEvent n (eventName . eventInfo <$> M.lookup (nameText n) (modelEvents env))
          | n <- specEvents spec
          ]
@@ -98,11 +101,20 @@ definition env = \case
         ConstVariant v -> fst (segments env (typeBodyOf env t) [v])
   DefInit _ p -> pattern env [] p
   DefEvent (Event n input transitions) ->
-    define KEvent n
+    event
       : maybe [] (pattern env []) input
         <> concatMap (transition env inputs) transitions
     where
       inputs = maybe [] (bindings env) input
+      -- A reaction gives transitions to a base's event: its name is a use.
+      event = case nameQualifier n of
+        Just _ -> baseEventUse env n
+        Nothing -> define KEvent n
+
+-- | A name of a base's event: a reaction, or a dispatch.
+baseEventUse :: Model -> Name -> Occurrence
+baseEventUse env n =
+  use KEvent n (eventName . eventInfo <$> M.lookup (nameText n) (modelBaseEvents env))
 
 typeExpr :: Model -> TypeExpr -> [Occurrence]
 typeExpr env = \case
@@ -151,10 +163,14 @@ transition env inputs (Transition shared branches) =
     keys =
       [x | Shared _ (Just k) <- shared, Just x <- [keyBinder k]]
     outer = inputs <> keys <> concatMap (concatMap (bindings env) . branchFrom) branches
-    branch (Branch from guard to annotations) =
+    branch (Branch from guard to annotations dispatch) =
       concatMap (pattern env scope) from
         <> maybe [] (guardOcc env scope) guard
         <> concatMap (pattern env scope) to
+        <> concat
+          [ baseEventUse env e : concatMap (pattern env scope) args
+          | Dispatch e args <- toList dispatch
+          ]
         <> map (annotation env) annotations
       where
         scope = inputs <> keys <> concatMap (bindings env) from

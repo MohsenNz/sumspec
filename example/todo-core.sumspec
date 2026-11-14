@@ -1,0 +1,73 @@
+-- TodoMVC's core (https://todomvc.com): the todos and what can be done
+-- to them, with no screen. It is a base spec: todo-ui.sumspec is a layer
+-- over it, and a command line or an API could be another. It knows
+-- nothing of its layers.
+--
+-- Compare todomvc.sumspec, the same app as one spec, where the screen's
+-- state (the filter, the text box, the row being edited) sits next to the
+-- todos.
+
+__version 1.0
+
+__atomics {
+  Text = __text
+  Count = __int
+  TodoId
+}
+
+__events {
+  addTodo
+  toggleTodo
+  toggleAll
+  rename
+  deleteTodo
+  clearCompleted
+}
+
+-- The app starts with no active todo.
+__init :: Core(ItemsLeft(0))
+
+Core
+  = Todos
+  * ItemsLeft
+
+Todos = [Todo by TodoId]
+
+Todo
+  = Title
+  * Completion
+
+Title = Text
+
+Completion
+  = Active
+  | Completed
+
+ItemsLeft = Count
+
+Rename = TodoId * Title
+
+-- One more active todo: the count of items left goes up by one.
+addTodo Title#t
+  :: Core
+  => ItemsLeft(#n)
+  // t != ""
+  -> Todos' * ItemsLeft(n + 1)
+
+toggleTodo TodoId#id
+  :: Core
+  => Todos[id](Completion.Active) * ItemsLeft(#n)
+  -> Todos[id](Completion.Completed) * ItemsLeft(n - 1)
+  => Todos[id](Completion.Completed) * ItemsLeft(#n)
+  -> Todos[id](Completion.Active) * ItemsLeft(n + 1)
+
+toggleAll :: Core -> Core(Todos' * ItemsLeft')
+
+rename Rename(TodoId#id * Title#t)
+  :: Todos[id] => Title // t != "" -> t
+
+deleteTodo TodoId#id
+  :: Core => Todos[id] -> Todos' * ItemsLeft'
+
+-- Only completed todos go, so the count of items left stays.
+clearCompleted :: Core -> Core(Todos')

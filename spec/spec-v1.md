@@ -849,6 +849,130 @@ The checker reports an annotation that isn't listed in `__annotations`
 (a spec without the block uses none), and a name listed twice. It
 doesn't check the arguments.
 
+## Layered specs (__imports)
+
+An application often has a core, its data and the events that change it,
+and something over it: a UI, a command line, an API. Each can be a spec
+of its own. A **layer** imports a **base spec**: it holds the base's state
+as a part of its own, reads it, and changes it only by firing the base's
+events. The base is complete on its own and knows nothing of its layers,
+so several layers (a UI and a CLI) can share one base.
+
+```
+-- todo-core.sumspec: the base
+__atomics { Text = __text  TodoId }
+__events  { toggleTodo  clearCompleted }
+
+__init :: Core(ItemsLeft(0))
+
+Core       = Todos * ItemsLeft
+Todos      = [Todo by TodoId]
+Todo       = Title * Completion
+...
+
+-- todo-ui.sumspec: a layer over it
+__imports {
+  core "todo-core.sumspec"
+}
+
+__atomics { }
+__events  { toggleClicked  clearClicked }
+
+__init :: App(Filter.All)
+
+App    = Filter * core.Core
+Filter = All | Active | Completed
+
+toggleClicked core.TodoId#id :: App -> App  >> core.toggleTodo(id)
+```
+
+### Import
+
+A spec lists the base specs it imports in an `__imports` block, a header
+block written at most once, with `__atomics` and `__events`. Each entry
+is `name "file"`, and a comment next to it documents it:
+
+```
+__imports {
+  core "todo-core.sumspec"   -- the todos and what can be done to them
+  log  "log.sumspec"
+}
+```
+
+The file is a spec, found relative to the importing file. `name` is the
+qualifier: the layer writes
+everything the base declares with it, `core.Todos`, `core.toggleTodo`, as
+one token, with no space around the `.`. Only the first name of a path is
+qualified: `core.Completion.Active`. The variants of a base type are
+reached through it; a bare `Active` is never a base variant.
+
+The base is checked on its own first. The layer reports one error on its
+entry in `__imports` when the file is missing, doesn't parse, or has errors. An
+import cycle is an error, and so is reaching one file through two imports
+(`a` and `b` both importing `c`). A layer sees only the specs it imports,
+not their imports.
+
+### The base's state
+
+The layer's root, the head of its `__init`, is a product with the base's
+root as a factor: `App = Filter * core.Core`. Products are keyed by type,
+so `core.Core` is an ordinary factor. The base's root appears there once
+and nowhere else.
+
+The base's part of the state is the base's own: only base events change
+it. So no target of a layer transition, and not the layer's `__init`,
+writes inside the base's root: `core.Core(...)` and `core.Core'` go only
+on the source side and in guards. The base's part starts at the base's
+`__init`; the layer's `__init` leaves it out.
+
+A source or a guard reads the base's state through its root, so the
+layer reads base data instead of copying it:
+
+```
+startEditing core.TodoId#id
+  :: App => View.List * core.Core(core.Todos[id](core.Title#t))
+         -> View.Editing(EditText(t) * id)
+```
+
+A base type may also be the layer's own data, outside the base's root:
+a draft (`Draft = core.Title`) is the layer's to write.
+
+### Dispatch (>>)
+
+A layer transition may fire one base event, after its target. Both
+happen as one step: the layer's transition, and the base event's
+transition from the current state:
+
+```
+clearClicked :: App => Filter -> Filter.All  >> core.clearCompleted
+```
+
+When the base event takes an input, the dispatch gives it, in
+parentheses: one name or value of the input's type, or the arguments of
+the input's type as after its name in a target. With
+`rename Rename(TodoId#id * Title#t)` in the base, `>> core.rename(id * e)`
+gives the input `core.Rename(id * e)`. The names are the transition's,
+as on its target side. An event without an input takes no argument.
+
+### Reactions
+
+A layer may add its own changes to a base event by giving transitions
+for its name, qualified. They happen whenever the base event does,
+whether a layer dispatches it or not, in the same step:
+
+```
+core.clearCompleted :: App => View.Editing -> View.List
+```
+
+A reaction isn't listed in `__events`; the event is the base's. If it
+writes the input, it has the base event's input type. A reaction follows
+every rule of a layer transition, writes nothing inside the base's root,
+and dispatches nothing.
+
+A dispatching transition counts as a transition of the event it fires,
+so a reaction whose source can apply to the same state gets the overlap
+warning (see "Warnings").
+
 ## Summary:
 
 ```
@@ -861,6 +985,7 @@ doesn't check the arguments.
 -> state transition
 => a path both sides of a transition share
 @  an annotation: metadata for the target
+>> fires an event of a base spec (see "Layered specs")
 ```
 
 ## Warnings
@@ -882,6 +1007,8 @@ Comparisons of a name with a literal or a variant count too: `c < 15` and `c >= 
 From `__init`, the type checker finds the variants the app can reach: a transition can happen once every variant its source writes has been reached, and its target then reaches the variants it writes. A part that may have any value (left out of `__init` or of a new state, or primed) reaches every variant inside it. The checker warns about a variant of a type inside the app's state that is never reached, and reports only the outermost one (not `Bolt` inside an unreached `Locked (Bolt | Chain)`). Parts of a source are tested one at a time and names are ignored, so a variant may be counted as reached when the app can't really get there, but never the other way around.
 
 A transition whose source writes a variant that is never reached, or whose type no state holds (a type outside the app's state), can never happen, and the type checker warns about it, naming the outermost variant its source needs. Such a transition also adds nothing, so what only it would reach is reported as never reached as well.
+
+A dispatching transition whose source excludes every source of the dispatched event gets a warning: the base event can't happen in any state the source matches. As in the overlap check, only variants are read: the base's parts of the layer's source (the patterns headed by the type each source of the event is headed by) are compared with the event's sources, and guards are taken to hold.
 
 ### Membership Warnings
 

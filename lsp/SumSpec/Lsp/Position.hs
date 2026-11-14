@@ -12,7 +12,7 @@ module SumSpec.Lsp.Position
   , utf16
   ) where
 
-import Data.Char (isAlphaNum)
+import Data.Char (isAlpha, isAlphaNum, isLower)
 import Data.Text (Text)
 import Data.Text qualified as T
 import Language.LSP.Protocol.Types (Position (..), Range (..))
@@ -33,8 +33,18 @@ tokenRange source pos = Range start (advance start token)
     token = case T.uncons rest of
       Nothing -> ""
       Just (c, cs)
+        -- A string, such as a file in __imports, up to its closing quote.
+        | c == '"' -> T.cons c (T.take (T.length (T.takeWhile (/= '"') cs) + 1) cs)
+        | isLower c -> T.cons c (qualified (T.takeWhile isNameChar cs) cs)
         | isNameChar c || c == '@' || c == '#' -> T.cons c (T.takeWhile isNameChar cs)
         | otherwise -> T.singleton c
+    -- A qualified name, core.Todos, is one token; Page.Plan is two.
+    qualified word cs = case T.uncons (T.drop (T.length word) cs) of
+      Just ('.', more)
+        | Just (d, _) <- T.uncons more
+        , isAlpha d ->
+            word <> "." <> T.takeWhile isNameChar more
+      _ -> word
     isNameChar c = isAlphaNum c || c == '_' || c == '\''
 
 -- | The range of a name as written. An annotation's name sits at its @\@@,

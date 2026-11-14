@@ -1,0 +1,36 @@
+test/check/error-qualified.sumspec:12:26:
+   |
+12 | App = Mode * core.Core * other.Thing
+   |                          ^
+other isn't imported, so other.Thing is unknown; import the base spec that declares it: __imports { other "file" }
+
+test/check/error-qualified.sumspec:13:17:
+   |
+13 | Mode = On | Off core.Missing
+   |                 ^
+test/check/base-todo.sumspec declares no type Missing
+
+test/check/error-qualified.sumspec:14:8:
+   |
+14 | Note = core.Nothing
+   |        ^
+test/check/base-todo.sumspec declares no type Nothing
+
+test/check/error-qualified.sumspec:16:38:
+   |
+16 | go :: App => Mode.On -> Mode.Off  >> core.vanish
+   |                                      ^
+test/check/base-todo.sumspec declares no event vanish
+
+test/check/error-qualified.sumspec:18:1:
+   |
+18 | core.missing :: Mode.On -> Mode.Off
+   | ^
+test/check/base-todo.sumspec declares no event missing
+
+test/check/error-qualified.sumspec:19:1:
+   |
+19 | other.event :: Mode.On -> Mode.Off
+   | ^
+other isn't imported, so other.event is unknown; import the base spec that declares it: __imports { other "file" }
+

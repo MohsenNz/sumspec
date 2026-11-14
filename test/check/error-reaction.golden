@@ -1,0 +1,18 @@
+test/check/error-reaction.sumspec:15:13:
+   |
+15 | core.toggle core.Title#t :: Mode.On -> Mode.Off
+   |             ^
+the input of core.toggle is a core.TodoId; write core.TodoId or leave the input out
+
+test/check/error-reaction.sumspec:16:11:
+   |
+16 | core.stop core.TodoId#id :: Mode.On -> Mode.Off
+   |           ^
+core.stop takes no input; leave it out
+
+test/check/error-reaction.sumspec:17:39:
+   |
+17 | core.clear :: Mode.On -> Mode.Off  >> core.stop
+   |                                       ^
+a reaction fires nothing: it happens with core.clear, which fires it already
+

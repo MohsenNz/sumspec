@@ -1,0 +1,21 @@
+-- Warnings: a dispatch from a source where its event can't happen, and a
+-- dispatch whose event has a reaction that can apply in the same state.
+__imports {
+  core "base-todo.sumspec"
+}
+
+__atomics { }
+__events { stopped cleared stopClicked }
+
+__init :: App(Mode.On)
+
+App = Mode * core.Core
+Mode = On | Off
+
+-- The base's stop needs the link up.
+stopped :: App => core.Core(core.Link.Down) * Mode.On -> Mode.Off  >> core.stop
+cleared :: App => core.Core(core.Link.Down) * Mode.On -> Mode.Off  >> core.clear
+
+-- Both are on App and can apply to the same state.
+stopClicked :: App(core.Core(core.Link.Up) * Mode.Off) -> App  >> core.stop
+core.stop :: App => Mode.Off -> Mode.On

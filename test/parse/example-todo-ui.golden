@@ -1,0 +1,43 @@
+__version 1.0
+
+__imports {
+  core "todo-core.sumspec"
+}
+
+__atomics {
+}
+
+__events {
+  startTyping
+  submitTodo
+  toggleClicked
+  toggleAllClicked
+  startEditing
+  finishEditing
+  cancelEditing
+  deleteClicked
+  clearClicked
+  showAll
+  showActive
+  showCompleted
+}
+
+__init :: App(NewTodo.Blank * Filter.All * Editing.None)
+App = NewTodo * Filter * Editing * core.Core
+NewTodo = Blank | Typing core.Title
+Filter = All | Active | Completed
+Editing = None | Row (core.TodoId * EditText)
+EditText = core.Title
+startTyping core.Title#t :: NewTodo.Blank -> NewTodo.Typing(t)
+submitTodo :: App => NewTodo.Typing(#t) -> NewTodo.Blank >> core.addTodo(t)
+toggleClicked core.TodoId#id :: App -> App >> core.toggleTodo(id)
+toggleAllClicked :: App -> App >> core.toggleAll
+startEditing core.TodoId#id :: App => Editing.None * core.Core(core.Todos[id](core.Title#t)) -> Editing.Row(id * EditText(t))
+finishEditing :: App => Editing.Row(core.TodoId#id * EditText(#e)) -> Editing.None >> core.rename(id * e)
+cancelEditing :: Editing.Row -> Editing.None
+deleteClicked core.TodoId#id :: App -> App >> core.deleteTodo(id)
+clearClicked :: App -> App >> core.clearCompleted
+core.deleteTodo core.TodoId#id :: Editing.Row(id) -> Editing.None
+showAll :: Filter -> Filter.All
+showActive :: Filter -> Filter.Active
+showCompleted :: Filter -> Filter.Completed

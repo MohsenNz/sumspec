@@ -1,0 +1,15 @@
+-- Imports that give no base: a missing file, a base with errors, and a
+-- qualifier imported twice. Nothing else is checked then.
+__imports {
+  core "base-todo.sumspec"
+  core "base-todo.sumspec"
+  gone "no-such-file.sumspec"
+  broken "error-base-broken.sumspec"
+}
+
+__atomics { }
+__events { }
+
+__init :: App
+
+App = A | B

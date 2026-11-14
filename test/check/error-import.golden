@@ -1,0 +1,18 @@
+test/check/error-import.sumspec:5:3:
+  |
+5 |   core "base-todo.sumspec"
+  |   ^
+core is imported twice (first on line 4); give each import its own qualifier
+
+test/check/error-import.sumspec:6:8:
+  |
+6 |   gone "no-such-file.sumspec"
+  |        ^
+can't read test/check/no-such-file.sumspec: no such file
+
+test/check/error-import.sumspec:7:10:
+  |
+7 |   broken "error-base-broken.sumspec"
+  |          ^
+test/check/error-base-broken.sumspec has errors; run sumspec check test/check/error-base-broken.sumspec
+

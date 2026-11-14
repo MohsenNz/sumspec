@@ -1,0 +1,17 @@
+-- Reactions: the base event's input type, no input for an event without
+-- one, and no dispatch.
+__imports {
+  core "base-todo.sumspec"
+}
+
+__atomics { }
+__events { }
+
+__init :: App(Mode.On)
+
+App = Mode * core.Core
+Mode = On | Off
+
+core.toggle core.Title#t :: Mode.On -> Mode.Off
+core.stop core.TodoId#id :: Mode.On -> Mode.Off
+core.clear :: Mode.On -> Mode.Off  >> core.stop

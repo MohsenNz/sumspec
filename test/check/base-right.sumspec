@@ -1,0 +1,12 @@
+-- A base over base-shared.sumspec, for error-import-diamond.sumspec.
+__imports {
+  shared "base-shared.sumspec"
+}
+
+__atomics { }
+__events { }
+
+__init :: Right
+
+Right = Side * shared.Shared
+Side = R1 | R2

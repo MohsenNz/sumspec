@@ -1,0 +1,7 @@
+-- The base both base-left.sumspec and base-right.sumspec import.
+__atomics { }
+__events { }
+
+__init :: Shared
+
+Shared = S1 | S2

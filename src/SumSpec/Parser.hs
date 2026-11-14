@@ -18,6 +18,7 @@ import Data.List.NonEmpty (NonEmpty (..))
 import Data.List.NonEmpty qualified as NE
 import Data.Maybe (fromMaybe, isJust)
 import Data.Text (Text)
+import Data.Text qualified as T
 import Data.Void (Void)
 import SumSpec.Lexer
 import SumSpec.Syntax
@@ -66,8 +67,8 @@ renderParseError = errorBundlePretty
 spec :: Parser (Spec, [M.ParseError Text Void])
 spec = do
   version <- optional versionHeader
-  (atomics, events, annotations) <- headers
-  B.first (Spec version atomics events annotations) <$> definitions
+  (imports, atomics, events, annotations) <- headers
+  B.first (Spec version imports atomics events annotations) <$> definitions
 
 -- | Every definition up to the end of the input. A definition that doesn't
 -- parse gives its error, and the parser goes on at the next one.
@@ -138,27 +139,34 @@ versionHeader = do
       | otherwise = renderVersion defaultVersion <> " to " <> renderVersion latestVersion
 
 -- headers = header_block , { header_block } ;
--- header_block = atomics_block | events_block | annotations_block ;
+-- header_block = atomics_block | events_block | annotations_block
+--              | imports_block ;
 --
 -- The blocks come in any order, each at most once; __atomics and __events
 -- are required.
-headers :: Parser ([Atomic], [Name], Maybe [Name])
-headers = go Nothing Nothing Nothing
+headers :: Parser ([Import], [Atomic], [Name], Maybe [Name])
+headers = go Nothing Nothing Nothing Nothing
   where
-    go atomics events annotations = do
+    go imports atomics events annotations = do
       offset <- getOffset
       next <-
         optional . choice $
-          [ Left . Left <$> atomicsBlock
-          , Left . Right <$> eventsBlock
-          , Right <$> annotationsBlock
+          [ HeaderAtomics <$> atomicsBlock
+          , HeaderEvents <$> eventsBlock
+          , HeaderAnnotations <$> annotationsBlock
+          , HeaderImports <$> importsBlock
           ]
       case next of
-        Just (Left (Left a)) -> once offset "__atomics" atomics *> go (Just a) events annotations
-        Just (Left (Right e)) -> once offset "__events" events *> go atomics (Just e) annotations
-        Just (Right n) -> once offset "__annotations" annotations *> go atomics events (Just n)
+        Just (HeaderAtomics a) ->
+          once offset "__atomics" atomics *> go imports (Just a) events annotations
+        Just (HeaderEvents e) ->
+          once offset "__events" events *> go imports atomics (Just e) annotations
+        Just (HeaderAnnotations n) ->
+          once offset "__annotations" annotations *> go imports atomics events (Just n)
+        Just (HeaderImports i) ->
+          once offset "__imports" imports *> go (Just i) atomics events annotations
         Nothing -> case (atomics, events) of
-          (Just a, Just e) -> pure (a, e, annotations)
+          (Just a, Just e) -> pure (fromMaybe [] imports, a, e, annotations)
           _ -> do
             let missing = [b | (b, False) <- [("__atomics", isJust atomics), ("__events", isJust events)]]
             failAt
@@ -167,6 +175,25 @@ headers = go Nothing Nothing Nothing
     once offset block seen = case seen of
       Nothing -> pure ()
       Just _ -> failAt offset (block <> " is written twice")
+
+data Header
+  = HeaderAtomics [Atomic]
+  | HeaderEvents [Name]
+  | HeaderAnnotations [Name]
+  | HeaderImports [Import]
+
+-- imports_block = "__imports" , "{" , { import } , "}" ;
+importsBlock :: Parser [Import]
+importsBlock = keyword "__imports" *> braces (many importEntry)
+
+-- import = LOWER , STRING ;
+importEntry :: Parser Import
+importEntry = do
+  name <- lowerName <?> "qualifier, such as core"
+  (pos, file) <- stringLiteral <?> "file name in quotes"
+  case file of
+    LitText t -> pure (Import name pos t)
+    _ -> empty
 
 -- atomics_block = "__atomics" , "{" , { atomic } , "}" ;
 atomicsBlock :: Parser [Atomic]
@@ -208,7 +235,7 @@ initState = do
   _ <- symbol "::"
   (,) (Name pos "__init") <$> pattern
 
--- const_def = UPPER , "=" , UPPER , ( "(" , literal , ")" | "." , UPPER ) ;
+-- const_def = UPPER , "=" , type_name , ( "(" , literal , ")" | "." , UPPER ) ;
 --
 -- A constant starts like a type definition. A "." after the second name,
 -- or a "(" that isn't followed by a type, tells them apart, and from
@@ -218,12 +245,12 @@ initState = do
 constDef :: Parser ConstDef
 constDef = do
   name <- try (upperName <* equals <* lookAhead constStart)
-  ConstDef name <$> upperName <*> constValue
+  ConstDef name <$> typeName <*> constValue
   where
     constStart =
-      upperName
+      typeName
         *> ( void (symbol ".")
-               <|> void (symbol "(" *> notFollowedBy (void upperName <|> void (symbol "[")))
+               <|> void (symbol "(" *> notFollowedBy (void typeName <|> void (symbol "[")))
            )
     constValue =
       choice
@@ -255,6 +282,7 @@ typeExpr = do
   notes <- many annotation
   let alone = pure (TypeTerm first, notes)
   case first of
+    TermName name | Just _ <- nameQualifier name -> productAfter (Factor first notes) <|> alone
     TermName name ->
       choice
         [ sumAfter (Variant name Nothing notes)
@@ -302,29 +330,30 @@ payload =
     [ parens typeExpr
     , (,[]) . TypeTerm . uncurry TermList <$> listTerm
     , (,[]) . TypeTerm . TermName
-        <$> try (upperName <* notFollowedBy (many annotation *> equals))
+        <$> try (typeName <* notFollowedBy (many annotation *> equals))
     ]
 
--- type_term = UPPER | "[" , type_term , [ "by" , UPPER ] , "]" ;
+-- type_term = type_name | "[" , type_term , [ "by" , type_name ] , "]" ;
+-- type_name = UPPER | QUPPER ;
 typeTerm :: Parser TypeTerm
-typeTerm = TermName <$> upperName <|> uncurry TermList <$> listTerm
+typeTerm = TermName <$> typeName <|> uncurry TermList <$> listTerm
 
 -- The bracketed alternative of type_term: the element type, and the key
 -- type of a keyed list.
 listTerm :: Parser (TypeTerm, Maybe Name)
-listTerm = brackets ((,) <$> typeTerm <*> optional (keyword "by" *> upperName))
+listTerm = brackets ((,) <$> typeTerm <*> optional (keyword "by" *> typeName))
 
--- event_def = LOWER , [ input ] , transition , { transition } ;
+-- event_def = ( LOWER | QLOWER ) , [ input ] , transition , { transition } ;
 eventDef :: Parser Event
 eventDef =
   Event
-    <$> lowerName
+    <$> eventDefName
     <*> optional (input <?> "input type")
     <*> ((:|) <$> transition <*> many transition)
 
 -- transition = "::" , ( shared , { "/" , shared } , branch , { branch }
 --                     | pattern , [ guard ] , "->" , pattern ,
---                       { annotation } ) ;
+--                       [ dispatch ] , { annotation } ) ;
 --
 -- A shared path starts like a pattern; the "/" or "=>" after it tells
 -- them apart.
@@ -336,18 +365,40 @@ transition = do
     [] -> Transition [] . pure <$> plain
     _ -> Transition paths <$> ((:|) <$> branch <*> many branch)
   where
-    plain =
-      Branch <$> one <*> optional guard <*> (symbol "->" *> one) <*> many annotation
+    plain = branchRest one
     one = (:| []) <$> pattern
 
--- branch = "=>" , arguments , [ guard ] , "->" , arguments , { annotation } ;
+-- branch = "=>" , arguments , [ guard ] , "->" , arguments ,
+--          [ dispatch ] , { annotation } ;
 branch :: Parser Branch
-branch =
-  Branch
-    <$> (symbol "=>" *> arguments)
-    <*> optional guard
-    <*> (symbol "->" *> arguments)
-    <*> many annotation
+branch = symbol "=>" *> branchRest arguments
+
+-- A branch after its "=>", or a transition without shared paths, whose
+-- sides are read by the given parser.
+branchRest :: Parser (NonEmpty Pattern) -> Parser Branch
+branchRest side = do
+  from <- side
+  g <- optional guard
+  to <- symbol "->" *> side
+  d <- optional dispatch
+  notes <- many annotation
+  pure (Branch from g to notes d)
+
+-- dispatch = DISPATCH , QLOWER , [ "(" , arguments , ")" ] ;
+--
+-- A plain event name is reported: a dispatch fires a base's event.
+dispatch :: Parser Dispatch
+dispatch = do
+  dispatchOp
+  offset <- getOffset
+  event <- either (local offset) pure =<< qualifiedEvent
+  Dispatch event <$> option [] (NE.toList <$> parens arguments)
+  where
+    local offset n =
+      failAt offset $
+        "a dispatch fires an event of a base spec, written with its qualifier, "
+          <> "such as core."
+          <> T.unpack (nameText n)
 
 -- guard = "//" , predicate ;
 guard :: Parser Guard
@@ -492,7 +543,7 @@ arithAtom =
   choice
     [ literalAtom
     , ExprName <$> valueName
-    , ExprConst <$> upperName
+    , ExprConst <$> typeName
     , parens arithFull
     ]
     <?> "a value, a literal, a constant or \"(\""
@@ -572,6 +623,6 @@ elementKey = brackets $ do
 withNaming :: Pattern -> Parser Pattern
 withNaming p = maybe p (PatternNamed p) <$> optional naming
 
--- path = UPPER , { "." , UPPER } ;
+-- path = type_name , { "." , UPPER } ;
 path :: Parser (NonEmpty Name)
-path = (:|) <$> upperName <*> many (try (symbol "." *> upperName))
+path = (:|) <$> typeName <*> many (try (symbol "." *> upperName))

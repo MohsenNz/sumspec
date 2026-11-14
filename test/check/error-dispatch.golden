@@ -1,0 +1,42 @@
+test/check/error-dispatch.sumspec:15:36:
+   |
+15 | missing :: Mode.On -> Mode.Off  >> core.toggle
+   |                                    ^
+core.toggle takes an input, a core.TodoId; give it in parentheses: >> core.toggle(...)
+
+test/check/error-dispatch.sumspec:16:49:
+   |
+16 | extra core.TodoId#id :: Mode.On -> Mode.Off  >> core.stop(id)
+   |                                                 ^
+core.stop takes no input; write >> core.stop alone
+
+test/check/error-dispatch.sumspec:17:47:
+   |
+17 | wrong core.Title#t :: Mode.On -> Mode.Off  >> core.toggle(t)
+   |                                               ^
+core.toggle takes a core.TodoId, but this gives a core.Title
+
+test/check/error-dispatch.sumspec:18:64:
+   |
+18 | primed core.TodoId#id :: Mode.On -> Mode.Off  >> core.toggle(id')
+   |                                                                ^
+the input of a dispatch takes no prime (')
+
+test/check/error-dispatch.sumspec:19:73:
+   |
+19 | named core.TodoId#id :: Mode.On -> Mode.Off  >> core.toggle(core.TodoId#x)
+   |                                                                         ^
+the input of a dispatch names no value; write a name the transition gives, or a value
+
+test/check/error-dispatch.sumspec:20:48:
+   |
+20 | unknown :: Mode.On -> Mode.Off  >> core.toggle(nobody)
+   |                                                ^
+unknown name nobody; name a value with #nobody in the input or on the source side
+
+test/check/error-dispatch.sumspec:21:65:
+   |
+21 | pair core.TodoId#id :: Mode.On -> Mode.Off  >> core.rename(id * id)
+   |                                                                 ^
+factor core.TodoId is written twice
+

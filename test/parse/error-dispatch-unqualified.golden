@@ -1,0 +1,5 @@
+test/parse/error-dispatch-unqualified.sumspec:4:17:
+  |
+4 | go :: A -> B >> other
+  |                 ^
+a dispatch fires an event of a base spec, written with its qualifier, such as core.other

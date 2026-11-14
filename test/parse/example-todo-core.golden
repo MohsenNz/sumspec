@@ -1,0 +1,33 @@
+__version 1.0
+
+__atomics {
+  Text = __text
+  Count = __int
+  TodoId
+}
+
+__events {
+  addTodo
+  toggleTodo
+  toggleAll
+  rename
+  deleteTodo
+  clearCompleted
+}
+
+__init :: Core(ItemsLeft(0))
+Core = Todos * ItemsLeft
+Todos = [Todo by TodoId]
+Todo = Title * Completion
+Title = Text
+Completion = Active | Completed
+ItemsLeft = Count
+Rename = TodoId * Title
+addTodo Title#t :: Core => ItemsLeft(#n) // t != "" -> Todos' * ItemsLeft(n + 1)
+toggleTodo TodoId#id :: Core
+                     => Todos[id](Completion.Active) * ItemsLeft(#n) -> Todos[id](Completion.Completed) * ItemsLeft(n - 1)
+                     => Todos[id](Completion.Completed) * ItemsLeft(#n) -> Todos[id](Completion.Active) * ItemsLeft(n + 1)
+toggleAll :: Core -> Core(Todos' * ItemsLeft')
+rename Rename(TodoId#id * Title#t) :: Todos[id] => Title // t != "" -> t
+deleteTodo TodoId#id :: Core => Todos[id] -> Todos' * ItemsLeft'
+clearCompleted :: Core -> Core(Todos')

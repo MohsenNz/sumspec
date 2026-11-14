@@ -1,0 +1,6 @@
+test/check/error-import-cycle-a.sumspec:4:5:
+  |
+4 |   b "error-import-cycle-b.sumspec"
+  |     ^
+importing error-import-cycle-b.sumspec makes a cycle: test/check/error-import-cycle-a.sumspec imports test/check/error-import-cycle-b.sumspec imports test/check/error-import-cycle-a.sumspec; a base can't import a spec layered over it
+

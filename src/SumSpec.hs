@@ -2,6 +2,7 @@
 module SumSpec
   ( module SumSpec.Syntax
   , module SumSpec.Check
+  , module SumSpec.Load
   , module SumSpec.Model
   , module SumSpec.Parser
   , module SumSpec.Pretty
@@ -9,6 +10,7 @@ module SumSpec
   ) where
 
 import SumSpec.Check
+import SumSpec.Load
 import SumSpec.Model
 import SumSpec.Parser
 import SumSpec.Pretty

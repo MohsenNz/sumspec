@@ -1,0 +1,19 @@
+-- Qualified names: an unknown qualifier, and names the base doesn't
+-- declare.
+__imports {
+  core "base-todo.sumspec"
+}
+
+__atomics { }
+__events { go }
+
+__init :: App(Mode.On)
+
+App = Mode * core.Core * other.Thing
+Mode = On | Off core.Missing
+Note = core.Nothing
+
+go :: App => Mode.On -> Mode.Off  >> core.vanish
+
+core.missing :: Mode.On -> Mode.Off
+other.event :: Mode.On -> Mode.Off

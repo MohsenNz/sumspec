@@ -19,10 +19,14 @@ module SumSpec.Model
   , TypeShape (..)
   , VariantInfo (..)
   , EventInfo (..)
+  , Base (..)
+  , BaseInfo (..)
   , Ref (..)
   , StepError (..)
   , Here
   , model
+  , modelWith
+  , qualifySpec
   , typeShape
   , typeBodyOf
   , isType
@@ -67,6 +71,33 @@ data Model = Model
   -- ^ The annotations declared in @__annotations@.
   , modelRoot :: Maybe Name
   -- ^ The head of the first @__init@, the type of every state.
+  , modelImports :: Map Text BaseInfo
+  -- ^ The base specs this spec imports, by qualifier.
+  , modelBaseVariants :: Map Text [VariantInfo]
+  -- ^ The variants of the bases' types, by name. They are reached only
+  -- through their qualified type, so they're kept apart from
+  -- 'modelVariants'.
+  , modelBaseEvents :: Map Text EventInfo
+  -- ^ The bases' events, by qualified name (@core.toggleTodo@), with
+  -- their patterns qualified.
+  }
+
+-- | A base spec as the loader read it: the qualifier it's imported with,
+-- its file, and its own bases.
+data Base = Base
+  { baseName :: Text
+  , baseFile :: FilePath
+  , baseSource :: Text
+  -- ^ The text the base was parsed from: its names' positions are in it.
+  , baseSpec :: Spec
+  , baseBases :: [Base]
+  }
+
+-- | What a spec knows of a base it imports.
+data BaseInfo = BaseInfo
+  { baseInfoFile :: FilePath
+  , baseInfoRoot :: Maybe Name
+  -- ^ The base's root, qualified (@core.Core@).
   }
 
 data TypeInfo = TypeInfo
@@ -113,8 +144,43 @@ data Ref
 -- payload. 'Nothing' when it isn't known, or is an atomic.
 type Here = Maybe TypeExpr
 
+-- | The model of a spec without imports, or whose bases aren't loaded:
+-- a qualified name is then unknown.
 model :: Spec -> Model
-model spec =
+model = modelWith []
+
+-- | The model of a spec with its bases. Each base's types, constants and
+-- events are in it under qualified names (@core.Todos@); a base's own
+-- bases are there too (@core.lib.T@), so its types' bodies resolve, but no
+-- name a spec can write reaches them.
+modelWith :: [Base] -> Spec -> Model
+modelWith bases spec =
+  own
+    { modelAtomics = M.union (modelAtomics own) (M.unions (map modelAtomics baseModels))
+    , modelTypeDefs = M.union (modelTypeDefs own) (M.unions (map modelTypeDefs baseModels))
+    , modelTypes = M.union (modelTypes own) (M.unions (map modelTypes baseModels))
+    , modelConsts = M.union (modelConsts own) (M.unions (map modelConsts baseModels))
+    , modelImports =
+        M.fromListWith
+          (\_ old -> old)
+          [ ( baseName b
+            , BaseInfo (baseFile b) (modelRoot (ownModel (qualifySpec (baseName b) (baseSpec b))))
+            )
+          | b <- bases
+          ]
+    , modelBaseVariants = M.unionsWith (<>) (map modelVariants baseModels)
+    , modelBaseEvents = M.unions (map modelEvents baseModels)
+    }
+  where
+    own = ownModel spec
+    baseModels = map ownModel (concatMap (flattenBase "") bases)
+    flattenBase prefix (Base name _ _ sp subs) =
+      qualifySpec (prefix <> name) sp
+        : concatMap (flattenBase (prefix <> name <> ".")) subs
+
+-- | The names a spec defines, as 'Model' holds them, without its bases.
+ownModel :: Spec -> Model
+ownModel spec =
   Model
     { modelAtomics = atomics
     , modelTypeDefs = typeDefs
@@ -136,6 +202,9 @@ model spec =
           [EventInfo e (nameText (eventName e) `S.member` listed) | DefEvent e <- defs]
     , modelAnnotations = firsts id (fromMaybe [] (specAnnotations spec))
     , modelRoot = listToMaybe [headName p | DefInit _ p <- defs]
+    , modelImports = M.empty
+    , modelBaseVariants = M.empty
+    , modelBaseEvents = M.empty
     }
   where
     defs = specDefinitions spec
@@ -175,6 +244,69 @@ model spec =
       ExprConst n -> n
       ExprLit pos _ -> Name pos ""
       ExprBin _ _ a _ -> exprHead a
+
+-- | A base spec as a spec importing it with this qualifier sees it: every
+-- type, constant and event it declares, and every use of one, is written
+-- with the qualifier (@Todos@ becomes @core.Todos@, @lib.T@ becomes
+-- @core.lib.T@). Variants and value names stay as they are: a variant is
+-- reached through its type.
+qualifySpec :: Text -> Spec -> Spec
+qualifySpec q spec =
+  spec
+    { specImports = []
+    , specAtomics = [a {atomicName = qn (atomicName a)} | a <- specAtomics spec]
+    , specEvents = map qn (specEvents spec)
+    , specDefinitions = map definition (specDefinitions spec)
+    }
+  where
+    qn (Name pos t) = Name pos (q <> "." <> t)
+    definition = \case
+      DefType (TypeDef n notes body) -> DefType (TypeDef (qn n) notes (typeExpr body))
+      DefConst (ConstDef n ty v) -> DefConst (ConstDef (qn n) (qn ty) v)
+      DefInit k p -> DefInit k (pat p)
+      DefEvent (Event n input ts) -> DefEvent (Event (qn n) (pat <$> input) (fmap transition ts))
+    typeExpr = \case
+      TypeSum vs -> TypeSum [v {variantPayload = typeExpr <$> variantPayload v} | v <- vs]
+      TypeProduct fs -> TypeProduct [f {factorTerm = term (factorTerm f)} | f <- fs]
+      TypeTerm t -> TypeTerm (term t)
+    term = \case
+      TermName n -> TermName (qn n)
+      TermList t key -> TermList (term t) (qn <$> key)
+    transition (Transition paths branches) =
+      Transition [Shared (headed ns) key | Shared ns key <- paths] (fmap branch branches)
+    branch (Branch from g to notes d) =
+      Branch (fmap pat from) (guard <$> g) (fmap pat to) notes (dispatch <$> d)
+    dispatch (Dispatch e args) = Dispatch (qn e) (map pat args)
+    headed (h :| rest) = qn h :| rest
+    pat = \case
+      PatternPath ns args -> PatternPath (headed ns) (map pat args)
+      PatternElement ns k args -> PatternElement (headed ns) k (map pat args)
+      PatternList t key -> PatternList (term t) (qn <$> key)
+      PatternName n -> PatternName n
+      PatternNamed p n -> PatternNamed (pat p) n
+      PatternBound n -> PatternBound n
+      PatternAlts ns alts -> PatternAlts (headed ns) (fmap alt alts)
+      PatternPrimed pos p -> PatternPrimed pos (pat p)
+      PatternExpr e -> PatternExpr (expr e)
+    -- An alternative is written from the sum: its path is variants.
+    alt = \case
+      PatternPath ns args -> PatternPath ns (map pat args)
+      PatternAlts ns alts -> PatternAlts ns (fmap alt alts)
+      p -> pat p
+    expr = \case
+      ExprConst c -> ExprConst (qn c)
+      ExprBin op pos a b -> ExprBin op pos (expr a) (expr b)
+      e -> e
+    guard = \case
+      GuardPattern p -> GuardPattern (pat p)
+      GuardCompare op l r -> GuardCompare op (operand l) (operand r)
+      GuardIn l ys -> GuardIn (operand l) ys
+      GuardNot g -> GuardNot (guard g)
+      GuardAnd gs -> GuardAnd (fmap guard gs)
+      GuardOr gs -> GuardOr (fmap guard gs)
+    operand = \case
+      OperandVariant ns -> OperandVariant (headed ns)
+      o -> o
 
 -- | The first entry for each name.
 firsts :: (a -> Name) -> [a] -> Map Text a
@@ -257,7 +389,9 @@ variantEntry m v =
   fromMaybe (VariantInfo v (variantName v) []) $
     find
       ((== variantName v) . variantName . variantInfo)
-      (M.findWithDefault [] (nameText (variantName v)) (modelVariants m))
+      ( M.findWithDefault [] (nameText (variantName v)) (modelVariants m)
+          <> M.findWithDefault [] (nameText (variantName v)) (modelBaseVariants m)
+      )
 
 -- | Resolves a path from left to right, leniently, so that a path the
 -- checker rejects still finds what it most likely means. The head is a
@@ -346,6 +480,26 @@ renderModel m =
       <> ["annotations"]
       <> ["  @" <> name | name <- M.keys (modelAnnotations m)]
       <> ["root " <> maybe "none" nameText (modelRoot m)]
+      <> ( if M.null (modelImports m)
+             then []
+             else
+               ["imports"]
+                 <> [ "  "
+                        <> name
+                        <> " : "
+                        <> T.pack (baseInfoFile b)
+                        <> ", root "
+                        <> maybe "none" nameText (baseInfoRoot b)
+                    | (name, b) <- M.toList (modelImports m)
+                    ]
+                 <> ["base variants"]
+                 <> [ "  " <> name <> " : " <> variantOwnerPath v
+                    | (name, vs) <- M.toList (modelBaseVariants m)
+                    , v <- vs
+                    ]
+                 <> ["base events"]
+                 <> ["  " <> name | name <- M.keys (modelBaseEvents m)]
+         )
   where
     shape = \case
       ShapeAtomic base -> "atomic" <> maybe "" ((" " <>) . primitiveWord) base

@@ -1,0 +1,36 @@
+-- A layer over base-todo.sumspec: it reads the base's state, fires its
+-- events with >>, reacts to one, and holds a base type as its own data.
+__imports {
+  core "base-todo.sumspec"
+}
+
+__atomics { }
+__events { type submit toggleClicked renameClicked clearClicked edit }
+
+__init :: App(Box.Empty * View.List)
+
+App = Box * View * core.Core
+Box = Empty | Typing Draft
+Draft = core.Title
+View = List | Editing (core.TodoId * Draft)
+
+type core.Title#t :: Box.Empty -> Box.Typing(Draft(t))
+
+submit :: App => Box.Typing(Draft(#t)) -> Box.Empty  >> core.add(t)
+
+toggleClicked core.TodoId#id
+  :: App(core.Core(core.Todos[id])) -> App  >> core.toggle(id)
+
+edit core.TodoId#id
+  :: App
+  => View.List * core.Core(core.Todos[id](core.Title#t) * core.Link.Up)
+  -> View.Editing(id * Draft(t))
+
+renameClicked
+  :: App
+  => View.Editing(core.TodoId#id * Draft(#t)) -> View.List  >> core.rename(id * t)
+
+clearClicked :: App(core.Core(core.Link.Up)) -> App  >> core.clear
+
+-- A reaction: the base stops, so editing stops too.
+core.stop :: View.Editing -> View.List

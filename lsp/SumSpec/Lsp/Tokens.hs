@@ -134,6 +134,20 @@ scanLine names line = go 0 . T.unpack
       , isAsciiLower w =
           let (word, rest) = span isWordChar cs
           in  word' col (c : word) (col + 1) rest
+      -- A qualified name, core.Todos: the qualifier, then the name.
+      | isAsciiLower c
+      , (q, '.' : r@(x : _)) <- span isWordChar s
+      , isAsciiUpper x || isAsciiLower x
+      , Just o <- M.lookup (line, col) names
+      , occKind o /= KValue =
+          let
+            (local, rest) = span isWordChar r
+            at = col + width q + 1
+          in
+            token col q SemanticTokenTypes_Namespace []
+              : case classify (Just o) local of
+                Just (kind, modifiers) -> emit at local rest kind modifiers
+                Nothing -> go (at + width local) rest
       | isAsciiUpper c || isAsciiLower c =
           let (word, rest) = span isWordChar s
           in  word' col word col rest
@@ -172,6 +186,7 @@ classify occ word = case occ of
       KAnnotation -> SemanticTokenTypes_Decorator
       KConst -> SemanticTokenTypes_Variable
       KValue -> SemanticTokenTypes_Variable
+      KQualifier -> SemanticTokenTypes_Namespace
     extra = \case
       KConst -> [SemanticTokenModifiers_Readonly]
       _ -> []
@@ -191,6 +206,7 @@ operator s =
       , "->"
       , "=>"
       , "//"
+      , ">>"
       , "=="
       , "!="
       , "<="

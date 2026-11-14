@@ -1,0 +1,40 @@
+-- Imports, qualified names, dispatches and reactions.
+__version 1.0
+
+__imports {
+  core "base.sumspec"   -- the domain
+  log   "../log.sumspec"
+}
+
+__atomics { }
+
+__events {
+  clearClicked
+  renameClicked
+  toggleClicked
+}
+
+__init :: App(Filter.All)
+
+App    = Filter * core.Core * View
+Filter = All | Active | Completed
+View   = List | Editing (core.TodoId * Draft)
+Draft  = core.Title
+Ids    = [core.TodoId]
+Notes  = [Note by core.TodoId]
+Note   = core.Title
+Limit  = core.Count(10)
+First  = core.Completion.Active
+
+clearClicked :: App => Filter -> Filter.All  >> core.clearCompleted
+
+toggleClicked core.TodoId#id
+  :: App => core.Core(core.Todos[id](core.Completion.Active)) -> Filter
+  >> core.toggleTodo(id)  @control checkbox
+
+renameClicked
+  :: App
+  => View.Editing(core.TodoId#id * Draft(#t)) // t != "" -> View.List >> core.rename(id * t)
+  => View.List -> View.List
+
+core.clearCompleted :: App => View.Editing -> View.List

@@ -10,6 +10,23 @@ release" in `VERSIONING.md`).
 
 ### Language
 
+- Layered specs: a spec may import base specs, `__imports { core
+  "todo-core.sumspec" }`, and write everything the base declares with the
+  qualifier, one token (`core.Todos`, `core.toggleTodo`). The layer's root
+  holds the base's root as a factor (`App = Filter * core.Core`); its
+  sources and guards read the base's state through it, and no target or
+  `__init` writes inside it. A transition fires a base event after its
+  target, in the same step, `-> ... >> core.rename(id * t)`, giving the
+  event's input; a layer reacts to a base event with transitions for its
+  name (`core.clearCompleted :: ...`), which happen whenever it does. The
+  checker reports a file that can't be read, doesn't parse or has errors,
+  an import cycle, a file reached through two imports, an unknown
+  qualifier or base name, a root without the base's root, a write inside
+  the base's state, and a dispatch or reaction that doesn't fit the base
+  event. It warns about a dispatch from a source where the event can't
+  happen, and a reaction that can apply in the same state as a
+  transition firing its event. `example/todo-core.sumspec` and
+  `example/todo-ui.sumspec` split TodoMVC into a core and a UI.
 - Element paths over several elements, with the word `each`:
   `L[each in xs]` is every element of the keyed list type `L` whose key
   is in the list `xs`; on the source side each must exist and match.
@@ -169,6 +186,14 @@ release" in `VERSIONING.md`).
 
 ### Tool
 
+- `sumspec check` reads the base specs a spec imports, relative to it,
+  and checks each on its own first. The library has `SumSpec.Load`
+  (`loadSpec`, `loadImports`) and `checkSpecWith`, and the model the
+  bases (`modelWith`).
+- The language server reads a document's bases from disk: diagnostics
+  check against them, go to definition and hover reach into a base's
+  file, completion offers a base's names after its qualifier, and a
+  qualifier is highlighted as a namespace.
 - `sumspec check`: a type declared in `__atomics` and also defined (an
   error) is now the atomic everywhere after that error, as in the
   language server: it has no variants, takes no arguments, is no list

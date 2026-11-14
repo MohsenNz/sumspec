@@ -1,0 +1,13 @@
+-- An import cycle: this imports error-import-cycle-b.sumspec, which
+-- imports this.
+__imports {
+  b "error-import-cycle-b.sumspec"
+}
+
+__atomics { }
+__events { }
+
+__init :: App(b.App)
+
+App = Mode * b.App
+Mode = On | Off

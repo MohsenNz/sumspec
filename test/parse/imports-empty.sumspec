@@ -1,0 +1,10 @@
+-- An empty __imports block imports nothing.
+__imports { }
+__atomics { }
+__events { go }
+
+__init :: App
+
+App = On | Off
+
+go :: App.On -> App.Off

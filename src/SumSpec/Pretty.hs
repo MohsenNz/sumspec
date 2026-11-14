@@ -25,9 +25,10 @@ import SumSpec.Syntax
 import SumSpec.Version (renderVersion)
 
 renderSpec :: Spec -> Text
-renderSpec (Spec version atomics events annotations defs) =
+renderSpec (Spec version imports atomics events annotations defs) =
   T.unlines $
     maybe [] (\v -> ["__version " <> T.pack (renderVersion v), ""]) version
+      <> (if null imports then [] else block "__imports" (map renderImport imports) <> [""])
       <> block "__atomics" (map renderAtomic atomics)
       <> [""]
       <> block "__events" (map nameText events)
@@ -40,6 +41,10 @@ renderSpec (Spec version atomics events annotations defs) =
   where
     block keyword names =
       [keyword <> " {"] <> map ("  " <>) names <> ["}"]
+
+-- | An entry of @__imports@: @core "todo-core.sumspec"@.
+renderImport :: Import -> Text
+renderImport (Import name _ file) = nameText name <> " \"" <> file <> "\""
 
 renderAtomic :: Atomic -> Text
 renderAtomic (Atomic name base) =
@@ -72,12 +77,17 @@ renderDefinition = \case
             <> T.concat [indent <> "=> " <> renderBranch b | b <- NE.toList branches]
         where
           shared = T.intercalate " / " (map renderShared paths)
-      renderBranch (Branch from guard to notes) =
+      renderBranch (Branch from guard to notes dispatch) =
         renderSide from
           <> maybe "" ((" // " <>) . renderGuard) guard
           <> " -> "
           <> renderSide to
+          <> maybe "" renderDispatch dispatch
           <> renderAnnotations notes
+      renderDispatch (Dispatch event args) =
+        " >> "
+          <> nameText event
+          <> if null args then "" else "(" <> renderArguments args <> ")"
       renderSide = renderArguments . NE.toList
       renderShared (Shared names key) =
         T.intercalate "." (map nameText (NE.toList names))

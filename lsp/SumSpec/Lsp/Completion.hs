@@ -25,7 +25,7 @@ import Language.LSP.Protocol.Types
 import SumSpec.Lsp.Hover (docComment)
 import SumSpec.Model
 import SumSpec.Syntax
-import Text.Megaparsec (initialPos)
+import Text.Megaparsec (SourcePos, initialPos)
 
 -- | What to offer at the cursor.
 data Context
@@ -42,9 +42,12 @@ data Context
   | -- | In a comment or a string: nothing.
     Nowhere
 
--- | The completion items at this position of the source.
-completions :: Text -> Spec -> Model -> Position -> [CompletionItem]
-completions source spec m (Position line character) =
+-- | The completion items at this position of the source. The function
+-- gives the source of the file a position is in: a base's names are in
+-- its file.
+completions
+  :: Text -> (SourcePos -> Text) -> Spec -> Model -> Position -> [CompletionItem]
+completions source sourceAt spec m (Position line character) =
   case context before blocks of
     Nowhere -> []
     AfterAt ->
@@ -53,8 +56,10 @@ completions source spec m (Position line character) =
       ]
     -- Only what the checker accepts: the head is a type, each name after
     -- it a variant ('step'), and what follows a variant of the sum there.
+    -- After a qualifier, core.: what the base declares.
+    AfterDot [q] | Just _ <- M.lookup q (modelImports m) -> qualified q
     AfterDot p -> fromMaybe [] $ do
-      h : rest <- Just [Name (initialPos "") t | t <- p]
+      h : rest <- Just [Name (initialPos "") t | t <- qualify p]
       start <- M.lookup (nameText h) (modelTypes m)
       here <- either (const Nothing) Just (steps m (typeInfoBody start) rest)
       Just (members here)
@@ -66,7 +71,7 @@ completions source spec m (Position line character) =
     InBlock _ -> []
     LineStart ->
       [ item CompletionItemKind_Keyword k k Nothing Nothing
-      | k <- ["__init", "__annotations"]
+      | k <- ["__init", "__annotations", "__imports"]
       ]
         <> [ item CompletionItemKind_Event name name (Just "listed in __events") Nothing
            | n <- specEvents spec
@@ -80,7 +85,30 @@ completions source spec m (Position line character) =
     current = fromMaybe "" (lookup lineNo (zip [0 ..] sourceLines))
     before = takeUtf16 (fromIntegral character) current
     blocks = reverse (take lineNo sourceLines)
-    doc n = docComment source (namePos n)
+    doc n = docComment (sourceAt (namePos n)) (namePos n)
+    -- A path that starts with a qualifier starts with a base's type.
+    qualify = \case
+      q : t : rest | Just _ <- M.lookup q (modelImports m) -> (q <> "." <> t) : rest
+      p -> p
+    qualified q =
+      [ item kind local local detail (doc n)
+      | (name, kind, detail, n) <-
+          [ ( nameText (typeInfoName t)
+            , typeKind (typeInfoShape t)
+            , Just (shapeWord (typeInfoShape t))
+            , typeInfoName t
+            )
+          | t <- M.elems (modelTypes m)
+          ]
+            <> [ (name, CompletionItemKind_Constant, Just (nameText (constType c)), constName c)
+               | (name, c) <- M.toList (modelConsts m)
+               ]
+            <> [ (name, CompletionItemKind_Event, Just "event", eventName (eventInfo e))
+               | (name, e) <- M.toList (modelBaseEvents m)
+               ]
+      , Just local <- [T.stripPrefix (q <> ".") name]
+      , not (T.any (== '.') local)
+      ]
     members here =
       [ item
           CompletionItemKind_EnumMember
@@ -169,7 +197,7 @@ context before above
         | Just k <- blockKeyword l -> Just k
         | otherwise -> openBlock ls
     blockKeyword l =
-      case [k | k <- ["__atomics", "__events", "__annotations"], opens k l] of
+      case [k | k <- ["__atomics", "__events", "__annotations", "__imports"], opens k l] of
         k : _ -> Just k
         [] -> Nothing
     opens k l = k `T.isInfixOf` l && "{" `T.isInfixOf` snd (T.breakOn k l)

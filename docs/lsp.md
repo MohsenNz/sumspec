@@ -157,6 +157,21 @@ the cursor, and the names come from the model of what parses:
 
 Trigger characters are `.` and `@`; the editor filters by the prefix.
 
+### Imports (layered specs)
+
+A document that imports base specs (`__imports { core "file" }`) is read with
+them: on each request and diagnosis, `loadImports` reads each base from
+disk, relative to the document, and the model (`modelWith`) holds the
+bases' names, qualified. A base open in the editor with unsaved changes
+is still read from disk. A base's names keep their positions in its own
+file, so go to definition gives a location there (with the name's range
+as written in the base, without the qualifier), and hover reads the
+comments from that file. Diagnostics check against the bases
+(`checkSpecWith`); a base that can't be read, doesn't parse or has
+errors is one error on its entry in `__imports`. Completion after `core.` offers
+the base's types, constants and events, and the qualifier is a
+`namespace` token.
+
 ### Semantic tokens (`lsp/SumSpec/Lsp/Tokens.hs`)
 
 A lexical scan finds comments, strings, numbers, `__` words, operators,

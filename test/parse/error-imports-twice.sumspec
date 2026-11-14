@@ -1,0 +1,5 @@
+-- __imports is a header block, written at most once.
+__imports { core "base.sumspec" }
+__atomics { }
+__imports { log "log.sumspec" }
+__events { }

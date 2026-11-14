@@ -29,15 +29,16 @@ import SumSpec.Syntax
 import Text.Megaparsec (SourcePos (..), unPos)
 
 -- | The hover for the name under the cursor: what it refers to, as
--- markdown. 'Nothing' when it doesn't resolve.
-hover :: Text -> Spec -> Model -> Occurrence -> Maybe Hover
-hover source spec m occ = do
+-- markdown. 'Nothing' when it doesn't resolve. The function gives the
+-- source of the file a position is in: a base's names are in its file.
+hover :: Text -> (SourcePos -> Text) -> Spec -> Model -> Occurrence -> Maybe Hover
+hover source sourceAt spec m occ = do
   target <- occTarget occ
   body <- describe source spec m (occKind occ) target
   -- A value's line is a transition: its comment isn't about the value.
   let docs
         | occKind occ == KValue = []
-        | otherwise = toList (docComment source (namePos target))
+        | otherwise = toList (docComment (sourceAt (namePos target)) (namePos target))
   pure
     Hover
       { _contents =
@@ -61,7 +62,9 @@ describe source spec m kind target = case kind of
     v <-
       find
         ((== target) . variantName . variantInfo)
-        (M.findWithDefault [] (nameText target) (modelVariants m))
+        ( M.findWithDefault [] (nameText target) (modelVariants m)
+            <> M.findWithDefault [] (nameText target) (modelBaseVariants m)
+        )
     let
       Variant n payload _ = variantInfo v
       written = variantOwnerPath v <> "." <> nameText n
@@ -77,7 +80,11 @@ describe source spec m kind target = case kind of
     c <- M.lookup (nameText target) (modelConsts m)
     pure [code (renderDefinition (DefConst c))]
   KEvent -> do
-    e <- M.lookup (nameText target) (modelEvents m)
+    e <-
+      maybe
+        (M.lookup (nameText target) (modelBaseEvents m))
+        Just
+        (M.lookup (nameText target) (modelEvents m))
     let
       Event n input transitions = eventInfo e
       count = sum (map (length . transitionBranches) (toList transitions))
@@ -95,6 +102,14 @@ describe source spec m kind target = case kind of
               docComment source (namePos entry)
           )
   KAnnotation -> pure [code ("@" <> nameText target)]
+  KQualifier -> do
+    b <- M.lookup (nameText target) (modelImports m)
+    pure
+      [ code (nameText target <> " \"" <> T.pack (baseInfoFile b) <> "\"")
+      , "Base spec, in `__imports`"
+          <> maybe "" (\r -> ", whose root is `" <> nameText r <> "`") (baseInfoRoot b)
+          <> "."
+      ]
   KValue ->
     pure
       [ code (nameText target <> maybe "" ((" : " <>) . patternType) bound)
@@ -127,7 +142,7 @@ eventValues (Event _ input transitions) =
           <> concatMap pattern (toList to)
           <> maybe [] guardValues guard
       | Transition _ branches <- toList transitions
-      , Branch from guard to _ <- toList branches
+      , Branch from guard to _ _ <- toList branches
       ]
   where
     pattern = \case

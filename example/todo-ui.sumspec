@@ -1,0 +1,89 @@
+-- TodoMVC's user interface, layered over its core (todo-core.sumspec).
+--
+-- The screen's own state is the text box for a new todo, the filter, and
+-- the row being edited. The todos are the core's: the screen reads them
+-- through core.Core, and changes them only by firing the core's events
+-- with >>. core.Core starts at the core's __init, so this __init leaves
+-- it out.
+
+__version 1.0
+
+__imports {
+  core "todo-core.sumspec"
+}
+
+__atomics { }
+
+__events {
+  startTyping
+  submitTodo
+  toggleClicked
+  toggleAllClicked
+  startEditing
+  finishEditing
+  cancelEditing
+  deleteClicked
+  clearClicked
+  showAll
+  showActive
+  showCompleted
+}
+
+__init :: App(NewTodo.Blank * Filter.All * Editing.None)
+
+App
+  = NewTodo
+  * Filter
+  * Editing
+  * core.Core
+
+NewTodo
+  = Blank
+  | Typing core.Title
+
+Filter
+  = All
+  | Active
+  | Completed
+
+-- The row being edited, and the title typed in it so far.
+Editing
+  = None
+  | Row (core.TodoId * EditText)
+
+EditText = core.Title
+
+startTyping core.Title#t :: NewTodo.Blank -> NewTodo.Typing(t)
+
+-- The core adds the todo; the screen empties its text box.
+submitTodo
+  :: App => NewTodo.Typing(#t) -> NewTodo.Blank  >> core.addTodo(t)
+
+toggleClicked core.TodoId#id :: App -> App  >> core.toggleTodo(id)
+
+toggleAllClicked :: App -> App  >> core.toggleAll
+
+-- The row starts with the todo's title, read from the core.
+startEditing core.TodoId#id
+  :: App
+  => Editing.None * core.Core(core.Todos[id](core.Title#t))
+  -> Editing.Row(id * EditText(t))
+
+finishEditing
+  :: App
+  => Editing.Row(core.TodoId#id * EditText(#e))
+  -> Editing.None  >> core.rename(id * e)
+
+cancelEditing :: Editing.Row -> Editing.None
+
+deleteClicked core.TodoId#id :: App -> App  >> core.deleteTodo(id)
+
+clearClicked :: App -> App  >> core.clearCompleted
+
+-- A reaction: when the core deletes the todo being edited, by this
+-- screen or not, the row stops being edited.
+core.deleteTodo core.TodoId#id :: Editing.Row(id) -> Editing.None
+
+showAll       :: Filter -> Filter.All
+showActive    :: Filter -> Filter.Active
+showCompleted :: Filter -> Filter.Completed

@@ -1,0 +1,5 @@
+test/parse/error-imports-twice.sumspec:4:1:
+  |
+4 | __imports { log "log.sumspec" }
+  | ^
+__imports is written twice

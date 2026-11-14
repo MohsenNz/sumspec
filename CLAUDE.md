@@ -18,6 +18,8 @@ ones as the work changes.
   - `example/drone.sumspec`: the reference example (a drone mission planner app).
   - `example/todomvc.sumspec`: a UI, TodoMVC.
   - `example/git.sumspec`: an application core, a local Git repository.
+  - `example/todo-core.sumspec` and `example/todo-ui.sumspec`: TodoMVC
+    as layered specs, a base and a UI layer that imports it.
 - `spec/proposals.md`: future features that are **not** in v1. Don't
   implement them unless asked. Each says whether it's additive or
   breaking.
@@ -89,7 +91,11 @@ the executable (`app/`) and two test suites:
   is the one place the rule for a name after a dot (`Page.Plan`) is
   written; the checker uses it, so a change to that rule goes there.
 - `src/SumSpec/Check.hs`: the type checker. It validates the AST and
-  returns every error, sorted by position.
+  returns every error, sorted by position. `checkSpecWith` takes what
+  the loader found at each entry of `__imports`.
+- `src/SumSpec/Load.hs`: reads a spec and, from disk, the base specs it
+  imports (relative to it), each parsed and checked on its own; the one
+  place that does IO for the checker.
 - `src/SumSpec.hs`: re-exports the public modules.
 - `app/Main.hs`: the `sumspec` command-line tool. `sumspec parse FILE`
   prints the canonical form or the parse error; `sumspec check FILE`
@@ -137,7 +143,8 @@ in `examples` in `test/Main.hs`, with golden files named
 - `test/parse/`: the golden file is the canonical form, or the parse
   error. Each file is checked twice: once as parsed, and once after
   printing and parsing again (round trip), against the same golden file.
-- `test/check/`: the golden file is `OK`, or the type errors.
+- `test/check/`: the golden file is `OK`, or the type errors. Base specs
+  that other cases import are named `base-*.sumspec` (cases too).
 - `test/model/`: the golden file is the resolved model (`renderModel`)
   of the definitions that parse.
 

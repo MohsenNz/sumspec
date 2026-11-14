@@ -1,0 +1,7 @@
+__imports {
+  core "base.sumspec"
+}
+__atomics { }
+__events { go }
+
+App = A * core .Core
