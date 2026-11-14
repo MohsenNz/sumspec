@@ -108,8 +108,8 @@ unstage Path#p
 
 restore Path#p
   :: Files[p]
-  => FileState.Modified -> FileState.Unmodified
-  => FileState.StagedAndModified -> FileState.Staged
+  => FileState.Modified           -> FileState.Unmodified
+  => FileState.StagedAndModified  -> FileState.Staged
 
 -- Every staged file becomes unmodified: Files[each #p] is every file
 -- that matches the source.

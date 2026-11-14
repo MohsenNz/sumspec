@@ -1,12 +1,12 @@
-example/todomvc.sumspec:127:25:
+example/todomvc.sumspec:134:6:
     |
-127 |                      :: Screen.WithTodos(Todos[id]) -> Screen.NoTodos
-    |                         ^
-warning: deleteTodo: this transition and the one on line 124 can apply to the same state, and which one happens isn't said; give their sources different variants
+134 |   :: Screen.WithTodos(Todos[id])
+    |      ^
+warning: deleteTodo: this transition and the one on line 131 can apply to the same state, and which one happens isn't said; give their sources different variants
 
-example/todomvc.sumspec:134:19:
+example/todomvc.sumspec:144:6:
     |
-134 |                :: Screen.WithTodos(Footer(ClearCompleted.Shown))
-    |                   ^
-warning: clearCompleted: this transition and the one on line 129 can apply to the same state, and which one happens isn't said; give their sources different variants
+144 |   :: Screen.WithTodos(Footer(ClearCompleted.Shown))
+    |      ^
+warning: clearCompleted: this transition and the one on line 139 can apply to the same state, and which one happens isn't said; give their sources different variants
 

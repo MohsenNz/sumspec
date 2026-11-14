@@ -107,33 +107,43 @@ addTodo
 
 toggleTodo TodoId#id
   :: Todos[id]
-  => Completion.Active -> Completion.Completed
+  => Completion.Active    -> Completion.Completed
   => Completion.Completed -> Completion.Active
 
-toggleAll :: ToggleAll.NotAllDone -> ToggleAll.AllDone
-          :: ToggleAll.AllDone -> ToggleAll.NotAllDone
+toggleAll
+  :: ToggleAll.NotAllDone -> ToggleAll.AllDone
+  :: ToggleAll.AllDone    -> ToggleAll.NotAllDone
 
-startEditing TodoId#id :: Todos[id] => Title(#title) * RowMode.Viewing
-                                    -> RowMode.Editing(EditText(title))
+startEditing TodoId#id
+  :: Todos[id]
+  => Title(#title) * RowMode.Viewing
+  -> RowMode.Editing(EditText(title))
 
-finishEditing TodoId#id :: Todos[id] => RowMode.Editing(EditText(#e))
-                                     -> Title(e) * RowMode.Viewing
+finishEditing TodoId#id
+  :: Todos[id]
+  => RowMode.Editing(EditText(#e))
+  -> Title(e) * RowMode.Viewing
 
-cancelEditing TodoId#id :: Todos[id] => RowMode.Editing -> RowMode.Viewing
+cancelEditing TodoId#id
+  :: Todos[id] => RowMode.Editing -> RowMode.Viewing
 
-deleteTodo TodoId#id :: Screen.WithTodos => Todos[id]
-                                         -> Todos' * ToggleAll' * Footer'
+deleteTodo TodoId#id
+  :: Screen.WithTodos => Todos[id]
+  -> Todos' * ToggleAll' * Footer'
 
-                     :: Screen.WithTodos(Todos[id]) -> Screen.NoTodos
+  :: Screen.WithTodos(Todos[id])
+  -> Screen.NoTodos
 
-clearCompleted :: Screen.WithTodos => Footer(ClearCompleted.Shown)
-                                   -> Todos'
-                                    * ToggleAll.NotAllDone
-                                    * Footer(ClearCompleted.Hidden)
+clearCompleted
+  :: Screen.WithTodos
+  => Footer(ClearCompleted.Shown)
+  -> Todos'
+   * ToggleAll.NotAllDone
+   * Footer(ClearCompleted.Hidden)
 
-               :: Screen.WithTodos(Footer(ClearCompleted.Shown))
-               -> Screen.NoTodos
+  :: Screen.WithTodos(Footer(ClearCompleted.Shown))
+  -> Screen.NoTodos
 
-showAll :: Filter -> Filter.All
-showActive :: Filter -> Filter.Active
+showAll       :: Filter -> Filter.All
+showActive    :: Filter -> Filter.Active
 showCompleted :: Filter -> Filter.Completed

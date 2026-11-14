@@ -3,30 +3,6 @@
 ## Remaining
 
 ### Open questions
-- [x] More warnings: variants the app never reaches (from `__init`),
-      and transitions of one event, on one type, whose sources overlap.
-- [x] A warning for transitions that can never happen (their source is
-      never reached)? `reachable` in `Check.hs` already knows them.
-- [x] Should the checker build a resolved model of the spec (e.g.
-      `SumSpec.Model`) for code generators to consume? Yes:
-      `SumSpec.Model`, lenient; the checker builds its environment from it.
-- [x] Should the checker resolve paths through `SumSpec.Model` too, so
-      there is one resolver? Yes, for the rule: `step` in
-      `SumSpec.Model` says what a name after a dot is. The checker's
-      `resolve`, constant and guard variants and reachability use it,
-      with their own messages; the lenient resolver adds its fallbacks on
-      top. A test checks they agree on every spec the checker accepts.
-- [x] Element paths over several elements, `L[each #x in xs]`, for an
-      event that brings the keys of the elements it changes
-      (`mergeConflicted` in `example/git.sumspec`).
-- [x] "Every element that matches": `L[each #x]` (Part C's `__each` in
-      `spec/efsm-gaps.md`), for `commit` and `mergeAbort` in
-      `example/git.sumspec`. `#x` is optional (`L[each]`, `L[each in xs]`).
-- [x] Should the checker keep its own copy of the spec's facts (`Env`)?
-      No: it reads `Model` directly (types, variants, constants,
-      `underlying` for newtypes). Facts live in `Model`, judgements and
-      messages in `Check`. A name both atomic and defined is the atomic
-      in both.
 
 ### Closer to an EFSM (`spec/efsm-gaps.md`)
 Decide on each gap, one at a time, then move it to `proposals.md`:
