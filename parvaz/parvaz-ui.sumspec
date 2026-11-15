@@ -712,7 +712,8 @@ closeMissionList
   @control button_icon  -- inside the panel
 
 -- The Boundary must be enclosed. An unfinished Marking refuses it too,
--- which the spec can't say.
+-- which the spec can't say. An edit is saved as core.updatePlot needs it:
+-- the mission still NotStarted, and no run active.
 savePlot NewName(core.At#new * core.MissionName#n)
   :: InPlan
       ( PlanPage.Plot
@@ -730,6 +731,7 @@ savePlot NewName(core.At#new * core.MissionName#n)
           * core.Plot.Drawn(core.Boundary(core.Ring.Enclosed))#p
           )
       )
+  // App(core.Core(core.Run.Idle * core.Missions[at](core.MissionState.NotStarted)))
   -> Selected(at)
   >> core.updatePlot(at * n * p)
   @control name_prompt

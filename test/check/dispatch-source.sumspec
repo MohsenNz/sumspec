@@ -1,0 +1,35 @@
+-- Dispatching transitions whose source implies a source of the event they
+-- fire: by the source, by a guard, or, for a sum left open, by a source
+-- of the event for each of its variants.
+__imports {
+  core "base-dispatch.sumspec"
+}
+
+__atomics { }
+__events { bySource byGuard byNot byCover byValue byInline byAlts }
+
+__init :: App(Mode.On)
+
+App = Mode * core.Core
+Mode = On | Off
+
+-- The source fixes what stop needs.
+bySource :: App => Mode.On * core.Core(core.Link.Up) -> Mode.Off  >> core.stop
+
+-- A guard does too.
+byGuard :: App(Mode.On) // App(core.Core(core.Link.Up)) -> App(Mode.Off)  >> core.stop
+
+-- So does ruling out the other variant.
+byNot :: App(Mode.On) // not App(core.Core(core.Link.Down)) -> App(Mode.Off)  >> core.stop
+
+-- flip has a source for each variant of Link, so Link may be left open.
+byCover :: Mode.On -> Mode.Off  >> core.flip
+
+-- charge's source is inside a shared path; its guard is taken to hold.
+byValue :: App => Mode.On * core.Core(core.Level.Low) -> Mode.Off  >> core.charge
+
+-- An inline sum: top needs High, then Partial.
+byInline :: App => Mode.On * core.Core(core.Level.High.Partial) -> Mode.Off  >> core.top
+
+-- Each alternative is a source of its own, and each implies one of flip's.
+byAlts :: App => Mode.On * core.Core(core.Link.{Up | Down}) -> Mode.Off  >> core.flip

@@ -1,0 +1,32 @@
+-- Dispatching transitions from a source where the event they fire may not
+-- happen: one that excludes every source of the event, and ones that leave
+-- out what a source needs.
+__imports {
+  core "base-dispatch.sumspec"
+}
+
+__atomics { }
+__events { disjoint partial valueOnly inner orGuard }
+
+__init :: App(Mode.On)
+
+App = Mode * core.Core
+Mode = On | Off
+
+-- stop needs Link.Up; this source picks Link.Down.
+disjoint :: App => Mode.On * core.Core(core.Link.Down) -> Mode.Off  >> core.stop
+
+-- Link is left open.
+partial :: Mode.On -> Mode.Off  >> core.stop
+
+-- A guard on a value says nothing about the variants.
+valueOnly :: App => Mode.On * core.Core(core.Count#n) // n > 3 -> Mode.Off  >> core.stop
+
+-- top needs Level.High.Partial, not only Level.High.
+inner :: App => Mode.On * core.Core(core.Level.High) -> Mode.Off  >> core.top
+
+-- Each clause of the guard must imply it: the second doesn't.
+orGuard
+  :: App(Mode.On) // App(core.Core(core.Link.Up)) or App(Mode.On)
+  -> App(Mode.Off)
+  >> core.stop

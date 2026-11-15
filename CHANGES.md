@@ -10,6 +10,15 @@ release" in `VERSIONING.md`).
 
 ### Language
 
+- A dispatching transition's source and guard imply a source of the
+  event it fires: `>> core.stop`, with `stop :: Link.Up -> Link.Down`,
+  needs `core.Link.Up` in the source or a guard. Read by variants, as
+  the overlap check reads them: a sum left open passes when the event
+  has a source for each variant, a projection's variants are its base
+  part's, and the event's guards are taken to hold. It is an error;
+  the warning about a dispatch whose source excludes every source of
+  the event is now this error. `parvaz-ui` saves an edited plot only
+  while the mission is NotStarted and no run is active.
 - Named constants start with `__const`:
   `__const BatteryLowThreshold = BatteryCharge(15)`. The plain
   `BatteryLowThreshold = BatteryCharge(15)` form is gone; it now reads as
@@ -71,8 +80,8 @@ release" in `VERSIONING.md`).
   an import cycle, a file reached through two imports, an unknown
   qualifier or base name, a root without the base's root, a write inside
   the base's state, and a dispatch or reaction that doesn't fit the base
-  event. It warns about a dispatch from a source where the event can't
-  happen, and a reaction that can apply in the same state as a
+  event, and a dispatch from a source where the event may not happen.
+  It warns about a reaction that can apply in the same state as a
   transition firing its event. `example/todo-core.sumspec` and
   `example/todo-ui.sumspec` split TodoMVC into a core and a UI.
 - Element paths over several elements, with the word `each`:

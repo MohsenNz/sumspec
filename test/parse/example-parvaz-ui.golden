@@ -212,7 +212,7 @@ newPlot :: InPlan(PlanPage.{JustMap | ShowMission(MissionPanel.List)}) -> InPlan
 showMission :: InPlan(PlanPage.JustMap) -> InPlan(PlanPage.ShowMission(MissionPanel.List)) @control button_icon_f
 closeMissionList :: InPlan(PlanPage.ShowMission(MissionPanel.List)) -> InPlan(PlanPage.JustMap) @control button_icon
 savePlot NewName(core.At#new * core.MissionName#n) :: InPlan(PlanPage.Plot(PlotOrigin.Draft * core.Plot.Drawn(core.Boundary(core.Ring.Enclosed))#p)) -> Selected(new) >> core.addMission(new * n * p) @control name_prompt
-                                                   :: InPlan(PlanPage.Plot(PlotOrigin.Editing(#at) * core.Plot.Drawn(core.Boundary(core.Ring.Enclosed))#p)) -> Selected(at) >> core.updatePlot(at * n * p) @control name_prompt
+                                                   :: InPlan(PlanPage.Plot(PlotOrigin.Editing(#at) * core.Plot.Drawn(core.Boundary(core.Ring.Enclosed))#p)) // App(core.Core(core.Run.Idle * core.Missions[at](core.MissionState.NotStarted))) -> Selected(at) >> core.updatePlot(at * n * p) @control name_prompt
 cancelPlot :: InPlan(PlanPage.Plot(PlotOrigin.Draft)) -> InPlan(PlanPage.JustMap) @control button_icon @requiresConfirmation
            :: InPlan(PlanPage.Plot(PlotOrigin.Editing(#at))) -> Selected(at) @control button_icon @requiresConfirmation
 selectMission core.At#at :: InPlan(PlanPage.ShowMission(MissionPanel.List)) // App(core.Core(core.Missions[at])) -> Selected(at) @control list_row

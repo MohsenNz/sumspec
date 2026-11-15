@@ -4,10 +4,10 @@ test/check/error-dispatch.sumspec:15:36:
    |                                    ^
 core.toggle takes an input, a core.TodoId; give it in parentheses: >> core.toggle(...)
 
-test/check/error-dispatch.sumspec:16:49:
+test/check/error-dispatch.sumspec:16:82:
    |
-16 | extra core.TodoId#id :: Mode.On -> Mode.Off  >> core.stop(id)
-   |                                                 ^
+16 | extra core.TodoId#id :: App => Mode.On * core.Core(core.Link.Up) -> Mode.Off  >> core.stop(id)
+   |                                                                                  ^
 core.stop takes no input; write >> core.stop alone
 
 test/check/error-dispatch.sumspec:17:47:

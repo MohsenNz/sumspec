@@ -1,18 +1,6 @@
-test/check/warn-dispatch.sumspec:16:71:
+test/check/warn-dispatch.sumspec:16:67:
    |
-16 | stopped :: App => core.Core(core.Link.Down) * Mode.On -> Mode.Off  >> core.stop
-   |                                                                       ^
-warning: core.stop can't happen in any state this source matches: each of its sources picks other variants; fire it from a state where it can happen
-
-test/check/warn-dispatch.sumspec:17:71:
-   |
-17 | cleared :: App => core.Core(core.Link.Down) * Mode.On -> Mode.Off  >> core.clear
-   |                                                                       ^
-warning: core.clear can't happen in any state this source matches: each of its sources picks other variants; fire it from a state where it can happen
-
-test/check/warn-dispatch.sumspec:20:67:
-   |
-20 | stopClicked :: App(core.Core(core.Link.Up) * Mode.Off) -> App  >> core.stop
+16 | stopClicked :: App(core.Core(core.Link.Up) * Mode.Off) -> App  >> core.stop
    |                                                                   ^
-warning: this transition fires core.stop, whose reaction on line 21 can apply to the same state, and which one happens isn't said; make their sources or guards exclude each other
+warning: this transition fires core.stop, whose reaction on line 17 can apply to the same state, and which one happens isn't said; make their sources or guards exclude each other
 

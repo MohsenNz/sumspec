@@ -95,9 +95,10 @@ update before any code:
       warning, several dispatches, modules (shared bases, transitive
       dispatch, `as`), splitting the drone example (see "Layered specs,
       more" in `spec/proposals.md`).
-- [ ] The dispatch warning by coverage: warn when a dispatch's source can
-      hold in some state where the event can't happen, not only when it
-      excludes every source of the event.
+- [x] A dispatch's source implies its event's sources: an error when the
+      source can hold in some state where the event can't happen, not
+      only a warning when it excludes every source of the event. Read by
+      variants; the event's guards are taken to hold.
 - [x] Parvaz core: `parvaz/parvaz-core.sumspec`, the domain of
       `parvaz.sumspec` as a base spec (see `parvaz/NOTES.md`).
 - [x] Parvaz UI: `parvaz/parvaz-ui.sumspec`, a layer over the core (see

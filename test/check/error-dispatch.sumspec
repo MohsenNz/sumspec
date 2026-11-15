@@ -13,7 +13,7 @@ App = Mode * core.Core
 Mode = On | Off
 
 missing :: Mode.On -> Mode.Off  >> core.toggle
-extra core.TodoId#id :: Mode.On -> Mode.Off  >> core.stop(id)
+extra core.TodoId#id :: App => Mode.On * core.Core(core.Link.Up) -> Mode.Off  >> core.stop(id)
 wrong core.Title#t :: Mode.On -> Mode.Off  >> core.toggle(t)
 primed core.TodoId#id :: Mode.On -> Mode.Off  >> core.toggle(id')
 named core.TodoId#id :: Mode.On -> Mode.Off  >> core.toggle(core.TodoId#x)

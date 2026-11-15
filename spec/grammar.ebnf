@@ -504,8 +504,14 @@ character     = ? any Unicode character ? ;
    - a dispatch (>>) names an event of a base, and is written in an
      event of this spec, not a reaction. It has an argument exactly when
      the event takes an input: one name or value of the input's type, or
-     the input type's arguments, checked as on the target side. See
-     "Dispatch" in spec-v1.md;
+     the input type's arguments, checked as on the target side. The
+     dispatching transition's source and guard imply a source of the
+     event: by their variants only (each pattern on a type read wherever
+     the type is, a projection's variants as its base part's), the
+     variants they require include those of one of the event's sources,
+     or, for a sum they leave open, each of its variants does; the
+     event's guards and input are taken to hold. See "Dispatch" in
+     spec-v1.md;
    - an event is defined once (one event_def), with all its
      transitions. See "Several transitions for one event" in
      spec-v1.md;
@@ -626,9 +632,6 @@ character     = ? any Unicode character ? ;
      variants it requires and forbids, by the comparisons of a name with
      a literal or variant, and by its memberships and element paths). A
      dispatching transition counts as a transition of the event it
-     fires, for its reactions;
-   - a dispatching transition whose source excludes every source of the
-     dispatched event, by their variants (the base's parts of the source,
-     headed by the type of each event source, are compared).
+     fires, for its reactions.
 
    Not in v1 (see proposals.md): "<-", "g, h ::", variant refinement (PMode.ShowMission = ...). *)

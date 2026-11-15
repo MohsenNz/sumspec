@@ -2,7 +2,7 @@ test/check/error-pattern-base.sumspec:17:73:
    |
 17 | halted :: App => core.Core(core.Link.Down) * View.Busy -> View.Idle  >> core.stop
    |                                                                         ^
-warning: core.stop can't happen in any state this source matches: each of its sources picks other variants; fire it from a state where it can happen
+core.stop can't happen in any state this source matches: each of its sources picks other variants; fire it from a state where it can happen
 
 test/check/error-pattern-base.sumspec:18:16:
    |

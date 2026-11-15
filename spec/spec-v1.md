@@ -1018,6 +1018,36 @@ the input's type as after its name in a target. With
 gives the input `core.Rename(id * e)`. The names are the transition's,
 as on its target side. An event without an input takes no argument.
 
+The dispatched event happens in every state the transition applies to:
+its source and guard imply a source of the event. With
+`stop :: Link.Up -> Link.Down` in the base:
+
+```
+-- Error: Link is left open, and stop needs Link.Up.
+stopClicked :: App(Mode.On) -> App(Mode.Off)  >> core.stop
+
+-- Either of these says it:
+stopClicked :: App => Mode.On * core.Core(core.Link.Up) -> Mode.Off  >> core.stop
+stopClicked :: App(Mode.On) // App(core.Core(core.Link.Up)) -> App(Mode.Off)  >> core.stop
+```
+
+- Only variants are read, as in the overlap check (see "Warnings"): the
+  variants the source and the guard require include those of one of the
+  event's sources. A guard that forbids the other variants counts too
+  (`// not App(core.Core(core.Link.Down))`), and each clause of an `or`
+  must imply a source on its own.
+- A sum left open is enough when the event has a source for each of its
+  variants: with `flip :: Link.Up -> Link.Down` and
+  `:: Link.Down -> Link.Up`, a dispatch of `core.flip` needs no `Link`.
+- A pattern on a base's type says the same wherever it is written: the
+  event's `Core => Link.Up` is implied by `core.Link.Up` anywhere in the
+  layer's source. A projection's variants are those of the base part it
+  reads, so `Status.Up` implies `core.Link.Up` with
+  `Status __from core.Core / core.Link`.
+- The event's guards and input are taken to hold: a value can't be
+  read from the variants. A guard on a value in the layer (`// n > 3`)
+  implies no variant.
+
 ### Reactions
 
 A layer may add its own changes to a base event by giving transitions
@@ -1124,8 +1154,6 @@ Comparisons of a name with a literal or a variant count too: `c < 15` and `c >= 
 From `__init`, the type checker finds the variants the app can reach: a transition can happen once every variant its source writes has been reached, and its target then reaches the variants it writes. A part that may have any value (left out of `__init` or of a new state, or primed) reaches every variant inside it. The checker warns about a variant of a type inside the app's state that is never reached, and reports only the outermost one (not `Bolt` inside an unreached `Locked (Bolt | Chain)`). Parts of a source are tested one at a time and names are ignored, so a variant may be counted as reached when the app can't really get there, but never the other way around.
 
 A transition whose source writes a variant that is never reached, or whose type no state holds (a type outside the app's state), can never happen, and the type checker warns about it, naming the outermost variant its source needs. Such a transition also adds nothing, so what only it would reach is reported as never reached as well.
-
-A dispatching transition whose source excludes every source of the dispatched event gets a warning: the base event can't happen in any state the source matches. As in the overlap check, only variants are read: the base's parts of the layer's source (the patterns headed by the type each source of the event is headed by) are compared with the event's sources, and guards are taken to hold.
 
 ### Membership Warnings
 

@@ -1,0 +1,30 @@
+test/check/error-dispatch-source.sumspec:17:72:
+   |
+17 | disjoint :: App => Mode.On * core.Core(core.Link.Down) -> Mode.Off  >> core.stop
+   |                                                                        ^
+core.stop can't happen in any state this source matches: each of its sources picks other variants; fire it from a state where it can happen
+
+test/check/error-dispatch-source.sumspec:20:36:
+   |
+20 | partial :: Mode.On -> Mode.Off  >> core.stop
+   |                                    ^
+core.stop may not happen in every state this source matches: it needs core.Link.Up; add it to the source or to a guard
+
+test/check/error-dispatch-source.sumspec:23:80:
+   |
+23 | valueOnly :: App => Mode.On * core.Core(core.Count#n) // n > 3 -> Mode.Off  >> core.stop
+   |                                                                                ^
+core.stop may not happen in every state this source matches: it needs core.Link.Up; add it to the source or to a guard
+
+test/check/error-dispatch-source.sumspec:26:70:
+   |
+26 | inner :: App => Mode.On * core.Core(core.Level.High) -> Mode.Off  >> core.top
+   |                                                                      ^
+core.top may not happen in every state this source matches: it needs core.Level.High.Partial; add it to the source or to a guard
+
+test/check/error-dispatch-source.sumspec:32:6:
+   |
+32 |   >> core.stop
+   |      ^
+core.stop may not happen in every state this source matches: it needs core.Link.Up; add it to the source or to a guard
+

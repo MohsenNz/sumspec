@@ -1,0 +1,24 @@
+-- A base spec for dispatch-source.sumspec and
+-- error-dispatch-source.sumspec: events whose sources a dispatching
+-- transition's source must imply. It is a case of its own too.
+__atomics { Count = __int }
+__events { stop flip charge top }
+
+__init :: Core(Link.Up * Level.Low)
+
+Core = Link * Level * Count
+Link = Up | Down
+Level = Low | High (Full | Partial)
+
+-- One source.
+stop :: Link.Up -> Link.Down
+
+-- A source for each variant of Link.
+flip :: Link.Up -> Link.Down
+     :: Link.Down -> Link.Up
+
+-- A source in a shared path, with a guard on a value.
+charge :: Core => Level.Low * Count#c // c < 10 -> Level.High.Partial
+
+-- A source in an inline sum.
+top :: Level.High.Partial -> Level.High.Full

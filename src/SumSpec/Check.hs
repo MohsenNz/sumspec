@@ -311,7 +311,7 @@ checkLayer env inits rawEvents events =
       (checkReaction env)
       [e | e <- rawEvents, isJust (nameQualifier (eventName e))]
     <> concat
-      [ checkDispatch env f d
+      [ checkDispatch env f d <> checkDispatchSource env f d
       | e <- events
       , isNothing (nameQualifier (eventName e))
       , (f, d) <- dispatches e
@@ -542,35 +542,151 @@ subPatterns p =
     PatternPrimed _ q -> subPatterns q
     _ -> []
 
--- | The warnings about dispatches: one that can never fire its event, as
--- its source excludes every source of the event; and one whose event has
--- a reaction that can apply in the same state, since the dispatching
--- transition counts as one of the event's transitions too.
+-- | A dispatching transition's source implies its event's sources: in
+-- every state it applies to, some source of the event matches. Only
+-- variants are read, as in the overlap check: the variants the source and
+-- each clause of the guard require, each rooted at the type that heads
+-- its path ('ownVariants'), include those of one of the event's sources;
+-- where they leave a sum open that a source fixes, each of the sum's
+-- variants leads to a source. The event's guards and input are taken to
+-- hold. See "Dispatch" in spec-v1.md.
+checkDispatchSource :: Model -> Flat -> Dispatch -> [CheckError]
+checkDispatchSource env (Flat _ _ from _ guard _) (Dispatch e _) =
+  case baseEvent env e of
+    Right base
+      | let sources = [ownVariants s | Flat _ _ s _ _ _ <- flatten base]
+      , not (null sources)
+      , ((facts, _) : _) <- filter (not . covered sources) clauses ->
+          case [s | s <- sources, not (excludes facts s)] of
+            [] ->
+              [ errorAt e $
+                  nameText e
+                    <> " can't happen in any state this source matches: each of "
+                    <> "its sources picks other variants; fire it from a state "
+                    <> "where it can happen"
+              ]
+            open@(_ : _) ->
+              [ errorAt e $
+                  nameText e
+                    <> " may not happen in every state this source matches: "
+                    <> (if length sources > 1 then "one of its sources needs " else "it needs ")
+                    <> T.intercalate " and " (missing facts best)
+                    <> "; add it to the source or to a guard"
+              | best : _ <- [sortOn (Set.size . (`Set.difference` facts)) open]
+              ]
+    _ -> []
+  where
+    -- Each clause of the guard, as the variants it and the source
+    -- require, and the patterns it forbids.
+    clauses =
+      [ (layer from <> foldMap layer required, map layer forbidden)
+      | (required, forbidden) <- maybe [([], [])] patternClauses guard
+      ]
+    -- A projection's variants are those of the base part it reads:
+    -- @Status.Up@ with @Status __from core.Core / core.Link@ is
+    -- @core.Link.Up@.
+    layer = Set.map throughProjection . ownVariants
+    throughProjection = \case
+      h : vs
+        | Just p <- Map.lookup h (modelTypeDefs env) >>= typeDefFrom ->
+            nameText (NE.last p) : vs
+      pos -> pos
+    -- Whether every state with these variants matches a source. A state
+    -- the clause rules out is covered.
+    covered sources (facts, forbidden)
+      | excludes facts facts || any (`Set.isSubsetOf` facts) forbidden = True
+      | any (`Set.isSubsetOf` facts) sources = True
+      | otherwise = case [s | s <- sources, not (excludes facts s)] of
+          [] -> False
+          open -> case sortOn length (concatMap (Set.toList . (`Set.difference` facts)) open) of
+            [] -> True
+            r : _ ->
+              let place = init r
+              in  case placeVariants env place of
+                    Nothing -> True
+                    Just vs ->
+                      all
+                        (\v -> covered sources (Set.insert (place <> [v]) facts, forbidden))
+                        vs
+    -- The variants a source needs that the facts don't give, each written
+    -- as its path (@core.Link.Up@), the longest of each path only.
+    missing facts s =
+      let ps = Set.toList (s `Set.difference` facts)
+      in  [ T.intercalate "." p
+          | p <- ps
+          , not (any (\q -> q /= p && p `isPrefixOf'` q) ps)
+          ]
+    isPrefixOf' p q = take (length p) q == p
+
+-- | The variants a pattern writes, each rooted at the type that heads its
+-- path: @core.Core(core.Link.Up)@ gives @[core.Link, Up]@, as
+-- @core.Link.Up@ does, since a pattern on a type applies wherever the type
+-- occurs.
+ownVariants :: Pattern -> Set Position
+ownVariants p =
+  Set.fromList
+    [ pos
+    | PatternPath (h :| path) _ <- subPatterns (applied p)
+    , (pos, _) <- variantSteps [] h path
+    ]
+  where
+    applied = \case
+      -- Expanded before checking (see "SumSpec.Expand").
+      PatternApply ns gs -> PatternPath ns (concat gs)
+      q -> q
+
+-- | The variants of the sum at a place (a type, then variants on the way
+-- down: @[core.Link]@, @[Plot, Drawn]@), or 'Nothing' when it isn't a
+-- known sum.
+placeVariants :: Model -> Position -> Maybe [Text]
+placeVariants env = \case
+  [] -> Nothing
+  h : vs -> case foldM (\here v -> snd <$> step env here (nameAt v)) (typeBody env h) vs of
+    Right (Just (TypeSum variants)) -> Just (map (nameText . variantName) variants)
+    _ -> Nothing
+  where
+    nameAt = Name (initialPos "")
+
+-- | A guard in disjunctive form, by its patterns only: each clause is the
+-- patterns it requires and those it forbids. Comparisons and memberships
+-- are taken to hold.
+patternClauses :: Guard -> [([Pattern], [Pattern])]
+patternClauses = positive
+  where
+    positive = \case
+      GuardPattern p -> [([p], [])]
+      GuardCompare {} -> [([], [])]
+      GuardIn {} -> [([], [])]
+      GuardNot g -> negative g
+      GuardAnd gs -> foldr1 both (map positive (NE.toList gs))
+      GuardOr gs -> concatMap positive (NE.toList gs)
+    negative = \case
+      GuardPattern p -> [([], [p])]
+      GuardCompare {} -> [([], [])]
+      GuardIn {} -> [([], [])]
+      GuardNot g -> positive g
+      GuardAnd gs -> concatMap negative (NE.toList gs)
+      GuardOr gs -> foldr1 both (map negative (NE.toList gs))
+    both xs ys = [(a <> c, b <> d) | (a, b) <- xs, (c, d) <- ys]
+
+-- | The warning about a dispatch whose event has a reaction that can apply
+-- in the same state, since the dispatching transition counts as one of the
+-- event's transitions too.
 warnDispatches :: Model -> [Event] -> [CheckError]
 warnDispatches env events =
   [ warningAt (dispatchEvent d) $
-      nameText (dispatchEvent d)
-        <> " can't happen in any state this source matches: each of its sources "
-        <> "picks other variants; fire it from a state where it can happen"
-  | (f, d) <- fired
-  , Right base <- [baseEvent env (dispatchEvent d)]
-  , let sources = [from | Flat _ _ from _ _ _ <- flatten base]
-  , not (null sources)
-  , not (any (mayApply f) sources)
+      "this transition fires "
+        <> nameText (dispatchEvent d)
+        <> ", whose reaction on line "
+        <> lineOf at
+        <> " can apply to the same state, and which one happens isn't said; "
+        <> "make their sources or guards exclude each other"
+  | (f@(Flat _ _ from _ _ _), d) <- fired
+  , r@(Flat _ _ other _ _ at) <- reactions
+  , nameText (eventName' r) == nameText (dispatchEvent d)
+  , patternKey from == patternKey other
+  , mayOverlap env f r
   ]
-    <> [ warningAt (dispatchEvent d) $
-           "this transition fires "
-             <> nameText (dispatchEvent d)
-             <> ", whose reaction on line "
-             <> lineOf at
-             <> " can apply to the same state, and which one happens isn't said; "
-             <> "make their sources or guards exclude each other"
-       | (f@(Flat _ _ from _ _ _), d) <- fired
-       , r@(Flat _ _ other _ _ at) <- reactions
-       , nameText (eventName' r) == nameText (dispatchEvent d)
-       , patternKey from == patternKey other
-       , mayOverlap env f r
-       ]
   where
     fired =
       [ (f, d)
@@ -580,13 +696,6 @@ warnDispatches env events =
       ]
     reactions = concatMap flatten [e | e <- events, isJust (nameQualifier (eventName e))]
     eventName' (Flat n _ _ _ _ _) = n
-    -- A source of the event may apply where the layer's source holds,
-    -- unless every part of the layer's source on the event source's type
-    -- picks other variants.
-    mayApply (Flat _ _ from _ _ _) source =
-      case [p | p <- subPatterns from, patternKey p == patternKey source] of
-        [] -> True
-        parts -> any (\p -> not (excludes (fixedVariants p) (fixedVariants source))) parts
 
 -- ---------- Projections ----------
 
