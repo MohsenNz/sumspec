@@ -17,28 +17,28 @@ types
   DeviceOrigin : sum of New, Existing
   DeviceRow : product of core.DeviceName, core.LinkSettings, core.LastSystemId, from core.Device
   DeviceRows : list of DeviceRow by core.DeviceId, from core.Core(core.Devices)
-  DevicesView : sum of Listing, Editing
+  DevicesPage : sum of Listing, Editing
   EdgePick : sum of Idle, Picking, Selected
   FCamera : sum of Maximized, Minimized, Hidden
   HomeAircraft : sum of Disconnected, Connected, from core.Core(core.AircraftLink)
   HomeIndicators : product of core.GPSFix, core.Satellites, core.ArmState, from core.AircraftStatus
   HomeMarker : newtype of core.HomePoint, from core.Aircraft
-  HomeView : product of About, LinkStatus, HomeAircraft
+  HomePage : product of About, LinkStatus, HomeAircraft
   Host : sum of Unset, Named
   LinkKind : sum of Udp, Tcp, Serial
   LinkStatus : product of core.LinkSession, core.AircraftLink, from core.Core
   LogLevelFilter : sum of All, Warnings, Errors
   LogList : list of core.LogEntry, from core.Core(core.Logs)
   LogTagFilter : list of core.LogTag
-  LogsView : product of LogLevelFilter, LogTagFilter, LogList
+  LogsPage : product of LogLevelFilter, LogTagFilter, LogList
   Map : product of TileStatus, Zoom, DeviceLocation
   MapFollow : sum of Following, Free
   MissionPanel : sum of List, Selected
   MissionRow : product of core.MissionName, core.MissionState, core.GroundMeasurements, from core.Mission
   MissionRows : list of MissionRow by core.At, from core.Core(core.Missions)
   NewName : product of core.At, core.MissionName
-  PMode : sum of JustMap, Plot, ShowMission, MissionRun, ManualAircraft
   Page : sum of Home, Plan, Devices, Logs
+  PlanPage : sum of JustMap, Plot, ShowMission, MissionRun, ManualAircraft
   PlotController : sum of Field, Route
   PlotEditor : product of PlotOrigin, core.Plot, PointHistory, PlotController, ShapeSelection, CornerPick, EdgePick
   PlotOrigin : sum of Draft, Editing
@@ -170,7 +170,7 @@ variants
   Disconnected : HomeAircraft
   Disconnected : AircraftPanel
   Draft : PlotOrigin
-  Editing : DevicesView
+  Editing : DevicesPage
   Editing : PlotOrigin
   Empty : Undo
   Empty : Redo
@@ -187,19 +187,19 @@ variants
   Idle : CornerPick
   Idle : EdgePick
   Idle : RunPanel
-  JustMap : PMode
+  JustMap : PlanPage
   List : MissionPanel
-  Listing : DevicesView
+  Listing : DevicesPage
   Loading : TileStatus
   Located : DeviceLocation
   Locating : DeviceLocation
   Logs : Page
-  ManualAircraft : PMode
+  ManualAircraft : PlanPage
   MarkPoint : PointType
   Marking : Shape
   Maximized : FCamera
   Minimized : FCamera
-  MissionRun : PMode
+  MissionRun : PlanPage
   Named : Host
   New : DeviceOrigin
   NonSprayArea : PointType
@@ -209,7 +209,7 @@ variants
   Picking : CornerPick
   Picking : EdgePick
   Plan : Page
-  Plot : PMode
+  Plot : PlanPage
   PowerLine : PointType
   Ready : TileStatus
   Ready : Undo
@@ -221,7 +221,7 @@ variants
   Selected : EdgePick
   Selected : MissionPanel
   Serial : LinkKind
-  ShowMission : PMode
+  ShowMission : PlanPage
   Tcp : LinkKind
   Udp : LinkKind
   Unknown : DeviceLocation
@@ -231,6 +231,7 @@ variants
 constants
   core.BatteryLowThreshold : core.Percent
 patterns
+  AcCan : AircraftCanvas
   Armed : Connected
   Connected(x) : App
   DeviceEditor : App
@@ -239,10 +240,10 @@ patterns
   Form(x) : App
   InPlan(m) : App
   ReadyToFly : core.AircraftLink
-  RouteForm : PMode
+  RouteForm : PlanPage
   Running(x) : App
   Selected(at) : App
-  Setting(v) : PMode
+  Setting(v) : PlanPage
 events
   addDevice : 1 transition
   backToList : 1 transition
