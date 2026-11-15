@@ -223,7 +223,15 @@ tests.
    **completion**: type names after `::` and in patterns, variants after
    `.`, declared annotations after `@`, events in `__events`.
 5. **Formatting** with `Pretty`, once the AST keeps comments.
-6. Later: rename, code actions for checker suggestions (an element path
+6. **Rename** (done): the name under the cursor and every use of it in
+   the document, with `prepareRename`. A name defined in a base spec, a
+   qualified name, a qualifier and a name that doesn't resolve are
+   refused, since the edit would reach another file or part of a name.
+   The new name must have the shape of the old (a capital for types,
+   variants, constants and patterns; a small letter for the rest) and
+   not clash with a type, constant or pattern, an event or an annotation
+   already defined.
+7. Later: rename across files, code actions for checker suggestions (an element path
    for a list element, a missing `__events` entry), folding ranges.
 
 ## Highlighting

@@ -13,6 +13,7 @@ import Data.Bits (testBit)
 import Data.List (mapAccumL, sort)
 import Data.Text (Text)
 import Data.Text qualified as T
+import Language.LSP.Protocol.Message
 import Language.LSP.Protocol.Types
 import Language.LSP.Server (runServerWithHandles)
 import Language.LSP.Test
@@ -68,6 +69,7 @@ main =
             @?= [range 4 13 16, range 6 0 3, range 8 25 28, range 10 20 23, range 10 32 35]
           map (._range) withoutDecl
             @?= [range 4 13 16, range 8 25 28, range 10 20 23, range 10 32 35]
+      , testGroup "rename" renameTests
       , testGroup "hover" hoverTests
       , testGroup "completion" completionTests
       , testGroup "layered specs" layerTests
@@ -207,6 +209,86 @@ definitionTests =
       pure $ case result of
         InL (Definition (InL location)) -> Just location._range
         _ -> Nothing
+
+-- | A spec to rename in: a type, a variant, an event and an annotation,
+-- each used more than once.
+renamable :: Text
+renamable =
+  "__atomics { Id }\n__events { go }\n__annotations { @a }\n\n\
+  \App = Mode\nMode @a = On | Off\n\n__init :: App(Mode.Off)\n\n\
+  \go :: Mode.Off -> Mode.On @a\n"
+
+-- | The text of 'renamable' after renaming the name at this position.
+renamedTo :: Position -> Text -> IO Text
+renamedTo pos new = withServer $ do
+  doc <- createDoc "rename.sumspec" "sumspec" renamable
+  _ <- waitForDiagnostics
+  rename doc pos (T.unpack new)
+  documentContents doc
+
+-- | The error message of a rename that is refused.
+renameRefused :: Position -> Text -> IO (Maybe Text)
+renameRefused pos new = withServer $ do
+  doc <- createDoc "rename.sumspec" "sumspec" renamable
+  _ <- waitForDiagnostics
+  reply <-
+    request SMethod_TextDocumentRename (RenameParams Nothing doc pos new)
+  pure $ case reply._result of
+    Left e -> Just e._message
+    Right _ -> Nothing
+
+renameTests :: [TestTree]
+renameTests =
+  [ testCase "a type, in its definition and its uses" $ do
+      -- From a use: the definition is renamed too.
+      text <- renamedTo (Position 9 7) "Kind"
+      text
+        @?= "__atomics { Id }\n__events { go }\n__annotations { @a }\n\n\
+            \App = Kind\nKind @a = On | Off\n\n__init :: App(Kind.Off)\n\n\
+            \go :: Kind.Off -> Kind.On @a\n"
+  , testCase "a variant" $ do
+      text <- renamedTo (Position 5 15) "Idle"
+      text
+        @?= "__atomics { Id }\n__events { go }\n__annotations { @a }\n\n\
+            \App = Mode\nMode @a = On | Idle\n\n__init :: App(Mode.Idle)\n\n\
+            \go :: Mode.Idle -> Mode.On @a\n"
+  , testCase "an event" $ do
+      text <- renamedTo (Position 9 0) "run"
+      text
+        @?= "__atomics { Id }\n__events { run }\n__annotations { @a }\n\n\
+            \App = Mode\nMode @a = On | Off\n\n__init :: App(Mode.Off)\n\n\
+            \run :: Mode.Off -> Mode.On @a\n"
+  , testCase "an annotation keeps its @, and the new name may have it" $ do
+      expected <- renamedTo (Position 5 6) "b"
+      withAt <- renamedTo (Position 5 6) "@b"
+      withAt @?= expected
+      expected
+        @?= "__atomics { Id }\n__events { go }\n__annotations { @b }\n\n\
+            \App = Mode\nMode @b = On | Off\n\n__init :: App(Mode.Off)\n\n\
+            \go :: Mode.Off -> Mode.On @b\n"
+  , testCase "prepareRename gives the name's range" $ do
+      result <- withServer $ do
+        doc <- createDoc "rename.sumspec" "sumspec" renamable
+        _ <- waitForDiagnostics
+        reply <-
+          request
+            SMethod_TextDocumentPrepareRename
+            (PrepareRenameParams doc (Position 4 6) Nothing)
+        pure $ case reply._result of
+          Right (InL (PrepareRenameResult (InR (InL (PrepareRenamePlaceholder r p))))) -> Just (r, p)
+          _ -> Nothing
+      result @?= Just (range 4 6 10, "Mode")
+  , testCase "a name that is already defined" $
+      renameRefused (Position 4 6) "App" >>= (@?= Just "The name App is already defined.")
+  , testCase "a name of the wrong shape" $ do
+      renameRefused (Position 4 6) "mode"
+        >>= (@?= Just "The name must start with a capital letter.")
+      renameRefused (Position 9 0) "Go"
+        >>= (@?= Just "The name must start with a small letter.")
+      renameRefused (Position 4 6) "" >>= (@?= Just "The name is empty.")
+  , testCase "nothing under the cursor" $
+      renameRefused (Position 3 0) "X" >>= (@?= Just "There is no name here.")
+  ]
 
 -- | Hover in 'described': each text must be in what it shows.
 hoverTests :: [TestTree]

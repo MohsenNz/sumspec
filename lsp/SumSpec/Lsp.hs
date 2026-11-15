@@ -3,7 +3,7 @@
 -- | The SumSpec language server, run as @sumspec lsp@ over stdio.
 --
 -- It publishes diagnostics each time a document is opened, changed or
--- saved, and answers the outline, go to definition, references, hover,
+-- saved, and answers the outline, go to definition, references, rename, hover,
 -- completion and semantic highlighting. Each request parses the document as it is in
 -- the editor; a document with parse errors still gives the definitions
 -- that parsed. See docs/lsp.md.
@@ -44,6 +44,7 @@ import SumSpec.Lsp.Completion (completions)
 import SumSpec.Lsp.Hover (hover)
 import SumSpec.Lsp.Index (Occurrence (..), occurrenceAt, occurrencesWith, symbols)
 import SumSpec.Lsp.Position (nameRange, tokenRange)
+import SumSpec.Lsp.Rename (prepareRenameAt, renameEdits)
 import SumSpec.Lsp.Tokens (encodeSemanticTokens, semanticTokens)
 import Text.Megaparsec
   ( ParseErrorBundle (..)
@@ -147,6 +148,30 @@ handlers =
                   , includeDeclaration || not (occDefinition o)
                   ]
           _ -> InR Null
+    , requestHandler SMethod_TextDocumentPrepareRename $ \req respond -> do
+        let TRequestMessage _ _ _ (PrepareRenameParams (TextDocumentIdentifier uri) pos _) = req
+        result <- document uri
+        respond . Right $ case result of
+          Just d
+            | Just (range, placeholder) <-
+                prepareRenameAt (docSource d) (uriPath uri) pos (docOccurrences d) ->
+                InL (PrepareRenameResult (InR (InL (PrepareRenamePlaceholder range placeholder))))
+          _ -> InR Null
+    , requestHandler SMethod_TextDocumentRename $ \req respond -> do
+        let TRequestMessage _ _ _ (RenameParams _ (TextDocumentIdentifier uri) pos newName) = req
+        result <- document uri
+        case result of
+          Nothing ->
+            respond
+              ( Left
+                  (TResponseError (InR ErrorCodes_InvalidRequest) "The document isn't open." Nothing)
+              )
+          Just d -> case renameEdits (docSource d) (uriPath uri) pos newName (docOccurrences d) of
+            Left message ->
+              respond (Left (TResponseError (InR ErrorCodes_InvalidParams) message Nothing))
+            Right edits ->
+              respond . Right . InL $
+                WorkspaceEdit (Just (M.singleton uri edits)) Nothing Nothing
     , requestHandler SMethod_TextDocumentSemanticTokensFull $ \req respond -> do
         let TRequestMessage _ _ _ (SemanticTokensParams _ _ (TextDocumentIdentifier uri)) = req
         result <- document uri

@@ -216,6 +216,11 @@ release" in `VERSIONING.md`).
 
 ### Tool
 
+- The language server renames a type, variant, constant, event, annotation,
+  value or named pattern in the document (`textDocument/rename`, with
+  `prepareRename`). A name defined in a base spec, a qualified name and a
+  qualifier are refused; so is a new name of the wrong shape or one that
+  clashes with a type, constant, pattern, event or annotation.
 - Projections: `TypeDef` has `typeDefFrom`; the printer, the model render
   and the language server's index and hover show the path.
 - Named patterns: the library has `SumSpec.Expand` (`expandSpec`,

@@ -67,6 +67,8 @@ The plan is in `docs/lsp.md`. In order:
 - [ ] VS Code: an extension with a TextMate grammar (also for Shiki,
       Sublime and GitHub) and `vscode-languageclient`.
 - [x] A resolved model (`SumSpec.Model`), then hover and completion.
+- [x] Rename, within the document (`SumSpec.Lsp.Rename`).
+- [ ] Rename across files: a base's name used by the specs that import it.
 - [ ] Formatting, once the AST keeps comments.
 - [ ] {Optional, later} A tree-sitter grammar.
 

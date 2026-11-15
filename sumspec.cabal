@@ -62,6 +62,7 @@ library sumspec-lsp
     SumSpec.Lsp.Hover
     SumSpec.Lsp.Index
     SumSpec.Lsp.Position
+    SumSpec.Lsp.Rename
     SumSpec.Lsp.Tokens
 
   build-depends:
