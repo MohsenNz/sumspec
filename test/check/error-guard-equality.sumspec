@@ -10,7 +10,7 @@ Other = Id * Name
 Ids = [Id]
 Shape = Circle Id | Square
 Wrapped = Box
-Round = Shape.Circle
+__const Round = Shape.Circle
 
 order Box#a :: App => Box#b // a < b -> Box'
 listorder :: App => Ids#a // a >= a -> Ids'

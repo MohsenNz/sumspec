@@ -11,7 +11,7 @@ Height = Meters
 Count = Int
 Link = Off | Failed Int
 Item = Attempts * Count
-Step = Int(2)
+__const Step = Int(2)
 
 inc :: App => Attempts(#n) -> Attempts(n + 1)
 dec :: App => Attempts(#n) -> Attempts(n-1)

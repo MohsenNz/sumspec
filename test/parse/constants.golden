@@ -11,9 +11,9 @@ __events {
 __init :: App
 App = Percent * Count * Name * Gps
 Gps = NoFix | Fix3D
-LowCharge = Percent(15)
-Half = Percent(0.5)
-Below = Count(-1)
-Main = Name("main")
-Fix = Gps.Fix3D
+__const LowCharge = Percent(15)
+__const Half = Percent(0.5)
+__const Below = Count(-1)
+__const Main = Name("main")
+__const Fix = Gps.Fix3D
 go :: App => Percent#c * Gps#g // c <= LowCharge and Fix <= g and Below < 0 -> Percent'

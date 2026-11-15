@@ -10,6 +10,11 @@ release" in `VERSIONING.md`).
 
 ### Language
 
+- Named constants start with `__const`:
+  `__const BatteryLowThreshold = BatteryCharge(15)`. The plain
+  `BatteryLowThreshold = BatteryCharge(15)` form is gone; it now reads as
+  a type definition and is a syntax error. The parser no longer looks
+  ahead to tell a constant from a type.
 - Named paths: `__path Editor = App / Page.Plan / PlanPage.Plot` names a
   shared path, written as it is used; `Editor => a -> b` stands for its
   segments, and a path may use another. A path goes only before `=>`,
@@ -108,8 +113,8 @@ release" in `VERSIONING.md`).
   guards: two transitions with guards that exclude each other do not
   overlap, and so do comparisons of a name with a literal or variant
   (`c < 15` and `c >= 15`).
-- Named constants: `BatteryLowThreshold = BatteryCharge(15)` or
-  `MinimumFix = GPSFix.Fix3D` defines a fixed value with a name, used as
+- Named constants: `__const BatteryLowThreshold = BatteryCharge(15)` or
+  `__const MinimumFix = GPSFix.Fix3D` defines a fixed value with a name, used as
   either side of a comparison in a guard (`c <= BatteryLowThreshold`).
   The body is a type with one literal in parentheses, or a variant
   without a payload; the literal fits the type as in a comparison.
@@ -229,6 +234,8 @@ release" in `VERSIONING.md`).
 
 ### Tool
 
+- The language server completes `__const`, and its hover shows a
+  constant as `__const Name = Type(value)`.
 - Named paths: `DefPath`/`PathDef`, `pathDefs`, the model's `modelPaths`;
   the language server indexes and hovers paths, and completes `__path`.
   `typeDefFrom` is a list of names.

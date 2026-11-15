@@ -12,7 +12,7 @@ Title = Text
 Completion = Active | Completed
 Link = Up | Down
 Rename = TodoId * Title
-MaxLength = Count(80)
+__const MaxLength = Count(80)
 
 add Title#t :: Core => Todos -> Todos'
 

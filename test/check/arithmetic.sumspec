@@ -14,8 +14,8 @@ Count = Int
 Name = Text
 Scores = [Int by Id]
 Tries = Off | Counting Int
-Start = Int(1)
-MaxTries = Attempts(5)
+__const Start = Int(1)
+__const MaxTries = Attempts(5)
 
 dial :: App => Link.Off -> Link.Connecting
 

@@ -6,6 +6,6 @@ __init :: App
 
 App = Count
 
-Low = Count()
+__const Low = Count()
 
 go :: App => Count -> Count'

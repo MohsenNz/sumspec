@@ -1,7 +1,7 @@
-test/check/error-guard-equality.sumspec:13:15:
+test/check/error-guard-equality.sumspec:13:23:
    |
-13 | Round = Shape.Circle
-   |               ^
+13 | __const Round = Shape.Circle
+   |                       ^
 Shape.Circle has a payload, so it can't be written as a value; test it with a pattern
 
 test/check/error-guard-equality.sumspec:15:32:

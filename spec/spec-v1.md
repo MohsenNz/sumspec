@@ -373,18 +373,19 @@ startMission :: App
 
 #### Named constants
 
-A named constant is a fixed value with a name, defined once and used in a guard in place of a literal. Its definition gives the value, with the type it has:
+A named constant is a fixed value with a name, defined once and used in a guard in place of a literal. Its definition starts with `__const` and gives the value, with the type it has: a literal of a type, or a variant of a sum:
 
 ```
-BatteryLowThreshold = BatteryCharge(15)
-MinimumFix          = GPSFix.Fix3D
+__const BatteryLowThreshold = BatteryCharge(15)
+__const MinimumFix          = GPSFix.Fix3D
 
 batteryLow :: App => Battery(BatteryCharge#c) // c <= BatteryLowThreshold -> ...
 start      :: App => GPSFix#g                 // g >= MinimumFix         -> ...
 ```
 
 - A constant is a value, not a type. It is a side of a comparison, either side, or a value in a target or `__init` (see "Computed values"), and nothing else: not a type of a factor or a payload, an input, a list element, or a pattern on the source side. Write a test that needs the value as a guard (`// c == BatteryLowThreshold`).
-- A constant of a constant (`Low = BatteryLowThreshold`) is not allowed: that is a newtype of a constant, and a constant is not a type.
+- The name is uppercase, like a type's, and shares the types' name space: no type, atomic or other constant has it.
+- A constant of a constant is not allowed. `__const Low = BatteryLowThreshold` doesn't parse, since the value is a literal or a variant; `Low = BatteryLowThreshold` is a newtype of a constant, and a constant is not a type.
 
 The overlap warning reads a constant as the literal or variant it stands for: `c < Low` and `c >= 15` exclude each other when `Low` is `Percent(15)`.
 
@@ -659,7 +660,7 @@ score Id#id :: Scores[id](#s) -> Scores[id](s * 2)              -- an element
 
 - It is never a factor or a whole side by itself: `Link.Up * (a - 1)` and `-> (a + 1)` are errors. Write the type around it: `Attempts(a - 1)`.
 - It goes only on the target side and in `__init`, where a value is set. A source, an input or a guard tests a value instead: name it and compare it in a guard (`Attempts(#n) // n < 3`).
-- A plain literal or constant is a value too, in the same place: `Attempts(0)`, `Count(Start)`. A lone constant may also stand as a factor, as a name of its type does: `Link.Off * MaxTries` with `MaxTries = Attempts(5)`.
+- A plain literal or constant is a value too, in the same place: `Attempts(0)`, `Count(Start)`. A lone constant may also stand as a factor, as a name of its type does: `Link.Off * MaxTries` with `__const MaxTries = Attempts(5)`.
 
 **Why `*` is not ambiguous.** In the arguments of a pattern, `*` separates factors (`Item(i * State.Off)`). A head that holds one value takes no factors, so under such a head, values joined by `*` are a multiplication: `Attempts(n * 2)`. Under a product, they are factors, and a value in them (`Item(a * 2)`) is the error above. With `+` or `-`, the arguments are one computed value, whatever the head: `Attempts(n + 1 * 2)` is `n + (1 * 2)`.
 

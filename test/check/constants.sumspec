@@ -12,13 +12,13 @@ __init :: App
 App = Percent * Port * Name * Tag * Gps
 Gps = NoFix | Fix2D | Fix3D | DGPS | RTKFix
 
-LowCharge = Percent(15)
-Half = Percent(0.5)
-Whole = Percent(100)
-Mavlink = Port(14550)
-Neg = Port(-1)
-Main = Name("main")
-MinFix = Gps.Fix3D
+__const LowCharge = Percent(15)
+__const Half = Percent(0.5)
+__const Whole = Percent(100)
+__const Mavlink = Port(14550)
+__const Neg = Port(-1)
+__const Main = Name("main")
+__const MinFix = Gps.Fix3D
 
 drain :: App => Percent#c // c <= LowCharge and Half < c -> Percent'
 

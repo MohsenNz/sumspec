@@ -4,6 +4,6 @@ __events { go }
 
 __init :: Fine
 
-Fine = Count(7)
+__const Fine = Count(7)
 
 go :: Count -> Count'

@@ -1,13 +1,13 @@
-test/check/error-constants-compare.sumspec:16:14:
+test/check/error-constants-compare.sumspec:16:22:
    |
-16 | Marker = Tag(1)
-   |              ^
+16 | __const Marker = Tag(1)
+   |                      ^
 Tag is an atomic with no base, so 1 doesn't fit it
 
-test/check/error-constants-compare.sumspec:17:7:
+test/check/error-constants-compare.sumspec:17:15:
    |
-17 | Bad = Missing(1)
-   |       ^
+17 | __const Bad = Missing(1)
+   |               ^
 unknown type Missing; declare it in __atomics or define it
 
 test/check/error-constants-compare.sumspec:19:34:
@@ -58,15 +58,15 @@ test/check/error-constants-compare.sumspec:25:51:
    |                                                   ^
 cannot compare Off2 (a Other) with Fix (a Gps); they are different types
 
-test/check/error-constants-compare.sumspec:29:20:
+test/check/error-constants-compare.sumspec:29:28:
    |
-29 | BadVariant = Shape.Circle
-   |                    ^
+29 | __const BadVariant = Shape.Circle
+   |                            ^
 Shape.Circle has a payload, so it can't be written as a value; test it with a pattern
 
-test/check/error-constants-compare.sumspec:30:18:
+test/check/error-constants-compare.sumspec:30:26:
    |
-30 | BadProduct = App(1)
-   |                  ^
+30 | __const BadProduct = App(1)
+   |                          ^
 App is neither a number, text nor an enumeration, so 1 doesn't fit it
 

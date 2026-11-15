@@ -177,8 +177,8 @@ constant of a sum variant is already a pattern. What does a constant of
 a constant mean here (`Low = Zero`)?
 
 **Answer:**
-- Yes. A constant defined as `Zero = Count(0)` is a pattern equal to
-  `Count(0)`; one defined as `Fix = GPSFix.Fix3D` is a pattern equal to
+- Yes. A constant defined as `__const Zero = Count(0)` is a pattern equal to
+  `Count(0)`; one defined as `__const Fix = GPSFix.Fix3D` is a pattern equal to
   `GPSFix.Fix3D`. It takes no arguments, and the rules for where a
   literal pattern may appear (question 5) apply to it.
 - Constants of constants stay out.

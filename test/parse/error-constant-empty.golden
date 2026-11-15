@@ -1,6 +1,6 @@
-test/parse/error-constant-empty.sumspec:9:13:
+test/parse/error-constant-empty.sumspec:9:21:
   |
-9 | Low = Count()
-  |             ^
+9 | __const Low = Count()
+  |                     ^
 unexpected ')'
 expecting '"', '-', or digit

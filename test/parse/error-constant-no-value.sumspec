@@ -1,0 +1,11 @@
+-- A constant needs a value: a literal in parentheses or a variant.
+__atomics { Count = __int }
+__events { go }
+
+__init :: App
+
+App = Count
+
+__const Low = Count
+
+go :: App => Count -> Count'

@@ -23,8 +23,8 @@ Draft  = core.Title
 Ids    = [core.TodoId]
 Notes  = [Note by core.TodoId]
 Note   = core.Title
-Limit  = core.Count(10)
-First  = core.Completion.Active
+__const Limit  = core.Count(10)
+__const First  = core.Completion.Active
 
 clearClicked :: App => Filter -> Filter.All  >> core.clearCompleted
 

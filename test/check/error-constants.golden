@@ -1,85 +1,85 @@
-test/check/error-constants.sumspec:18:17:
+test/check/error-constants.sumspec:18:25:
    |
-18 | Decimal = Count(1.5)
-   |                 ^
+18 | __const Decimal = Count(1.5)
+   |                         ^
 Count is an __int, so 1.5 doesn't fit it
 
-test/check/error-constants.sumspec:19:16:
+test/check/error-constants.sumspec:19:24:
    |
-19 | Text = Percent("a")
-   |                ^
+19 | __const Text = Percent("a")
+   |                        ^
 Percent is a __float, so "a" doesn't fit it
 
-test/check/error-constants.sumspec:20:15:
+test/check/error-constants.sumspec:20:23:
    |
-20 | Number = Name(3)
-   |               ^
+20 | __const Number = Name(3)
+   |                       ^
 Name is a __text, so 3 doesn't fit it
 
-test/check/error-constants.sumspec:21:14:
+test/check/error-constants.sumspec:21:22:
    |
-21 | Opaque = Tag(1)
-   |              ^
+21 | __const Opaque = Tag(1)
+   |                      ^
 Tag is an atomic with no base, so 1 doesn't fit it
 
-test/check/error-constants.sumspec:22:12:
+test/check/error-constants.sumspec:22:20:
    |
-22 | Enum = Gps(1)
-   |            ^
+22 | __const Enum = Gps(1)
+   |                    ^
 Gps is an enumeration, so 1 doesn't fit it
 
-test/check/error-constants.sumspec:23:11:
+test/check/error-constants.sumspec:23:19:
    |
-23 | Unknown = Missing(1)
-   |           ^
+23 | __const Unknown = Missing(1)
+   |                   ^
 unknown type Missing; declare it in __atomics or define it
 
-test/check/error-constants.sumspec:24:15:
+test/check/error-constants.sumspec:24:23:
    |
-24 | Product = Box(1)
-   |               ^
+24 | __const Product = Box(1)
+   |                       ^
 Box is neither a number, text nor an enumeration, so 1 doesn't fit it
 
-test/check/error-constants.sumspec:25:18:
+test/check/error-constants.sumspec:25:26:
    |
-25 | BadVariant = Gps.Missing
-   |                  ^
+25 | __const BadVariant = Gps.Missing
+   |                          ^
 Missing is not a variant of Gps
 
-test/check/error-constants.sumspec:26:24:
+test/check/error-constants.sumspec:26:32:
    |
-26 | PayloadVariant = Shape.Circle
-   |                        ^
+26 | __const PayloadVariant = Shape.Circle
+   |                                ^
 Shape.Circle has a payload, so it can't be written as a value; test it with a pattern
 
-test/check/error-constants.sumspec:27:11:
+test/check/error-constants.sumspec:27:19:
    |
-27 | NotASum = Count.Zero
-   |           ^
+27 | __const NotASum = Count.Zero
+   |                   ^
 a constant variant is written Type.Variant, where Type is a sum; Count is not
 
-test/check/error-constants.sumspec:28:14:
+test/check/error-constants.sumspec:28:22:
    |
-28 | UnknownSum = Missing.Zero
-   |              ^
+28 | __const UnknownSum = Missing.Zero
+   |                      ^
 unknown type Missing; declare it in __atomics or define it
 
-test/check/error-constants.sumspec:30:1:
+test/check/error-constants.sumspec:30:9:
    |
-30 | Twice = Count(2)
-   | ^
+30 | __const Twice = Count(2)
+   |         ^
 Twice is defined twice (first on line 29)
 
-test/check/error-constants.sumspec:31:1:
+test/check/error-constants.sumspec:31:9:
    |
-31 | Gps = Count(3)
-   | ^
+31 | __const Gps = Count(3)
+   |         ^
 Gps is defined as a type and as a constant
 
-test/check/error-constants.sumspec:32:1:
+test/check/error-constants.sumspec:32:9:
    |
-32 | Taken = Count(4)
-   | ^
+32 | __const Taken = Count(4)
+   |         ^
 Taken is declared in __atomics and also defined as a constant
 
 test/check/error-constants.sumspec:34:9:

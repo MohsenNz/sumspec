@@ -423,7 +423,7 @@ BatteryReserve      @default Enough       -- computed by the app, never reported
   = Enough
   | Low
 
-BatteryLowThreshold = Percent(15)         -- where BatteryReserve turns Low; a
+__const BatteryLowThreshold = Percent(15)         -- where BatteryReserve turns Low; a
                                           -- product fact, not a setting
 
 ------------------------------------------------------------------------------------

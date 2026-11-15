@@ -9,13 +9,13 @@ App = Percent * Count * Name * Gps * Primary
 Gps = NoFix | Fix2D | Fix3D | DGPS
 Primary = Gps
 
-Low = Percent(15)
-Five = Count(5)
-Four = Count(4)
-One = Count(1)
-Two = Count(2)
-Main = Name("main")
-MinFix = Gps.Fix3D
+__const Low = Percent(15)
+__const Five = Count(5)
+__const Four = Count(4)
+__const One = Count(1)
+__const Two = Count(2)
+__const Main = Name("main")
+__const MinFix = Gps.Fix3D
 
 drain
   :: App => Percent#c // c < Low -> Percent'

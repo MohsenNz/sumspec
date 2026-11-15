@@ -10,7 +10,7 @@ Levels = [Percent]
 Todo = Id * Percent * Mode
 Mode = On | Off
 Todos = [Todo by Key]
-Low = Percent(15)
+__const Low = Percent(15)
 
 toggle Id#i
   :: App => Ids#ids // i in ids -> Ids'

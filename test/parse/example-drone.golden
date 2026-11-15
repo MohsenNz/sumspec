@@ -60,7 +60,7 @@ Ring = Partial Points | Closeable Points | Enclosed Points
 Path = Partial Point | Total Points
 Points = [Point]
 Spot = Point
-MinTakeoffCharge = BatteryCharge(20)
+__const MinTakeoffCharge = BatteryCharge(20)
 goToPlan :: Page.Home -> Page.Plan(PMode.JustMap * Missions) @control button
 goToDevices :: Page.Home -> Page.Devices @control button
 planBackToHome :: Page.Plan(PMode.JustMap * Missions) -> Page.Home

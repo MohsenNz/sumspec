@@ -6,9 +6,9 @@ __init :: App
 
 App = Percent * Count
 
-Low = Percent(15)
-Twenty = Percent(20)
-Ten = Percent(10)
+__const Low = Percent(15)
+__const Twenty = Percent(20)
+__const Ten = Percent(10)
 
 drain
   :: App => Percent#c // c <= Low -> Percent'

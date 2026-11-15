@@ -26,7 +26,7 @@ Switch = On | Off
 
 Mode = Duplicate
 
-Low = Charge(15)
+__const Low = Charge(15)
 
 __init :: App(Mode.Idle * Charge(100))
 

@@ -299,7 +299,7 @@ hoverTests =
       hoverAt (Position 15 19) ["Mode.Off", "Variant of `Mode`"]
   , testCase "a variant in an inline payload" $
       hoverAt (Position 10 23) ["Mode.Lit.Dim", "Variant of `Mode.Lit`"]
-  , testCase "a constant" $ hoverAt (Position 13 0) ["Max = Id(3)"]
+  , testCase "a constant" $ hoverAt (Position 13 8) ["__const Max = Id(3)"]
   , testCase "an annotation, with its comment" $
       hoverAt (Position 11 23) ["@control", "the widget that edits a value"]
   , testCase "an event, with its comment in __events" $
@@ -432,7 +432,7 @@ completionTests =
         ==> ["go"]
   , testCase "at the start of a line, keywords and events not yet defined" $
       completeAt "__atomics { }\n__events { go }\nApp = A | B\ng" (Position 3 1)
-        ==> ["__annotations", "__imports", "__init", "__path", "__pattern", "go"]
+        ==> ["__annotations", "__const", "__imports", "__init", "__path", "__pattern", "go"]
   , testCase "nothing in a comment" $ typing "-- App." ==> []
   ]
   where
@@ -457,7 +457,7 @@ completionTests =
 -- > 10 Mode = On | Off | Lit (Dim | Bright)
 -- > 11 Sel = None | One(Id) @control
 -- > 12 Alias = Mode
--- > 13 Max = Id(3)
+-- > 13 __const Max = Id(3)
 -- > 15 __init :: App(Mode.Off * Sel.None)
 -- > 17 pick Id#i :: App => Sel.None -> Sel.One(i)
 described :: Text
@@ -465,7 +465,7 @@ described =
   "__atomics { Id }\n__events {\n  pick  -- Picks an element.\n}\n\
   \__annotations {\n  @control  -- the widget that edits a value\n}\n\n\
   \-- The whole state.\nApp = Mode * Sel\nMode = On | Off | Lit (Dim | Bright)\n\
-  \Sel = None | One(Id) @control\nAlias = Mode\nMax = Id(3)\n\n\
+  \Sel = None | One(Id) @control\nAlias = Mode\n__const Max = Id(3)\n\n\
   \__init :: App(Mode.Off * Sel.None)\n\n\
   \pick Id#i :: App => Sel.None -> Sel.One(i)\n"
 

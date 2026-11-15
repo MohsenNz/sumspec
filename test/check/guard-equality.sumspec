@@ -14,7 +14,7 @@ Wrapped = Box
 Boxes = [Box]
 Nest = [Ids]
 Rows = [Box by Key]
-Flat = Shape.Square
+__const Flat = Shape.Square
 
 product Box#a :: App => Box#b // a == b -> Box'
 list Ids#a :: App => Ids#b // a != b -> Ids'

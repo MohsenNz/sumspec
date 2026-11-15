@@ -7,6 +7,6 @@ __init :: App
 App = Gps * Count
 Gps = NoFix | Fix3D
 
-Fix = Gps.
+__const Fix = Gps.
 
 go :: App => Count -> Count'

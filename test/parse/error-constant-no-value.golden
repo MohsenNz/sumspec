@@ -1,0 +1,6 @@
+test/parse/error-constant-no-value.sumspec:11:1:
+   |
+11 | go :: App => Count -> Count'
+   | ^
+unexpected 'g'
+expecting '(' or '.'

@@ -40,7 +40,7 @@ examples, the golden tests and `CHANGES.md` together.
       without payloads (ordered by declaration); a newtype inherits its
       base's operations, so `Meters` and `Seconds` still don't compare.
       `in` moved to "Later".
-- [x] 3b. Named constants: `BatteryLowThreshold = BatteryCharge(15)` as
+- [x] 3b. Named constants: `__const BatteryLowThreshold = BatteryCharge(15)` as
       a side of a comparison.
 - [ ] 4. {Optional, later} Prelude: an embedded `.sumspec` with
       `Bool = True | False`, `Int = __int`, `Float = __float` and
@@ -123,13 +123,12 @@ update before any code:
       writing the whole list (`Missions'`).
 - [ ] The overlap check reads `x == V` and `x != V` on a sum with payloads,
       as it does on an enumeration.
-- [ ] `__const`: a named constant written with a keyword,
+- [x] `__const`: a named constant written with a keyword,
       `__const MaxPort = Port(100)`, so it no longer reads like a newtype
-      and the parser needs no lookahead to tell it from a type (the
-      "Constant or type" note in `grammar.ebnf`). Breaking before the
-      first release: the plain `C = T(15)` form goes; migrate the drone
-      example and the constants tests. Later, with literal patterns, a
-      constant may also stand where a pattern goes (`Settings(DefaultPort)`).
+      and the parser needs no lookahead to tell it from a type. The plain
+      `C = T(15)` form is gone.
+- [ ] With literal patterns, a constant may also stand where a pattern
+      goes (`Settings(DefaultPort)`; see `spec/literal-patterns.md`).
 - [x] `__pattern`: a named state pattern with parameters, expanded
       before checking: `__pattern Setting(v) = App(PlotEditor(core.Plot.Drawn(core.RouteSettings(v))))`,
       used as `Setting(v)`, the arguments separated by commas (see "Named
@@ -147,7 +146,7 @@ update before any code:
       "Arguments in state patterns" in `spec/spec-v1.md`.
 - [ ] Several events with one transition (`g, h :: Y -> Z`).
 - [ ] `<-` shorthand.
-- [x] Named constants (`BatteryLowThreshold = BatteryCharge(15)`): in
+- [x] Named constants (`__const BatteryLowThreshold = BatteryCharge(15)`): in
       v1 as comparison sides in guards (see "Named constants" in
       `spec/spec-v1.md`).
 - [x] Bare binding (`Attempts(#n)`): in v1 (see "Bare binding" in

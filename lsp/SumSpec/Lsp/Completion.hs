@@ -71,7 +71,7 @@ completions source sourceAt spec m (Position line character) =
     InBlock _ -> []
     LineStart ->
       [ item CompletionItemKind_Keyword k k Nothing Nothing
-      | k <- ["__init", "__pattern", "__path", "__annotations", "__imports"]
+      | k <- ["__init", "__const", "__pattern", "__path", "__annotations", "__imports"]
       ]
         <> [ item CompletionItemKind_Event name name (Just "listed in __events") Nothing
            | n <- specEvents spec

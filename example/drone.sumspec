@@ -130,7 +130,7 @@ Points = [Point]
 Spot = Point
 
 -- A named constant: the lowest charge the drone may take off with.
-MinTakeoffCharge = BatteryCharge(20)
+__const MinTakeoffCharge = BatteryCharge(20)
 
 goToPlan          :: Page.Home -> Page.Plan(PMode.JustMap * Missions)  @control button
 goToDevices       :: Page.Home -> Page.Devices                          @control button

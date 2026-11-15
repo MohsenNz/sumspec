@@ -261,23 +261,15 @@ pathDef = do
 typePath :: Parser (NonEmpty Name)
 typePath = (:|) <$> typeName <*> many (slash *> typeName)
 
--- const_def = UPPER , "=" , type_name , ( "(" , literal , ")" | "." , UPPER ) ;
---
--- A constant starts like a type definition. A "." after the second name,
--- or a "(" that isn't followed by a type, tells them apart, and from
--- there the parser is committed, so an error inside a constant is
--- reported as one. A payload in parentheses starts with a type name or
--- "[", never with a literal.
+-- const_def = "__const" , UPPER , "=" , type_name ,
+--             ( "(" , literal , ")" | "." , UPPER ) ;
 constDef :: Parser ConstDef
 constDef = do
-  name <- try (upperName <* equals <* lookAhead constStart)
+  keyword "__const"
+  name <- upperName
+  equals
   ConstDef name <$> typeName <*> constValue
   where
-    constStart =
-      typeName
-        *> ( void (symbol ".")
-               <|> void (symbol "(" *> notFollowedBy (void typeName <|> void (symbol "[")))
-           )
     constValue =
       choice
         [ uncurry ConstLiteral <$> parens (numberLiteral <|> stringLiteral)

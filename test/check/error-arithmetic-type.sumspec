@@ -10,7 +10,7 @@ Name = Text
 Thing = Opaque
 Ids = [Attempts]
 Mode = Slow | Fast
-Wait = Delay(2)
+__const Wait = Delay(2)
 
 -- Attempts holds an Int, but a is a whole Attempts.
 whole :: App => Attempts#a -> Attempts(a + 1)

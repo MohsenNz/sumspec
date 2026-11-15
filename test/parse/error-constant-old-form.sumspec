@@ -1,0 +1,12 @@
+-- A constant without __const: it reads as a type, and a payload in
+-- parentheses starts with a type, never with a literal.
+__atomics { Count = __int }
+__events { go }
+
+__init :: App
+
+App = Count
+
+Low = Count(15)
+
+go :: App => Count -> Count'

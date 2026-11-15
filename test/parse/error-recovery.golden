@@ -10,7 +10,7 @@ test/parse/error-recovery.sumspec:12:12:
 12 |   | Failed *
    |            ^
 unexpected '*'
-expecting "__init", "__path", "__pattern", '(', '@', '[', '|', end of input, event name, or type or variant name
+expecting "__const", "__init", "__path", "__pattern", '(', '@', '[', '|', end of input, event name, or type or variant name
 
 test/parse/error-recovery.sumspec:17:1:
    |

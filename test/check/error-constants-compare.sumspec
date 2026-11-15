@@ -8,13 +8,13 @@ App = Percent * Seconds * Count * Name * Tag * Gps
 Gps = NoFix | Fix3D
 Other = Off | On
 
-Low = Percent(15)
-Delay = Seconds(15)
-Main = Name("main")
-Fix = Gps.Fix3D
-Off2 = Other.On
-Marker = Tag(1)
-Bad = Missing(1)
+__const Low = Percent(15)
+__const Delay = Seconds(15)
+__const Main = Name("main")
+__const Fix = Gps.Fix3D
+__const Off2 = Other.On
+__const Marker = Tag(1)
+__const Bad = Missing(1)
 
 units :: App => Percent#p // p < Delay -> Percent'
 kind :: App => Count#k // k == Low -> Count'
@@ -26,7 +26,7 @@ broken :: App => Percent#p // p < Bad and Off2 == Fix -> Percent'
 
 -- A constant that isn't valid is reported once, at its definition.
 Shape = Circle Percent | Square
-BadVariant = Shape.Circle
-BadProduct = App(1)
+__const BadVariant = Shape.Circle
+__const BadProduct = App(1)
 
 cascade :: App => Percent#p // BadVariant == BadVariant or BadProduct == BadProduct -> Percent'

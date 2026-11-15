@@ -10,7 +10,7 @@ Doc = Title * Mode
 Title = Name
 Mode = Viewing | Editing
 Link = Off | On
-Max = Title("x")
+__const Max = Title("x")
 
 __pattern Link = App(Link.On)
 __pattern Max = App(Link.On)

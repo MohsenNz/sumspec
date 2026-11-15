@@ -170,7 +170,7 @@ equality for every type: integers, strings character by character with
 no normalization, and floats with the target's own float equality.
 
 A named constant (see "Named constants" in `spec-v1.md`) defined as
-`Zero = Count(0)` is a pattern equal to `Count(0)`, and one defined as
+`__const Zero = Count(0)` is a pattern equal to `Count(0)`, and one defined as
 `GPSFix.Fix3D` is a pattern equal to that variant. As a pattern head it
 takes no arguments, and it may appear where the literal pattern may. Today
 the checker rejects a constant in a pattern. This comes after literal

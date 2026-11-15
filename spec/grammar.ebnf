@@ -97,10 +97,10 @@ type_path     = type_name , { "/" , type_name } ;
    comparison in a guard or as a value in a target (see "Named
    constants" in spec-v1.md). The
    value is a literal of a type, or a variant of a sum:
-     BatteryLowThreshold = BatteryCharge(15)
-     MinimumFix          = GPSFix.Fix3D                                 *)
-const_def     = UPPER , "=" , type_name , ( "(" , literal , ")"
-                                          | "." , UPPER ) ;
+     __const BatteryLowThreshold = BatteryCharge(15)
+     __const MinimumFix          = GPSFix.Fix3D                         *)
+const_def     = "__const" , UPPER , "=" , type_name ,
+                ( "(" , literal , ")" | "." , UPPER ) ;
 
 (* A single type_term is a newtype:      MissionName = Text
    A list is a list type:                Missions    = [Mission]
@@ -397,11 +397,6 @@ character     = ? any Unicode character ? ;
 
    Header blocks: a parser reports a header block written twice, and a
    missing __atomics or __events, as syntax errors.
-
-   Constant or type: after "UPPER = UPPER", a "." or a "(" that is not
-   followed by a type name or "[" starts a const_def; anything else is a
-   type_def. A payload in parentheses starts with a type, never with a
-   literal.
 
    Arithmetic: after a value, "-" is an operator, so "n-1" is n, "-", 1;
    a negative literal is read only where a value starts ("n - -1"). A "-"

@@ -60,7 +60,7 @@ renderDefinition = \case
       <> " = "
       <> renderTypeExpr body
   DefConst (ConstDef name ty value) ->
-    nameText name <> " = " <> nameText ty <> case value of
+    "__const " <> nameText name <> " = " <> nameText ty <> case value of
       ConstLiteral _ lit -> "(" <> renderLiteral lit <> ")"
       ConstVariant v -> "." <> nameText v
   DefEvent (Event name input transitions) ->
