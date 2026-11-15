@@ -63,6 +63,7 @@ examples =
   , "example/todo-core.sumspec"
   , "example/todo-ui.sumspec"
   , "parvaz/parvaz-core.sumspec"
+  , "parvaz/parvaz-ui.sumspec"
   ]
 
 golden :: (FilePath -> Text -> Text) -> (FilePath, FilePath) -> TestTree

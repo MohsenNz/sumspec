@@ -1,0 +1,494 @@
+types
+  About : sum of Closed, Open
+  AircraftCanvas : product of FCamera, MapFollow
+  AircraftGauges : product of core.Satellites, core.SprayFlow, core.Altitude, core.RangefinderAlt, core.OffsetAlt, core.Speed, core.Heading, core.Battery, from core.AircraftStatus
+  AircraftIndicators : product of core.ArmState, core.FlightMode, core.GPSFix, from core.AircraftStatus
+  AircraftPanel : sum of Disconnected, Connected, from core.Core(core.AircraftLink)
+  AircraftPose : product of core.Latitude, core.Longitude, core.Heading, core.GPSFix, from core.AircraftStatus
+  AircraftView : product of AircraftPanel, AircraftCanvas, BatteryFigure
+  App : product of Page, Map, core.Core
+  AppVersion : newtype of core.Text
+  Battery : newtype of core.BatteryCharge, from core.AircraftStatus(core.Battery)
+  BatteryFigure : sum of Voltage, Charge
+  CornerPick : sum of Idle, Picking
+  DeviceForm : product of DeviceOrigin, core.DeviceName, LinkKind, Host, core.Port, core.Baud
+  DeviceListing : product of DeviceRows, LinkStatus
+  DeviceLocation : sum of Unknown, Locating, Denied, Failed, Located
+  DeviceOrigin : sum of New, Existing
+  DeviceRow : product of core.DeviceName, core.LinkSettings, core.LastSystemId, from core.Device
+  DeviceRows : list of DeviceRow by core.DeviceId, from core.Core(core.Devices)
+  DevicesView : sum of Listing, Editing
+  EdgePick : sum of Idle, Picking, Selected
+  FCamera : sum of Maximized, Minimized, Hidden
+  HomeAircraft : sum of Disconnected, Connected, from core.Core(core.AircraftLink)
+  HomeIndicators : product of core.GPSFix, core.Satellites, core.ArmState, from core.AircraftStatus
+  HomeMarker : newtype of core.HomePoint, from core.Aircraft
+  HomeView : product of About, LinkStatus, HomeAircraft
+  Host : sum of Unset, Named
+  LinkKind : sum of Udp, Tcp, Serial
+  LinkStatus : product of core.LinkSession, core.AircraftLink, from core.Core
+  LogLevelFilter : sum of All, Warnings, Errors
+  LogList : list of core.LogEntry, from core.Core(core.Logs)
+  LogTagFilter : list of core.LogTag
+  LogsView : product of LogLevelFilter, LogTagFilter, LogList
+  Map : product of TileStatus, Zoom, DeviceLocation
+  MapFollow : sum of Following, Free
+  MissionPanel : sum of List, Selected
+  MissionRow : product of core.MissionName, core.MissionState, core.GroundMeasurements, from core.Mission
+  MissionRows : list of MissionRow by core.At, from core.Core(core.Missions)
+  NewName : product of core.At, core.MissionName
+  PMode : sum of JustMap, Plot, ShowMission, MissionRun, ManualAircraft
+  Page : sum of Home, Plan, Devices, Logs
+  PlotController : sum of Field, Route
+  PlotEditor : product of PlotOrigin, core.Plot, PointHistory, PlotController, ShapeSelection, CornerPick, EdgePick
+  PlotOrigin : sum of Draft, Editing
+  PointHistory : product of Undo, Redo
+  PointSelection : sum of Empty, Selected
+  PointType : sum of BoundaryPoint, Obstacle, RoundObstacle, PowerLine, NonSprayArea, MarkPoint
+  Redo : sum of Ready, Empty
+  RunPanel : sum of Idle, Active, from core.Core(core.Run)
+  RunView : product of RunPanel, AircraftPanel, AircraftCanvas, BatteryFigure
+  Shape : sum of Boundary, Marking
+  ShapeSelection : sum of Empty, Selected
+  TileStatus : sum of Loading, Ready, Offline
+  Undo : sum of Ready, Empty
+  Zoom : newtype of core.Int
+  core.Aircraft : product of core.AircraftStatus, core.Feed, core.HomePoint, core.BatteryReserve, core.SystemId
+  core.AircraftLink : sum of Disconnected, Connected
+  core.AircraftStatus : product of core.ArmState, core.FlightMode, core.GPSFix, core.Satellites, core.Battery, core.SprayFlow, core.Altitude, core.RangefinderAlt, core.OffsetAlt, core.Speed, core.Heading, core.Latitude, core.Longitude
+  core.Altitude : newtype of core.Meters
+  core.Area : newtype of core.Hectares
+  core.ArmState : sum of Disarmed, Armed
+  core.At : newtype of core.Timestamp
+  core.Battery : product of core.BatteryVoltage, core.BatteryCharge
+  core.BatteryCharge : newtype of core.Percent
+  core.BatteryReserve : sum of Enough, Low
+  core.BatteryVoltage : newtype of core.Volts
+  core.Baud : newtype of core.Int
+  core.Boundary : newtype of core.Ring
+  core.BreakPoint : newtype of core.Point
+  core.CopyOf : newtype of core.At
+  core.Core : product of core.Missions, core.Run, core.AircraftLink, core.Devices, core.LinkSession, core.LastDevice, core.Logs
+  core.Course : sum of Auto, Manual
+  core.CourseAngle : newtype of core.Degrees
+  core.CoverageArea : sum of RouteOnly, RouteAndBoundary, BoundaryOnly
+  core.DefaultEdgeMargin : newtype of core.Meters
+  core.Degrees : atomic __float
+  core.Device : product of core.DeviceName, core.LinkSettings, core.LastSystemId
+  core.DeviceId : newtype of core.Timestamp
+  core.DeviceName : newtype of core.Text
+  core.Devices : list of core.Device by core.DeviceId
+  core.Distance : newtype of core.Meters
+  core.Edge : newtype of core.Point
+  core.EdgeInset : newtype of core.Meters
+  core.EdgeMargin : product of core.Edge, core.EdgeInset
+  core.EdgeMargins : list of core.EdgeMargin
+  core.FPhase : sum of Approaching, Spraying, Holding, PilotControl, Returning
+  core.FailureReason : atomic __text
+  core.Feed : sum of Live, Stale
+  core.FlightMode : sum of Unknown, Named
+  core.FlownTo : product of core.At, core.Point
+  core.GPSFix : sum of NoFix, Fix2D, Fix3D, DGPS, RTKFix
+  core.GroundMeasurements : product of core.Distance, core.Area, core.RouteProgress
+  core.Heading : newtype of core.Degrees
+  core.Hectares : atomic __float
+  core.HomePoint : sum of Unknown, Known
+  core.HostName : newtype of core.Text
+  core.Int : atomic __int
+  core.LastDevice : sum of None, Known
+  core.LastSystemId : sum of Unheard, Heard
+  core.Latitude : atomic __float
+  core.LinkFailure : newtype of core.Text
+  core.LinkQuality : newtype of core.Percent
+  core.LinkSession : sum of Closed, Open, Failed
+  core.LinkSettings : sum of Udp, Tcp, Serial
+  core.LitersPerMin : atomic __float
+  core.LogEntry : product of core.Timestamp, core.LogLevel, core.LogTag, core.Text
+  core.LogLevel : sum of Info, Warning, Error
+  core.LogTag : sum of Link, Mavlink, Vehicle, Storage, Basemap, Crash
+  core.Logs : list of core.LogEntry
+  core.Longitude : atomic __float
+  core.Marking : sum of Obstacle, RoundObstacle, PowerLine, NonSprayArea, MarkPoint
+  core.Markings : list of core.Marking
+  core.Meters : atomic __float
+  core.MetersPerSec : atomic __float
+  core.Mission : product of core.MissionName, core.GroundMeasurements, core.MissionState, core.Plot
+  core.MissionCopy : product of core.CopyOf, core.At, core.MissionName
+  core.MissionFlight : sum of Arming, Flying, Failed
+  core.MissionName : newtype of core.Text
+  core.MissionRun : product of core.At, core.MissionFlight
+  core.MissionState : sum of NotStarted, Completed, Stopped
+  core.Missions : list of core.Mission by core.At
+  core.NewMission : product of core.At, core.MissionName, core.Plot
+  core.ObstacleBoundary : newtype of core.Meters
+  core.OffsetAlt : sum of NoSensor, NoReading, Reading
+  core.Path : sum of Partial, Total
+  core.Percent : atomic __float
+  core.Plot : sum of Empty, Drawn
+  core.PlotDrawn : product of core.Boundary, core.Markings, core.RouteSettings
+  core.PlotUpdate : product of core.At, core.MissionName, core.Plot
+  core.Point : product of core.Latitude, core.Longitude
+  core.Points : list of core.Point
+  core.Port : newtype of core.Int
+  core.RangefinderAlt : sum of NoSensor, NoReading, Reading
+  core.ReturnHeight : newtype of core.Meters
+  core.Ring : sum of Partial, Closeable, Enclosed
+  core.RouteEntry : sum of FromStart, FromBreakPoint
+  core.RouteProgress : newtype of core.Percent
+  core.RouteSettings : product of core.RouteSpacing, core.SprayHeight, core.ReturnHeight, core.SpraySpeed, core.DefaultEdgeMargin, core.EdgeMargins, core.StartCorner, core.CoverageArea, core.ObstacleBoundary, core.SingleSideSpraying, core.Course
+  core.RouteSpacing : newtype of core.Meters
+  core.Run : sum of Idle, Active
+  core.Satellites : newtype of core.Int
+  core.SavedDevice : product of core.DeviceId, core.DeviceName, core.LinkSettings
+  core.Seconds : atomic __float
+  core.SingleSideSpraying : sum of Off, On
+  core.Speed : newtype of core.MetersPerSec
+  core.Spot : newtype of core.Point
+  core.SprayFlow : newtype of core.LitersPerMin
+  core.SprayHeight : newtype of core.Meters
+  core.SpraySpeed : newtype of core.MetersPerSec
+  core.Sprayer : newtype of core.Unimplemented
+  core.StartCorner : newtype of core.Point
+  core.StopReason : sum of Commanded, BatteryLow, LinkLost, ManualTakeover, GpsLost
+  core.SystemId : newtype of core.Int
+  core.TelemetryAge : newtype of core.Seconds
+  core.Text : atomic __text
+  core.Timestamp : atomic
+  core.Unimplemented : atomic
+  core.Volts : atomic __float
+variants
+  Active : RunPanel
+  All : LogLevelFilter
+  Boundary : Shape
+  BoundaryPoint : PointType
+  Charge : BatteryFigure
+  Closed : About
+  Connected : HomeAircraft
+  Connected : AircraftPanel
+  Denied : DeviceLocation
+  Devices : Page
+  Disconnected : HomeAircraft
+  Disconnected : AircraftPanel
+  Draft : PlotOrigin
+  Editing : DevicesView
+  Editing : PlotOrigin
+  Empty : Undo
+  Empty : Redo
+  Empty : ShapeSelection
+  Empty : PointSelection
+  Errors : LogLevelFilter
+  Existing : DeviceOrigin
+  Failed : DeviceLocation
+  Field : PlotController
+  Following : MapFollow
+  Free : MapFollow
+  Hidden : FCamera
+  Home : Page
+  Idle : CornerPick
+  Idle : EdgePick
+  Idle : RunPanel
+  JustMap : PMode
+  List : MissionPanel
+  Listing : DevicesView
+  Loading : TileStatus
+  Located : DeviceLocation
+  Locating : DeviceLocation
+  Logs : Page
+  ManualAircraft : PMode
+  MarkPoint : PointType
+  Marking : Shape
+  Maximized : FCamera
+  Minimized : FCamera
+  MissionRun : PMode
+  Named : Host
+  New : DeviceOrigin
+  NonSprayArea : PointType
+  Obstacle : PointType
+  Offline : TileStatus
+  Open : About
+  Picking : CornerPick
+  Picking : EdgePick
+  Plan : Page
+  Plot : PMode
+  PowerLine : PointType
+  Ready : TileStatus
+  Ready : Undo
+  Ready : Redo
+  RoundObstacle : PointType
+  Route : PlotController
+  Selected : ShapeSelection
+  Selected : PointSelection
+  Selected : EdgePick
+  Selected : MissionPanel
+  Serial : LinkKind
+  ShowMission : PMode
+  Tcp : LinkKind
+  Udp : LinkKind
+  Unknown : DeviceLocation
+  Unset : Host
+  Voltage : BatteryFigure
+  Warnings : LogLevelFilter
+constants
+  core.BatteryLowThreshold : core.Percent
+patterns
+  Armed : Connected
+  Connected(x) : App
+  DeviceEditor : App
+  DeviceList : App
+  Editor : App
+  Form(x) : App
+  InPlan(m) : App
+  ReadyToFly : core.AircraftLink
+  RouteForm : PMode
+  Running(x) : App
+  Selected(at) : App
+  Setting(v) : PMode
+events
+  addDevice : 1 transition
+  backToList : 1 transition
+  cancelArming : 2 transitions
+  cancelDevice : 1 transition
+  cancelPlot : 2 transitions
+  closeAbout : 1 transition
+  closeLink : 1 transition
+  closeMissionList : 1 transition
+  copyMission : 1 transition
+  core.aircraftConnectedEvent : 1 transition, not listed
+  core.armedEvent : 1 transition, not listed
+  core.autoRestoredEvent : 1 transition, not listed
+  core.batteryLowEvent : 1 transition, not listed
+  core.flownAwayDoneEvent : 1 transition, not listed
+  core.flownAwayToEvent : 1 transition, not listed
+  core.gpsLostEvent : 1 transition, not listed
+  core.homeReachedEvent : 1 transition, not listed
+  core.homeSetEvent : 1 transition, not listed
+  core.landedEvent : 1 transition, not listed
+  core.linkFailedEvent : 1 transition, not listed
+  core.linkLossEvent : 4 transitions, not listed
+  core.manualControlTakenEvent : 2 transitions, not listed
+  core.missionCompletedEvent : 1 transition, not listed
+  core.routeReachedEvent : 1 transition, not listed
+  core.telemetryBackEvent : 1 transition, not listed
+  core.telemetryLostEvent : 1 transition, not listed
+  deleteMission : 1 transition
+  edgeMarginDone : 1 transition
+  edgeMarginPick : 1 transition
+  edgeMarginReset : 1 transition
+  edgeMarginSet : 1 transition
+  edgeSelect : 1 transition
+  editDevice : 3 transitions
+  editSelectedMission : 1 transition
+  exportLogs : 2 transitions
+  goToAircraft : 1 transition
+  goToDevices : 1 transition
+  goToLogs : 1 transition
+  goToPlan : 1 transition
+  hideCamera : 1 transition
+  leaveManualAircraft : 1 transition
+  locateMe : 1 transition
+  locationDeniedEvent : 1 transition
+  locationFailedEvent : 1 transition
+  locationFoundEvent : 1 transition
+  mapFailedEvent : 1 transition
+  mapReadyEvent : 1 transition
+  maximizeCamera : 1 transition
+  minimizeCamera : 1 transition
+  newPlot : 1 transition
+  pageDevicesBackToHome : 1 transition
+  pageLogsBackToHome : 1 transition
+  pagePlanBackToHome : 2 transitions
+  panMap : 1 transition
+  pointAdd : 3 transitions
+  pointDelete : 1 transition
+  pointDeselect : 1 transition
+  pointEnclose : 2 transitions
+  pointMove : 1 transition
+  pointRedo : 1 transition
+  pointSelect : 1 transition
+  pointUndo : 1 transition
+  recenterMap : 1 transition
+  reconnect : 1 transition
+  removeDevice : 1 transition
+  resumeMission : 2 transitions
+  retryArming : 1 transition
+  retryMap : 1 transition
+  returnToHome : 1 transition
+  saveDevice : 6 transitions
+  savePlot : 2 transitions
+  selectDevice : 1 transition
+  selectMission : 1 transition
+  setBaud : 1 transition
+  setCourse : 1 transition
+  setCoverageArea : 1 transition
+  setDefaultEdgeMargin : 1 transition
+  setDeviceName : 1 transition
+  setHost : 1 transition
+  setLinkKind : 1 transition
+  setLogLevel : 1 transition
+  setLogTags : 1 transition
+  setObstacleBoundary : 1 transition
+  setPlotController : 2 transitions
+  setPointType : 1 transition
+  setPort : 1 transition
+  setReturnHeight : 1 transition
+  setRouteSpacing : 1 transition
+  setSingleSideSpraying : 1 transition
+  setSprayHeight : 1 transition
+  setSpraySpeed : 1 transition
+  shapeDelete : 1 transition
+  shapeDeselect : 1 transition
+  shapeSelect : 1 transition
+  showAbout : 1 transition
+  showMission : 1 transition
+  startCornerCancel : 1 transition
+  startCornerPick : 1 transition
+  startCornerSet : 1 transition
+  startMission : 1 transition
+  stopMission : 1 transition
+  switchBatteryFigure : 2 transitions
+  unhideCamera : 1 transition
+  watchAircraft : 1 transition
+  zoomMap : 1 transition
+annotations
+  @after
+  @announce
+  @aspectRatio
+  @control
+  @default
+  @orientation
+  @overflow
+  @placement
+  @platform
+  @range
+  @region
+  @requiresConfirmation
+  @size
+  @status
+  @step
+  @targets
+  @theme
+  @view
+  @when
+root App
+imports
+  core : parvaz/parvaz-core.sumspec, root core.Core
+base variants
+  Active : core.Run
+  Approaching : core.FPhase
+  Armed : core.ArmState
+  Arming : core.MissionFlight
+  Auto : core.Course
+  Basemap : core.LogTag
+  BatteryLow : core.StopReason
+  BoundaryOnly : core.CoverageArea
+  Closeable : core.Ring
+  Closed : core.LinkSession
+  Commanded : core.StopReason
+  Completed : core.MissionState
+  Connected : core.AircraftLink
+  Crash : core.LogTag
+  DGPS : core.GPSFix
+  Disarmed : core.ArmState
+  Disconnected : core.AircraftLink
+  Drawn : core.Plot
+  Empty : core.Plot
+  Enclosed : core.Ring
+  Enough : core.BatteryReserve
+  Error : core.LogLevel
+  Failed : core.MissionFlight
+  Failed : core.LinkSession
+  Finished : core.FPhase.Returning
+  Fix2D : core.GPSFix
+  Fix3D : core.GPSFix
+  Flying : core.MissionFlight
+  FromBreakPoint : core.RouteEntry
+  FromStart : core.RouteEntry
+  GpsLost : core.StopReason
+  Heard : core.LastSystemId
+  Holding : core.FPhase
+  Idle : core.Run
+  Info : core.LogLevel
+  Interrupted : core.FPhase.Returning
+  Known : core.HomePoint
+  Known : core.LastDevice
+  Link : core.LogTag
+  LinkLost : core.StopReason
+  Live : core.Feed
+  Low : core.BatteryReserve
+  Manual : core.Course
+  ManualTakeover : core.StopReason
+  MarkPoint : core.Marking
+  Mavlink : core.LogTag
+  Named : core.FlightMode
+  NoFix : core.GPSFix
+  NoReading : core.RangefinderAlt
+  NoReading : core.OffsetAlt
+  NoSensor : core.RangefinderAlt
+  NoSensor : core.OffsetAlt
+  NonSprayArea : core.Marking
+  None : core.LastDevice
+  NotStarted : core.MissionState
+  Obstacle : core.Marking
+  Off : core.SingleSideSpraying
+  On : core.SingleSideSpraying
+  Open : core.LinkSession
+  Partial : core.Ring
+  Partial : core.Path
+  PilotControl : core.FPhase
+  PowerLine : core.Marking
+  RTKFix : core.GPSFix
+  Reading : core.RangefinderAlt
+  Reading : core.OffsetAlt
+  Returning : core.FPhase
+  RoundObstacle : core.Marking
+  RouteAndBoundary : core.CoverageArea
+  RouteOnly : core.CoverageArea
+  Serial : core.LinkSettings
+  Spraying : core.FPhase
+  Stale : core.Feed
+  Stopped : core.MissionState
+  Storage : core.LogTag
+  Tcp : core.LinkSettings
+  Total : core.Path
+  Udp : core.LinkSettings
+  Unheard : core.LastSystemId
+  Unknown : core.FlightMode
+  Unknown : core.HomePoint
+  Vehicle : core.LogTag
+  Warning : core.LogLevel
+base events
+  core.addMission
+  core.aircraftConnectedEvent
+  core.armedEvent
+  core.armingFailedEvent
+  core.autoRestoredEvent
+  core.batteryLowEvent
+  core.cancelArming
+  core.closeLink
+  core.copyMission
+  core.deleteMission
+  core.flownAwayDoneEvent
+  core.flownAwayToEvent
+  core.gpsLostEvent
+  core.groundMeasuredEvent
+  core.homeReachedEvent
+  core.homeSetEvent
+  core.landedEvent
+  core.linkFailedEvent
+  core.linkLossEvent
+  core.logged
+  core.manualControlTakenEvent
+  core.missionCompletedEvent
+  core.removeDevice
+  core.resumeMission
+  core.retryArming
+  core.returnToHome
+  core.routeReachedEvent
+  core.saveDevice
+  core.selectDevice
+  core.startMission
+  core.stopMission
+  core.telemetryBackEvent
+  core.telemetryFrameEvent
+  core.telemetryLostEvent
+  core.updatePlot

@@ -98,8 +98,11 @@ update before any code:
       excludes every source of the event.
 - [x] Parvaz core: `parvaz/parvaz-core.sumspec`, the domain of
       `parvaz.sumspec` as a base spec (see `parvaz/NOTES.md`).
-- [ ] Parvaz UI: `parvaz/parvaz-ui.sumspec`, a layer over the core; the
-      patterns and reactions it needs are in `parvaz/NOTES.md`.
+- [x] Parvaz UI: `parvaz/parvaz-ui.sumspec`, a layer over the core (see
+      `parvaz/NOTES.md`).
+- [ ] A projection of one element at a key the layer holds: the mission
+      `MissionPanel.Selected(at)` shows, or the one the run flies
+      (`core.Run.Active(core.At ...)`). Parvaz describes it in comments.
 - [x] `__from`: projections, a layer's types that read a part of a base's
       state and are never written (see "Projections" in
       `spec/spec-v1.md`). Presentation goes on them, in the layer.

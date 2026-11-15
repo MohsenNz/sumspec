@@ -4,7 +4,7 @@
 -- The domain of the Parvaz Agro ground station: the missions an operator
 -- plans and flies, the devices that reach an aircraft, the link and the
 -- connected aircraft as it reports itself, and the app's log. It is a
--- base spec: parvaz-ui.sumspec (to come) is a layer over it, and knows
+-- base spec: parvaz-ui.sumspec is a layer over it, and knows
 -- nothing the core doesn't say. The core knows nothing of screens.
 --
 -- Rewritten from ../parvaz.sumspec (the old notation, domain and UI in one

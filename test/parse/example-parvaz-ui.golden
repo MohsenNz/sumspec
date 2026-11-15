@@ -1,0 +1,319 @@
+__version 1.0
+
+__imports {
+  core "parvaz-core.sumspec"
+}
+
+__atomics {
+}
+
+__events {
+  goToPlan
+  goToDevices
+  goToAircraft
+  reconnect
+  pagePlanBackToHome
+  pageDevicesBackToHome
+  goToLogs
+  pageLogsBackToHome
+  exportLogs
+  showAbout
+  closeAbout
+  newPlot
+  startMission
+  showMission
+  savePlot
+  cancelPlot
+  closeMissionList
+  retryMap
+  mapReadyEvent
+  mapFailedEvent
+  zoomMap
+  locateMe
+  locationFoundEvent
+  locationDeniedEvent
+  locationFailedEvent
+  pointAdd
+  pointSelect
+  pointDeselect
+  pointDelete
+  shapeDelete
+  pointMove
+  pointEnclose
+  setPointType
+  setPlotController
+  startCornerPick
+  startCornerSet
+  startCornerCancel
+  edgeMarginPick
+  edgeSelect
+  edgeMarginSet
+  edgeMarginReset
+  edgeMarginDone
+  shapeSelect
+  shapeDeselect
+  pointUndo
+  pointRedo
+  setRouteSpacing
+  setSprayHeight
+  setReturnHeight
+  setSpraySpeed
+  setDefaultEdgeMargin
+  setCoverageArea
+  setObstacleBoundary
+  setSingleSideSpraying
+  setCourse
+  retryArming
+  cancelArming
+  stopMission
+  resumeMission
+  returnToHome
+  watchAircraft
+  leaveManualAircraft
+  maximizeCamera
+  minimizeCamera
+  hideCamera
+  unhideCamera
+  panMap
+  recenterMap
+  switchBatteryFigure
+  selectMission
+  backToList
+  editSelectedMission
+  copyMission
+  deleteMission
+  addDevice
+  editDevice
+  cancelDevice
+  setDeviceName
+  setLinkKind
+  setHost
+  setPort
+  setBaud
+  saveDevice
+  removeDevice
+  selectDevice
+  closeLink
+  setLogLevel
+  setLogTags
+}
+
+__annotations {
+  @default
+  @range
+  @step
+  @after
+  @requiresConfirmation
+  @when
+  @announce
+  @view
+  @control
+  @region
+  @placement
+  @status
+  @size
+  @overflow
+  @aspectRatio
+  @platform
+  @targets
+  @orientation
+  @theme
+}
+
+__init :: App(Page.Home)
+App @platform Android @targets mobile @orientation landscape @theme light @aspectRatio 20:9 = Page * Map * core.Core
+Page @view hierarchical_navigation @default Home = Home HomeView | Plan PMode | Devices DevicesView | Logs LogsView
+HomeView = About * LinkStatus * HomeAircraft
+About @default Closed = Closed | Open AppVersion @view dialog
+AppVersion = core.Text
+LinkStatus __from core.Core @view status = core.LinkSession * core.AircraftLink
+HomeAircraft __from core.Core(core.AircraftLink) @view tiles = Disconnected | Connected (core.BatteryReserve * Battery * HomeIndicators)
+Battery __from core.AircraftStatus(core.Battery) @view tile = core.BatteryCharge
+HomeIndicators __from core.AircraftStatus = core.GPSFix @view status_tile * core.Satellites @view tile * core.ArmState @view status_tile
+LogsView @view browsing = LogLevelFilter * LogTagFilter * LogList
+LogLevelFilter @default All = All | Warnings | Errors
+LogTagFilter = [core.LogTag]
+LogList __from core.Core(core.Logs) @overflow scroll = [core.LogEntry]
+DevicesView @default Listing = Listing DeviceListing @view browsing | Editing DeviceForm @view form
+DeviceListing = DeviceRows * LinkStatus @when LinkSession.{Open | Failed}
+DeviceRows __from core.Core(core.Devices) @overflow scroll = [DeviceRow by core.DeviceId]
+DeviceRow __from core.Device @view row = core.DeviceName * core.LinkSettings * core.LastSystemId
+DeviceForm = DeviceOrigin * core.DeviceName * LinkKind * Host @when LinkKind.Tcp * core.Port @when LinkKind.{Udp | Tcp} * core.Baud @when LinkKind.Serial
+DeviceOrigin = New | Existing core.DeviceId
+LinkKind @default Udp = Udp | Tcp | Serial
+Host @default Unset = Unset | Named core.HostName
+Map @region canvas = TileStatus * Zoom * DeviceLocation
+TileStatus @default Loading = Loading @status loading | Ready | Offline @status error
+Zoom @default 16 @range 3..20 = core.Int
+DeviceLocation @default Unknown @region canvas = Unknown | Locating @status loading | Denied @status error | Failed @status error | Located core.Point
+PMode @default JustMap = JustMap | Plot PlotEditor @view editing | ShowMission MissionPanel | MissionRun RunView @view monitoring | ManualAircraft AircraftView @view monitoring
+PlotEditor = PlotOrigin * core.Plot * PointHistory * PlotController * ShapeSelection * CornerPick * EdgePick
+PlotOrigin = Draft | Editing core.At
+PlotController @default Field @region panel @placement right @control segmented = Field PointType @size (1/4*screen) | Route @size (1/3*screen) @view form @overflow scroll
+PointType @default BoundaryPoint = BoundaryPoint | Obstacle | RoundObstacle | PowerLine | NonSprayArea | MarkPoint
+PointHistory = Undo * Redo
+Undo @default Empty = Ready | Empty
+Redo @default Empty = Ready | Empty
+ShapeSelection @default Empty = Empty | Selected (Shape * PointSelection)
+Shape = Boundary | Marking
+PointSelection @default Empty = Empty | Selected core.Point
+CornerPick @default Idle = Idle | Picking
+EdgePick @default Idle = Idle | Picking | Selected core.Edge
+MissionPanel @view browsing @region panel @size (1/4*screen) @placement right = List MissionRows | Selected core.At @view summary
+MissionRows __from core.Core(core.Missions) @overflow scroll = [MissionRow by core.At]
+MissionRow __from core.Mission @view row = core.MissionName * core.MissionState * core.GroundMeasurements
+RunView = RunPanel * AircraftPanel * AircraftCanvas * BatteryFigure
+RunPanel __from core.Core(core.Run) @region panel @placement right @size (1/4*screen) @overflow scroll = Idle | Active core.MissionFlight
+AircraftView = AircraftPanel @region panel @placement right @size (1/4*screen) * AircraftCanvas * BatteryFigure
+AircraftPanel __from core.Core(core.AircraftLink) = Disconnected | Connected (AircraftIndicators * AircraftGauges * core.Feed * HomeMarker * AircraftPose)
+AircraftIndicators __from core.AircraftStatus = core.ArmState @view status_tile * core.FlightMode @view status_tile * core.GPSFix @view status_tile
+AircraftGauges __from core.AircraftStatus = core.Satellites @view tile * core.SprayFlow @view tile * core.Altitude @view tile * core.RangefinderAlt @view tile * core.OffsetAlt @view tile * core.Speed @view tile * core.Heading @view tile * core.Battery @view tile
+HomeMarker __from core.Aircraft @region canvas @when HomePoint.Known = core.HomePoint
+AircraftPose __from core.AircraftStatus @region canvas @when GPSFix.{Fix2D | Fix3D | DGPS | RTKFix} = core.Latitude * core.Longitude * core.Heading * core.GPSFix
+BatteryFigure @default Voltage = Voltage | Charge
+AircraftCanvas = FCamera * MapFollow
+MapFollow @default Following = Following | Free
+FCamera @default Minimized @region canvas = Maximized | Minimized @view popup | Hidden
+__pattern InPlan(m) = App(Page.Plan(m))
+__pattern Editor = App(Page.Plan(PMode.Plot))
+__pattern RouteForm = PMode.Plot(PlotController.Route * core.Plot.Drawn)
+__pattern Setting(v) = PMode.Plot(core.Plot.Drawn(core.RouteSettings(v)))
+__pattern Connected(x) = App(core.Core(core.AircraftLink.Connected(x)))
+__pattern Armed = Connected(core.AircraftStatus(core.ArmState.Armed))
+__pattern ReadyToFly = core.AircraftLink.Connected(core.Feed.Live * core.AircraftStatus(core.ArmState.Disarmed * core.GPSFix.{Fix3D | DGPS | RTKFix}) * core.BatteryReserve.Enough)
+__pattern Running(x) = App(Page.Plan(PMode.MissionRun) * core.Core(core.Run.Active(x)))
+__pattern Selected(at) = App(Page.Plan(PMode.ShowMission(MissionPanel.Selected(at))))
+__pattern Form(x) = App(Page.Devices(DevicesView.Editing(x)))
+__pattern DeviceEditor = App(Page.Devices(DevicesView.Editing))
+__pattern DeviceList = App(Page.Devices(DevicesView.Listing))
+NewName = core.At * core.MissionName
+goToPlan :: App(Page.Home) -> App(Page.Plan) @control nav_entry
+goToDevices :: App(Page.Home) -> App(Page.Devices) @control nav_entry
+goToAircraft :: App(Page.Home) // Connected(core.AircraftStatus) -> App(Page.Plan(PMode.ManualAircraft)) @control nav_entry
+reconnect :: App(Page.Home * core.Core(core.LastDevice.Known(core.DeviceId#id) * core.LinkSession.{Closed | Failed})) -> App >> core.selectDevice(id) @when LastDevice.Known @control button
+pagePlanBackToHome :: App(Page.Plan(PMode.{JustMap | ShowMission})) -> App(Page.Home) @control button_icon_f
+                   :: App(Page.Plan(PMode.ManualAircraft)) // not Armed -> App(Page.Home) @control button_icon_f
+pageDevicesBackToHome :: App(Page.Devices) -> App(Page.Home) @control button_icon
+goToLogs :: App(Page.Home) -> App(Page.Logs) @control menu_item
+pageLogsBackToHome :: App(Page.Logs) -> App(Page.Home) @control button_icon
+exportLogs :: App(Page.Home) -> App @control menu_item
+           :: App(Page.Logs) -> App @control button_icon
+showAbout :: App / Page.Home => About.Closed -> About.Open @control menu_item
+closeAbout :: App / Page.Home => About.Open -> About.Closed @control button
+retryMap :: Map => TileStatus.Offline -> TileStatus.Loading @control button
+mapReadyEvent :: Map => TileStatus.Loading -> TileStatus.Ready
+mapFailedEvent :: Map => TileStatus.Loading -> TileStatus.Offline
+zoomMap Zoom#z :: Map => Zoom -> z @control map_pinch
+locateMe :: Map => DeviceLocation.{Unknown | Denied | Failed | Located} -> DeviceLocation.Locating @control button_icon_f
+locationFoundEvent core.Point#p :: Map => DeviceLocation.Locating -> DeviceLocation.Located(p)
+locationDeniedEvent :: Map => DeviceLocation.Locating -> DeviceLocation.Denied
+locationFailedEvent :: Map => DeviceLocation.Locating -> DeviceLocation.Failed
+newPlot :: InPlan(PMode.{JustMap | ShowMission(MissionPanel.List)}) -> InPlan(PMode.Plot(PlotOrigin.Draft * core.Plot.Empty)) @control button_icon_f
+showMission :: InPlan(PMode.JustMap) -> InPlan(PMode.ShowMission(MissionPanel.List)) @control button_icon_f
+closeMissionList :: InPlan(PMode.ShowMission(MissionPanel.List)) -> InPlan(PMode.JustMap) @control button_icon
+savePlot NewName(core.At#new * core.MissionName#n) :: InPlan(PMode.Plot(PlotOrigin.Draft * core.Plot.Drawn(core.Boundary(core.Ring.Enclosed))#p)) -> Selected(new) >> core.addMission(new * n * p) @control name_prompt
+                                                   :: InPlan(PMode.Plot(PlotOrigin.Editing(#at) * core.Plot.Drawn(core.Boundary(core.Ring.Enclosed))#p)) -> Selected(at) >> core.updatePlot(at * n * p) @control name_prompt
+cancelPlot :: InPlan(PMode.Plot(PlotOrigin.Draft)) -> InPlan(PMode.JustMap) @control button_icon @requiresConfirmation
+           :: InPlan(PMode.Plot(PlotOrigin.Editing(#at))) -> Selected(at) @control button_icon @requiresConfirmation
+selectMission core.At#at :: InPlan(PMode.ShowMission(MissionPanel.List)) // App(core.Core(core.Missions[at])) -> Selected(at) @control list_row
+backToList :: InPlan(PMode.ShowMission(MissionPanel.Selected)) -> InPlan(PMode.ShowMission(MissionPanel.List)) @control button_icon
+editSelectedMission :: App(Page.Plan(PMode.ShowMission(MissionPanel.Selected(core.At#at))) * core.Core(core.Missions[at](core.MissionState.NotStarted * core.Plot#p))) -> InPlan(PMode.Plot(PlotOrigin.Editing(at) * p)) @control button_icon_f
+copyMission NewName(core.At#new * core.MissionName#n) :: Selected(core.At#at) -> Selected(new) >> core.copyMission(core.CopyOf(at) * new * n) @control name_prompt
+deleteMission :: App(Page.Plan(PMode.ShowMission(MissionPanel.Selected(core.At#at))) * core.Core(core.Run.Idle)) -> InPlan(PMode.ShowMission(MissionPanel.List)) >> core.deleteMission(at) @control button_icon_f @requiresConfirmation
+startMission :: App(Page.Plan(PMode.ShowMission(MissionPanel.Selected(core.At#at))) * Map(TileStatus.{Loading | Ready}) * core.Core(core.Run.Idle * core.Missions[at](core.MissionState.{NotStarted | Stopped}) * ReadyToFly)) -> InPlan(PMode.MissionRun) >> core.startMission(at) @control button_icon_f @requiresConfirmation
+resumeMission :: App(Page.Plan(PMode.ShowMission(MissionPanel.Selected(core.At#at))) * Map(TileStatus.{Loading | Ready}) * core.Core(core.Run.Idle * core.Missions[at](core.MissionState.Stopped) * ReadyToFly)) -> InPlan(PMode.MissionRun) >> core.resumeMission(at) @control button_icon_f @requiresConfirmation
+              :: Running(core.At#at * core.MissionFlight.Flying(core.FPhase.Holding)) -> App >> core.resumeMission(at) @control button_icon_f
+retryArming :: Running(core.MissionFlight.Failed) // App(core.Core(ReadyToFly)) -> App >> core.retryArming @control button
+cancelArming :: Running(core.At#at * core.MissionFlight.Arming) -> Selected(at) >> core.cancelArming @control button @requiresConfirmation
+             :: Running(core.At#at * core.MissionFlight.Failed) -> Selected(at) >> core.cancelArming @control button
+stopMission :: Running(core.MissionFlight.Flying(core.FPhase.{Spraying | Approaching})) -> App >> core.stopMission @control button_icon_f @requiresConfirmation
+returnToHome :: Running(core.MissionFlight.Flying(core.FPhase.{Approaching | Holding})) -> App >> core.returnToHome @control button_icon_f
+core.routeReachedEvent :: App -> App @announce
+core.missionCompletedEvent :: App -> App @announce
+core.manualControlTakenEvent :: Running(core.MissionFlight.Flying(core.FPhase.{Approaching | Spraying | Holding})) -> App @announce
+                             :: Running(core.MissionFlight.{Arming | Failed | Flying(core.FPhase.Returning)}) -> InPlan(PMode.ManualAircraft) @announce
+core.autoRestoredEvent :: App -> App @announce
+core.landedEvent :: Running(core.At#at) -> Selected(at) @announce
+core.batteryLowEvent :: App -> App @announce
+core.gpsLostEvent :: Running(core.MissionFlight.Flying) -> InPlan(PMode.ManualAircraft) @announce
+core.homeReachedEvent :: Running(core.At#at) -> Selected(at) @announce
+core.armedEvent :: App(Page.Plan(PMode.JustMap) * core.Core(core.Run.Idle)) -> InPlan(PMode.ManualAircraft) @announce
+core.linkLossEvent :: Running(core.At#at) -> Selected(at) @announce
+                   :: InPlan(PMode.ManualAircraft) -> InPlan(PMode.JustMap) @announce
+                   :: InPlan(PMode.{JustMap | Plot | ShowMission}) -> App @announce
+                   :: App(Page.{Home | Devices | Logs}) -> App @announce
+core.flownAwayDoneEvent :: App -> App @announce
+core.flownAwayToEvent :: App -> App @announce
+core.aircraftConnectedEvent :: App -> App @announce
+core.linkFailedEvent :: App -> App @announce
+core.homeSetEvent :: App -> App @announce
+core.telemetryLostEvent :: App -> App @announce
+core.telemetryBackEvent :: App -> App @announce
+watchAircraft :: InPlan(PMode.JustMap) // Connected(core.AircraftStatus) -> InPlan(PMode.ManualAircraft) @control button_icon_f
+leaveManualAircraft :: InPlan(PMode.ManualAircraft) // not Armed -> InPlan(PMode.JustMap) @control button_icon_f
+maximizeCamera :: AircraftCanvas => FCamera.Minimized -> FCamera.Maximized @control button_icon_f
+minimizeCamera :: AircraftCanvas => FCamera.Maximized -> FCamera.Minimized @control button_icon_f
+hideCamera :: AircraftCanvas => FCamera.{Minimized | Maximized} -> FCamera.Hidden @control button_icon_f
+unhideCamera :: AircraftCanvas => FCamera.Hidden -> FCamera.Minimized @control button_icon_f
+panMap :: AircraftCanvas => MapFollow -> MapFollow.Free @control map_pan
+recenterMap :: AircraftCanvas => MapFollow.Free -> MapFollow.Following @control button_icon_f
+switchBatteryFigure :: BatteryFigure.Voltage -> BatteryFigure.Charge @control tile_tap
+                    :: BatteryFigure.Charge -> BatteryFigure.Voltage @control tile_tap
+pointAdd core.Point#pt :: Editor
+                       => PlotController.Field(PointType.BoundaryPoint) * core.Plot.Empty * ShapeSelection.Empty -> core.Plot.Drawn * ShapeSelection.Selected(Shape.Boundary) * PointHistory(Undo.Ready * Redo.Empty)
+                       => PlotController.Field * ShapeSelection.Selected -> core.Plot' * PointHistory(Undo.Ready * Redo.Empty)
+                       => PlotController.Field * ShapeSelection.Empty * core.Plot.Drawn(core.Boundary(core.Ring.Enclosed)) // not PlotController.Field(PointType.BoundaryPoint) -> core.Plot.Drawn(core.Markings') * ShapeSelection.Selected(Shape.Marking) * PointHistory(Undo.Ready * Redo.Empty) @control crosshair_add
+pointSelect core.Point#pt :: Editor => PlotController.Field * ShapeSelection.Selected -> ShapeSelection.Selected(PointSelection.Selected(pt)) @control map_point_picker
+pointDeselect :: Editor => PlotController.Field * ShapeSelection.Selected(PointSelection.Selected) -> ShapeSelection.Selected(PointSelection.Empty) @control map_point_picker
+pointDelete :: Editor => PlotController.Field * ShapeSelection.Selected(PointSelection.Selected) -> core.Plot' * ShapeSelection' * PointHistory(Undo.Ready * Redo.Empty) @control button
+shapeDelete :: Editor => PlotController.Field * ShapeSelection.Selected(Shape.Marking * PointSelection.Empty) * core.Plot.Drawn -> core.Plot.Drawn(core.Markings') * ShapeSelection.Empty * PointHistory(Undo.Ready * Redo.Empty) @control button
+pointMove core.Point#pt :: Editor => PlotController.Field * ShapeSelection.Selected(PointSelection.Selected) * core.Plot.Drawn -> core.Plot' * PointHistory(Undo.Ready * Redo.Empty) @control map_handle_drag
+pointEnclose :: Editor
+             => PlotController.Field * ShapeSelection.Selected(Shape.Boundary) * core.Plot.Drawn(core.Boundary(core.Ring.Closeable)) -> core.Plot.Drawn(core.Boundary') * PointHistory(Undo.Ready * Redo.Empty)
+             => PlotController.Field * ShapeSelection.Selected(Shape.Marking) * core.Plot.Drawn -> core.Plot.Drawn(core.Markings') * ShapeSelection.Empty * PointHistory(Undo.Ready * Redo.Empty) @control button
+setPointType PointType#t :: Editor => PlotController.Field * ShapeSelection // not core.Plot.Drawn(core.Boundary(core.Ring.{Partial | Closeable})) -> PlotController.Field(t) * ShapeSelection' @control drop_down
+setPlotController :: Editor
+                  => PlotController.Field // core.Plot.Drawn(core.Boundary(core.Ring.Enclosed)) -> PlotController.Route * ShapeSelection.Selected(Shape.Boundary)
+                  => PlotController.Route -> PlotController.Field(PointType.BoundaryPoint) * ShapeSelection.Selected(Shape.Boundary) * CornerPick.Idle * EdgePick.Idle @control segmented
+shapeSelect Shape#s :: Editor => PlotController.Field * core.Plot.Drawn // not core.Plot.Drawn(core.Boundary(core.Ring.{Partial | Closeable})) -> ShapeSelection.Selected(s * PointSelection.Empty) * PlotController.Field(PointType') @control map_shape_picker
+shapeDeselect :: Editor => PlotController.Field * ShapeSelection.Selected // not core.Plot.Drawn(core.Boundary(core.Ring.{Partial | Closeable})) and not PlotController.Field(PointType.BoundaryPoint) -> ShapeSelection.Empty @control map_point_picker
+pointUndo :: Editor => PlotController.Field * PointHistory(Undo.Ready) -> core.Plot' * ShapeSelection' * PlotController.Field(PointType') * PointHistory(Undo' * Redo.Ready) @control button
+pointRedo :: Editor => PlotController.Field * PointHistory(Redo.Ready) -> core.Plot' * ShapeSelection' * PlotController.Field(PointType') * PointHistory(Undo.Ready * Redo') @control button
+startCornerPick :: Editor => PlotController.Route * CornerPick.Idle -> CornerPick.Picking * EdgePick.Idle @control button
+startCornerSet core.Point#pt :: Editor => PlotController.Route * CornerPick.Picking * core.Plot.Drawn -> core.Plot.Drawn(core.RouteSettings(core.StartCorner(pt))) * CornerPick.Idle @control map_point_picker
+startCornerCancel :: Editor => CornerPick.Picking -> CornerPick.Idle @control button
+edgeMarginPick :: Editor => PlotController.Route * EdgePick.Idle -> CornerPick.Idle * EdgePick.Picking @control button
+edgeSelect core.Edge#e :: Editor => PlotController.Route * EdgePick.{Picking | Selected} -> EdgePick.Selected(e) @control map_edge_picker
+edgeMarginSet core.EdgeInset#i :: Editor => PlotController.Route * EdgePick.Selected * core.Plot.Drawn -> core.Plot.Drawn(core.RouteSettings(core.EdgeMargins')) @control stepper @step 0.5
+edgeMarginReset :: Editor => PlotController.Route * EdgePick.Selected * core.Plot.Drawn -> core.Plot.Drawn(core.RouteSettings(core.EdgeMargins')) @control button
+edgeMarginDone :: Editor => EdgePick.{Picking | Selected} -> EdgePick.Idle @control button
+setRouteSpacing core.RouteSpacing#v :: RouteForm -> Setting(v) @control stepper @step 0.5
+setSprayHeight core.SprayHeight#v :: RouteForm -> Setting(v) @control stepper @step 0.5
+setReturnHeight core.ReturnHeight#v :: RouteForm -> Setting(v) @control stepper @step 1
+setSpraySpeed core.SpraySpeed#v :: RouteForm -> Setting(v) @control stepper @step 0.5
+setDefaultEdgeMargin core.DefaultEdgeMargin#v :: RouteForm -> Setting(v) @control stepper @step 0.5
+setCoverageArea core.CoverageArea#v :: RouteForm -> Setting(v) @control segmented
+setObstacleBoundary core.ObstacleBoundary#v :: RouteForm -> Setting(v) @control stepper @step 0.5
+setSingleSideSpraying core.SingleSideSpraying#v :: RouteForm -> Setting(v) @control toggle
+setCourse core.Course#v :: RouteForm -> Setting(v) @control segmented
+addDevice :: DeviceList -> Form(DeviceOrigin.New) @control button_icon_f
+editDevice core.DeviceId#id :: App(Page.Devices(DevicesView.Listing) * core.Core(core.Devices[id](core.DeviceName#n * core.LinkSettings.Udp(core.Port#p)))) -> Form(DeviceOrigin.Existing(id) * n * LinkKind.Udp * p) @control button_icon
+                            :: App(Page.Devices(DevicesView.Listing) * core.Core(core.Devices[id](core.DeviceName#n * core.LinkSettings.Tcp(core.HostName#h * core.Port#p)))) -> Form(DeviceOrigin.Existing(id) * n * LinkKind.Tcp * Host.Named(h) * p) @control button_icon
+                            :: App(Page.Devices(DevicesView.Listing) * core.Core(core.Devices[id](core.DeviceName#n * core.LinkSettings.Serial(core.Baud#b)))) -> Form(DeviceOrigin.Existing(id) * n * LinkKind.Serial * b) @control button_icon
+cancelDevice :: App / Page.Devices => DevicesView.Editing -> DevicesView.Listing @control button_icon
+setDeviceName core.DeviceName#n :: DeviceEditor => core.DeviceName -> n @control text_field
+setLinkKind LinkKind#k :: DeviceEditor => LinkKind -> k @control segmented
+setHost core.HostName#h :: DeviceEditor => Host -> Host.Named(h) @control text_field
+setPort core.Port#p :: DeviceEditor => core.Port -> p @control text_field
+setBaud core.Baud#b :: DeviceEditor => core.Baud -> b @control text_field
+saveDevice core.DeviceId#now :: Form(DeviceOrigin.New * core.DeviceName#n * LinkKind.Udp * core.Port#p) -> DeviceList >> core.saveDevice(now * n * core.LinkSettings.Udp(p)) @control button
+                             :: Form(DeviceOrigin.New * core.DeviceName#n * LinkKind.Tcp * Host.Named(core.HostName#h) * core.Port#p) -> DeviceList >> core.saveDevice(now * n * core.LinkSettings.Tcp(h * p)) @control button
+                             :: Form(DeviceOrigin.New * core.DeviceName#n * LinkKind.Serial * core.Baud#b) -> DeviceList >> core.saveDevice(now * n * core.LinkSettings.Serial(b)) @control button
+                             :: Form(DeviceOrigin.Existing(#id) * core.DeviceName#n * LinkKind.Udp * core.Port#p) // not Armed -> DeviceList >> core.saveDevice(id * n * core.LinkSettings.Udp(p)) @control button
+                             :: Form(DeviceOrigin.Existing(#id) * core.DeviceName#n * LinkKind.Tcp * Host.Named(core.HostName#h) * core.Port#p) // not Armed -> DeviceList >> core.saveDevice(id * n * core.LinkSettings.Tcp(h * p)) @control button
+                             :: Form(DeviceOrigin.Existing(#id) * core.DeviceName#n * LinkKind.Serial * core.Baud#b) // not Armed -> DeviceList >> core.saveDevice(id * n * core.LinkSettings.Serial(b)) @control button
+removeDevice :: Form(DeviceOrigin.Existing(#id)) // not Armed -> DeviceList >> core.removeDevice(id) @control button @requiresConfirmation
+selectDevice core.DeviceId#id :: App(Page.Devices(DevicesView.Listing) * core.Core(core.Devices[id])) // not Armed -> App >> core.selectDevice(id) @control list_row
+closeLink :: App(Page.Devices(DevicesView.Listing) * core.Core(core.LinkSession.{Open | Failed})) // not Armed -> App >> core.closeLink @control button
+setLogLevel LogLevelFilter#l :: App / Page.Logs => LogLevelFilter -> l @control segmented
+setLogTags LogTagFilter#t :: App / Page.Logs => LogTagFilter -> t @control multi_select

@@ -1,0 +1,1230 @@
+------------------------------------------------------------------------------------
+-- Parvaz Agro: the screens
+--
+-- The user interface of the Parvaz Agro ground station, a layer over its
+-- core (parvaz-core.sumspec). The core holds the missions, the run, the
+-- devices, the link, the aircraft and the log; this layer holds only what
+-- the screens add: which page is open, the map, the plot being drawn, the
+-- forms, the selections and how things are shown.
+--
+-- The screens read the core through core.Core, in sources and guards, and
+-- through projections (__from): types of this layer that show a part of
+-- the core's state and are never written. They change the core only by
+-- firing its events with >>, and follow what it does by reacting to its
+-- occurrences (core.landedEvent :: ...).
+--
+-- Rewritten from ../parvaz.sumspec (the old notation). NOTES.md says where
+-- each old type and transition went.
+------------------------------------------------------------------------------------
+
+__version 1.0
+
+__imports {
+  core "parvaz-core.sumspec"
+}
+
+__annotations {
+  @default
+  @range         -- permitted values of a numeric part, low..high, inclusive
+  @step          -- the increment a @control stepper moves by
+  @after         -- the measure that fires an occurrence: @after <member> <value>
+  @requiresConfirmation
+  @when          -- a part is drawn only while this state holds; otherwise
+                 -- it is not drawn at all. It governs drawing only: a value
+                 -- keeps its state whether it is drawn or not
+  @announce      -- this system-originated transition must state its arrival:
+                 -- the UI may not switch silently
+
+  @view          -- what kind of experience. A drawn marker; see @region.
+                 --   status_tile the member's icon and value in a narrow tile at its natural
+                 --               width, tinted by the value: no label, never cropped
+  @control       -- what interaction mechanism represents a value or an action.
+                 -- On a transition it says that widget triggers it. One of:
+                 --   button            a labelled tap target for the action
+                 --   button_icon       an icon (no text) tap target for the action
+                 --   button_icon_f     a floating button_icon
+                 --   crosshair_add     a fixed crosshair the map pans under,
+                 --                     plus an add button
+                 --   drop_down         a closed list that opens to pick one value
+                 --   list_row          a row in a list, tapped as a whole
+                 --   menu_item         an entry in a short list a button_icon
+                 --                     opens; picking one closes the list
+                 --   map_handle_drag   a drag on a marker already on the map,
+                 --                     which supplies its new position
+                 --   map_pan           a drag on the map itself, not on a widget
+                 --   map_pinch         a two-finger pinch on the map itself
+                 --   map_point_picker  a tap on the map supplies the position
+                 --   map_edge_picker   a tap on a drawn shape's edge supplies it
+                 --   map_shape_picker  a tap on a drawn shape selects it
+                 --   multi_select      a closed list that opens to tick any number
+                 --                     of values; ticking none means all of them
+                 --   name_prompt       a button opening a single-field dialog
+                 --                     for a name, which it supplies as input
+                 --   nav_entry         a navigation row: icon, label, one-line
+                 --                     description and a chevron; the whole row
+                 --                     is the touch target
+                 --   segmented         adjacent options, exactly one selected
+                 --   slider            a value dragged along a track
+                 --   stepper           a number nudged by minus and plus buttons
+                 --   text_field        a one-line input; for a number it holds
+                 --                     the value to its @range
+                 --   tile_tap          a tap on a tile as a whole; switches it
+                 --                     to its other unit
+                 --   toggle            a two-state switch
+  @region        -- where a part is DRAWN, one of:
+                 --   canvas  fills the view; other regions sit beside or over it
+                 --   panel   persistent surface holding controls for the canvas
+                 --   bar     thin strip of navigation or status
+                 -- @region, @view and @control are the drawn markers. A drawn
+                 -- part inherits its parent's region unless it overrides it.
+  @placement     -- where a region sits: left | right | top | bottom
+  @status        -- transient condition of a view: loading, empty or error
+  @size          -- a fraction of the reference screen fixed by @aspectRatio
+  @overflow      -- the part holds more than its @size can show, and how the
+                 -- rest is reached: scroll, the content scrolls inside the
+                 -- region. Without it a part is asserted to fit
+  @aspectRatio
+  @platform
+  @targets
+  @orientation
+  @theme
+}
+
+__atomics { }
+
+__events {
+  -- The pages
+  goToPlan              -- the map opens where it was last left
+  goToDevices
+  goToAircraft          -- opens the map already watching the connected
+                        -- aircraft, as watchAircraft would from the map
+  reconnect             -- relinks LastDevice from Home, as selectDevice would
+                        -- on its row; on a Failed link it retries
+  pagePlanBackToHome
+  pageDevicesBackToHome -- drops an unsaved DeviceForm
+  goToLogs
+  pageLogsBackToHome
+  exportLogs            -- hands the log to the platform's sharing, as one
+                        -- file; changes no state
+  showAbout
+  closeAbout
+
+  -- The plan page
+  newPlot               -- starts a Draft; nothing is saved until savePlot
+  startMission          -- flies the selected mission from its start. On a
+                        -- Stopped mission it is "Start over", beside
+                        -- resumeMission, and its confirmation says the
+                        -- BreakPoint is dropped
+  showMission
+  savePlot              -- names the plot and saves it: a Draft as a new
+                        -- mission, an Editing one over the mission it came from
+  cancelPlot            -- goes back where the plot came from
+  closeMissionList
+
+  -- The map
+  retryMap
+  mapReadyEvent
+  mapFailedEvent
+  zoomMap
+  locateMe              -- centres the map on the operator
+  locationFoundEvent
+  locationDeniedEvent
+  locationFailedEvent
+
+  -- Drawing the plot
+  pointAdd              -- the crosshair supplies the Point
+  pointSelect
+  pointDeselect
+  pointDelete
+  shapeDelete
+  pointMove
+  pointEnclose
+  setPointType
+  setPlotController
+  startCornerPick
+  startCornerSet
+  startCornerCancel
+  edgeMarginPick
+  edgeSelect
+  edgeMarginSet
+  edgeMarginReset
+  edgeMarginDone
+  shapeSelect
+  shapeDeselect
+  pointUndo
+  pointRedo
+
+  -- The Route form: one setter per field
+  setRouteSpacing
+  setSprayHeight
+  setReturnHeight
+  setSpraySpeed
+  setDefaultEdgeMargin
+  setCoverageArea
+  setObstacleBoundary
+  setSingleSideSpraying
+  setCourse
+
+  -- The run
+  retryArming
+  cancelArming          -- Arming asks first; Failed does not
+  stopMission
+  resumeMission
+  returnToHome
+
+  -- Watching the aircraft
+  watchAircraft
+  leaveManualAircraft
+  maximizeCamera
+  minimizeCamera
+  hideCamera
+  unhideCamera
+  panMap
+  recenterMap
+  switchBatteryFigure
+
+  -- The mission list
+  selectMission
+  backToList
+  editSelectedMission   -- reopens the plot as an Editing draft
+  copyMission
+  deleteMission
+
+  -- Devices
+  addDevice
+  editDevice
+  cancelDevice
+  setDeviceName
+  setLinkKind
+  setHost
+  setPort
+  setBaud
+  saveDevice
+  removeDevice
+  selectDevice
+  closeLink
+
+  -- The log
+  setLogLevel
+  setLogTags
+}
+
+-- A first launch opens on Home, the map on its defaults. core.Core starts
+-- at the core's __init.
+__init :: App(Page.Home)
+
+------------------------------------------------------------------------------------
+-- The app
+
+App         @platform Android
+            @targets mobile
+            @orientation landscape
+            @theme light
+            @aspectRatio 20:9
+  = Page
+  * Map                 -- outlives the plan page, so it opens where it was left
+  * core.Core           -- the core's state: only the core's events change it
+
+Page        @view hierarchical_navigation
+            @default Home
+  = Home    HomeView
+  | Plan    PMode
+  | Devices DevicesView
+  | Logs    LogsView
+
+------------------------------------------------------------------------------------
+-- Home: a glance before anything is planned. Its menu (goToLogs,
+-- exportLogs, showAbout) opens from a button_icon where other pages put
+-- back.
+
+HomeView
+  = About
+  * LinkStatus
+  * HomeAircraft
+
+About               @default Closed
+  = Closed
+  | Open AppVersion @view dialog -- the app's name, version and build
+
+AppVersion = core.Text  -- the build's version name and number, and its kind
+
+-- What the app is doing to reach an aircraft, and whether one answered.
+-- Connected shows the live aircraft's SystemId.
+LinkStatus          __from core.Core
+                    @view status
+  = core.LinkSession
+  * core.AircraftLink
+
+-- The connected aircraft's readiness; nothing while none is connected.
+HomeAircraft        __from core.Core(core.AircraftLink)
+                    @view tiles
+  = Disconnected
+  | Connected (core.BatteryReserve * Battery * HomeIndicators)
+
+Battery             __from core.AircraftStatus(core.Battery)
+                    @view tile    -- toned by BatteryReserve
+  = core.BatteryCharge
+
+HomeIndicators      __from core.AircraftStatus
+  = core.GPSFix       @view status_tile
+  * core.Satellites   @view tile
+  * core.ArmState     @view status_tile
+
+------------------------------------------------------------------------------------
+-- The log page
+
+LogsView            @view browsing
+  = LogLevelFilter
+  * LogTagFilter
+  * LogList
+
+LogLevelFilter      @default All
+  = All
+  | Warnings        -- Warning and Error
+  | Errors
+
+LogTagFilter = [core.LogTag]  -- empty: every tag
+
+-- The log, newest last, through both filters: an entry shows when its
+-- level and tag pass them. Empty, nothing logged yet or nothing the
+-- filters let through: @status empty.
+LogList             __from core.Core(core.Logs)
+                    @overflow scroll
+  = [core.LogEntry]
+
+------------------------------------------------------------------------------------
+-- The device page
+
+DevicesView         @default Listing
+  = Listing DeviceListing   @view browsing
+  | Editing DeviceForm      @view form
+
+DeviceListing
+  = DeviceRows
+  * LinkStatus      @when LinkSession.{Open | Failed}
+
+-- One row per saved device. The row LinkSession names is marked as the
+-- linked one. No device yet: @status empty, prompting to add one.
+DeviceRows          __from core.Core(core.Devices)
+                    @overflow scroll
+  = [DeviceRow by core.DeviceId]
+
+DeviceRow           __from core.Device
+                    @view row
+  = core.DeviceName
+  * core.LinkSettings
+  * core.LastSystemId
+
+-- A draft: saveDevice writes it, cancelDevice drops it.
+DeviceForm
+  = DeviceOrigin
+  * core.DeviceName
+  * LinkKind
+  * Host            @when LinkKind.Tcp
+  * core.Port       @when LinkKind.{Udp | Tcp}
+  * core.Baud       @when LinkKind.Serial
+
+DeviceOrigin        -- what saveDevice does with the form
+  = New                       -- addDevice: append a device
+  | Existing (core.DeviceId)  -- editDevice: rewrite that device in place
+
+LinkKind            @default Udp  -- the form's choice of LinkSettings variant
+  = Udp
+  | Tcp
+  | Serial
+
+Host                @default Unset -- the form's draft of a HostName
+  = Unset
+  | Named (core.HostName)
+
+------------------------------------------------------------------------------------
+-- The map, under every mode of the plan page
+
+Map                 @region canvas
+  = TileStatus
+  * Zoom
+  * DeviceLocation
+
+TileStatus          @default Loading
+  = Loading         @status loading  -- tiles not yet drawn
+  | Ready
+  | Offline         @status error    -- no tiles for this area; cached view only
+
+Zoom = core.Int     @default 16
+                    @range 3..20
+
+DeviceLocation      @default Unknown
+                    @region canvas   -- where the operator is standing, read
+                                     -- from the device's own receiver
+  = Unknown
+  | Locating        @status loading
+  | Denied          @status error    -- the operator refused the permission
+  | Failed          @status error    -- asked and never answered: no receiver,
+                                     -- or no fix in the open; offer retry
+  | Located (core.Point)
+
+------------------------------------------------------------------------------------
+-- The plan page
+
+PMode                             @default JustMap
+  = JustMap                       -- a plain map, for exploring
+  | Plot           PlotEditor     @view editing
+  | ShowMission    MissionPanel
+  | MissionRun     RunView        @view monitoring
+  | ManualAircraft AircraftView   @view monitoring
+                                  -- the operator, or the aircraft's own
+                                  -- failsafe, flies it; the app only watches
+
+------------------------------------------------------------------------------------
+-- Drawing a plot
+
+PlotEditor
+  = PlotOrigin
+  * core.Plot         -- the draft; the core has it only once saved
+  * PointHistory
+  * PlotController
+  * ShapeSelection
+  * CornerPick
+  * EdgePick
+
+PlotOrigin            -- what savePlot does with the result
+  = Draft             -- newPlot: a new mission
+  | Editing (core.At) -- editSelectedMission: the mission it came from
+
+PlotController        @default Field
+                      @region panel
+                      @placement right
+                      @control segmented
+  = Field (PointType) @size (1/4*screen)
+  | Route             @size (1/3*screen)
+                      @view form
+                      @overflow scroll
+                      -- the Route form, over the draft's RouteSettings: one
+                      -- setter per field (setRouteSpacing, ...). It plans a
+                      -- path within the field, and there is no within until
+                      -- the edge closes
+
+PointType             @default BoundaryPoint
+                      -- what the next pointAdd places. BoundaryPoint builds the
+                      -- one Boundary; the other five each build a Marking. It
+                      -- chooses what a new shape would be, so setting it
+                      -- releases whatever shape is selected
+  = BoundaryPoint
+  | Obstacle
+  | RoundObstacle
+  | PowerLine
+  | NonSprayArea
+  | MarkPoint
+
+PointHistory
+  = Undo
+  * Redo
+
+Undo                @default Empty
+  = Ready
+  | Empty
+
+Redo                @default Empty
+  = Ready
+  | Empty
+
+ShapeSelection      @default Empty
+                    -- which shape pointAdd adds to. Selected, a Point joins
+                    -- that shape: extending it while open, joining its
+                    -- nearest edge once Enclosed. The selected shape is
+                    -- marked on the canvas: every edge labelled with its
+                    -- ground length in Meters, the edge the next pointAdd
+                    -- would make labelled too, and an Enclosed ring its area
+                    -- in Hectares
+  = Empty                     -- a Point starts a new shape of the PointType
+  | Selected (Shape * PointSelection)
+
+Shape               -- what a selection acts on: the one Boundary, or one of
+                    -- the Markings laid over it
+  = Boundary
+  | Marking
+
+PointSelection      @default Empty
+                    -- which placed Point pointDelete and pointMove act on. The
+                    -- map marks it with a drag handle. Only inside the
+                    -- selected shape
+  = Empty
+  | Selected (core.Point)
+
+CornerPick          @default Idle
+                    -- whether a map tap on a Boundary point chooses the
+                    -- StartCorner
+  = Idle
+  | Picking         -- every Boundary point drawn as a candidate, the current
+                    -- StartCorner marked among them
+
+EdgePick            @default Idle
+                    -- whether a map tap on a Boundary edge chooses one to set
+                    -- its own margin
+  = Idle
+  | Picking         -- every Boundary edge is a tap target; one with an
+                    -- EdgeMargin carries its inset in place of its length
+  | Selected (core.Edge) -- the Route panel shows this edge's margin in a
+                    -- stepper, from DefaultEdgeMargin when it has none,
+                    -- and a reset
+
+------------------------------------------------------------------------------------
+-- The mission list
+
+MissionPanel            @view browsing
+                        @region panel
+                        @size (1/4*screen)
+                        @placement right
+  = List MissionRows
+  | Selected (core.At)  @view summary
+                        -- read-only: the mission at this At, its row of
+                        -- MissionRows with its RouteSettings; its name
+                        -- heads the panel. The canvas draws only its Plot,
+                        -- its Boundary marked and measured as a selected
+                        -- shape is. RouteSummary, worked out from its Plot
+                        -- (RouteLength, SprayLength, EstimatedTime, Passes),
+                        -- isn't in the state: it is computed
+
+-- One row per mission. No mission yet: @status empty, prompting to create
+-- one.
+MissionRows             __from core.Core(core.Missions)
+                        @overflow scroll
+  = [MissionRow by core.At]
+
+MissionRow              __from core.Mission
+                        @view row
+  = core.MissionName
+  * core.MissionState
+  * core.GroundMeasurements
+
+------------------------------------------------------------------------------------
+-- The run and the watched aircraft
+
+RunView
+  = RunPanel
+  * AircraftPanel
+  * AircraftCanvas
+  * BatteryFigure
+
+-- The run: its flight, and the figures of the mission it flies (that
+-- mission's row of MissionRows, its RouteProgress a progress bar along the
+-- panel's top edge, its Area and Distance as tiles).
+RunPanel            __from core.Core(core.Run)
+                    @region panel
+                    @placement right
+                    @size (1/4*screen)
+                    @overflow scroll
+  = Idle
+  | Active (core.MissionFlight)
+
+AircraftView
+  = AircraftPanel   @region panel
+                    @placement right
+                    @size (1/4*screen)
+  * AircraftCanvas
+  * BatteryFigure
+
+-- The connected aircraft, as it reports itself.
+AircraftPanel       __from core.Core(core.AircraftLink)
+  = Disconnected
+  | Connected (AircraftIndicators * AircraftGauges * core.Feed * HomeMarker * AircraftPose)
+
+AircraftIndicators  __from core.AircraftStatus
+  = core.ArmState     @view status_tile
+  * core.FlightMode   @view status_tile
+  * core.GPSFix       @view status_tile
+
+AircraftGauges      __from core.AircraftStatus
+  = core.Satellites      @view tile -- SAT
+  * core.SprayFlow       @view tile -- FLOW
+  * core.Altitude        @view tile -- ALT
+  * core.RangefinderAlt  @view tile -- RNG
+  * core.OffsetAlt       @view tile -- OFS
+  * core.Speed           @view tile -- SPD
+  * core.Heading         @view tile -- HDG
+  * core.Battery         @view tile -- BATT, the figure BatteryFigure picks
+
+HomeMarker          __from core.Aircraft
+                    @region canvas
+                    @when HomePoint.Known
+  = core.HomePoint
+
+-- The aircraft drawn on the map, while it has a fix.
+AircraftPose        __from core.AircraftStatus
+                    @region canvas
+                    @when GPSFix.{Fix2D | Fix3D | DGPS | RTKFix}
+  = core.Latitude
+  * core.Longitude
+  * core.Heading
+  * core.GPSFix
+
+BatteryFigure       @default Voltage  -- which figure the BATT tile shows
+  = Voltage
+  | Charge
+
+AircraftCanvas
+  = FCamera
+  * MapFollow
+
+MapFollow           @default Following
+  = Following       -- the map recentres on the aircraft as it moves
+  | Free            -- released by a manual pan, so the operator can look
+                    -- elsewhere while the aircraft keeps flying
+
+FCamera             @default Minimized
+                    @region canvas
+                    -- the aircraft's own camera, shown as it arrives
+  = Maximized       -- covers the map
+  | Minimized       @view popup -- a popup over the map
+  | Hidden
+
+------------------------------------------------------------------------------------
+-- Named patterns
+
+-- The plan page in a mode.
+__pattern InPlan(m) = App(Page.Plan(m))
+
+-- The plot editor, as a shared path.
+__pattern Editor = App(Page.Plan(PMode.Plot))
+
+-- The Route form, and a field of the draft's RouteSettings.
+__pattern RouteForm = PMode.Plot(PlotController.Route * core.Plot.Drawn)
+__pattern Setting(v) = PMode.Plot(core.Plot.Drawn(core.RouteSettings(v)))
+
+-- The connected aircraft.
+__pattern Connected(x) = App(core.Core(core.AircraftLink.Connected(x)))
+__pattern Armed = Connected(core.AircraftStatus(core.ArmState.Armed))
+
+-- The aircraft a run can start or resume with (the core's own condition).
+__pattern ReadyToFly
+  = core.AircraftLink.Connected(
+      core.Feed.Live
+    * core.AircraftStatus(core.ArmState.Disarmed * core.GPSFix.{Fix3D | DGPS | RTKFix})
+    * core.BatteryReserve.Enough)
+
+-- The run view, with the core's run in this state.
+__pattern Running(x) = App(Page.Plan(PMode.MissionRun) * core.Core(core.Run.Active(x)))
+
+-- The mission panel on the mission at at.
+__pattern Selected(at) = App(Page.Plan(PMode.ShowMission(MissionPanel.Selected(at))))
+
+-- The device form, with these factors, and as a shared path; the list.
+__pattern Form(x) = App(Page.Devices(DevicesView.Editing(x)))
+__pattern DeviceEditor = App(Page.Devices(DevicesView.Editing))
+__pattern DeviceList = App(Page.Devices(DevicesView.Listing))
+
+-- The inputs that name something new: the time now, which is its key,
+-- and the name typed.
+NewName = core.At * core.MissionName
+
+------------------------------------------------------------------------------------
+-- Transitions
+--
+-- A transition named *Event is the system's and carries no @control; every
+-- other one carries one. A system transition the operator must be told of
+-- carries @announce; one that leaves a @status loading state doesn't, as
+-- the operator is already waiting for it. A reaction to a core event
+-- (core.e :: ...) happens whenever the core's event does.
+
+------------------------------------------------------------------------------------
+-- The pages
+
+goToPlan     :: App(Page.Home) -> App(Page.Plan)          @control nav_entry
+goToDevices  :: App(Page.Home) -> App(Page.Devices)       @control nav_entry
+goToAircraft
+  :: App(Page.Home) // Connected(core.AircraftStatus)
+  -> App(Page.Plan(PMode.ManualAircraft))
+  @control nav_entry
+
+-- Nothing is connected while the session is Closed or Failed, so no
+-- ArmState guard is needed.
+reconnect
+  :: App(Page.Home * core.Core(core.LastDevice.Known(core.DeviceId#id) * core.LinkSession.{Closed | Failed}))
+  -> App
+  >> core.selectDevice(id)
+  @when LastDevice.Known
+  @control button
+
+-- Not during a run or while drawing; not from ManualAircraft while the
+-- aircraft is armed.
+pagePlanBackToHome
+  :: App(Page.Plan(PMode.{JustMap | ShowMission}))
+  -> App(Page.Home)
+  @control button_icon_f
+  :: App(Page.Plan(PMode.ManualAircraft)) // not Armed
+  -> App(Page.Home)
+  @control button_icon_f
+
+pageDevicesBackToHome :: App(Page.Devices) -> App(Page.Home)  @control button_icon
+
+goToLogs           :: App(Page.Home) -> App(Page.Logs)   @control menu_item
+pageLogsBackToHome :: App(Page.Logs) -> App(Page.Home)   @control button_icon
+
+exportLogs
+  :: App(Page.Home) -> App  @control menu_item
+  :: App(Page.Logs) -> App  @control button_icon
+
+showAbout  :: App / Page.Home => About.Closed -> About.Open  @control menu_item
+closeAbout :: App / Page.Home => About.Open -> About.Closed  @control button
+
+------------------------------------------------------------------------------------
+-- The map
+
+retryMap       :: Map => TileStatus.Offline -> TileStatus.Loading  @control button
+mapReadyEvent  :: Map => TileStatus.Loading -> TileStatus.Ready
+mapFailedEvent :: Map => TileStatus.Loading -> TileStatus.Offline
+
+zoomMap Zoom#z :: Map => Zoom -> z  @control map_pinch
+
+locateMe
+  :: Map
+  => DeviceLocation.{Unknown | Denied | Failed | Located}
+  -> DeviceLocation.Locating
+  @control button_icon_f
+
+locationFoundEvent core.Point#p
+  :: Map => DeviceLocation.Locating -> DeviceLocation.Located(p)
+locationDeniedEvent :: Map => DeviceLocation.Locating -> DeviceLocation.Denied
+locationFailedEvent :: Map => DeviceLocation.Locating -> DeviceLocation.Failed
+
+------------------------------------------------------------------------------------
+-- The plan page
+
+newPlot
+  :: InPlan(PMode.{JustMap | ShowMission(MissionPanel.List)})
+  -> InPlan(PMode.Plot(PlotOrigin.Draft * core.Plot.Empty))
+  @control button_icon_f
+
+showMission
+  :: InPlan(PMode.JustMap) -> InPlan(PMode.ShowMission(MissionPanel.List))
+  @control button_icon_f
+
+closeMissionList
+  :: InPlan(PMode.ShowMission(MissionPanel.List)) -> InPlan(PMode.JustMap)
+  @control button_icon  -- inside the panel
+
+-- The Boundary must be enclosed. An unfinished Marking refuses it too,
+-- which the spec can't say.
+savePlot NewName(core.At#new * core.MissionName#n)
+  :: InPlan(PMode.Plot(
+       PlotOrigin.Draft * core.Plot.Drawn(core.Boundary(core.Ring.Enclosed))#p))
+  -> Selected(new)
+  >> core.addMission(new * n * p)
+  @control name_prompt  -- floats over the canvas
+  :: InPlan(PMode.Plot(
+       PlotOrigin.Editing(#at) * core.Plot.Drawn(core.Boundary(core.Ring.Enclosed))#p))
+  -> Selected(at)
+  >> core.updatePlot(at * n * p)
+  @control name_prompt
+
+cancelPlot
+  :: InPlan(PMode.Plot(PlotOrigin.Draft)) -> InPlan(PMode.JustMap)
+  @control button_icon  -- inside the panel
+  @requiresConfirmation
+  :: InPlan(PMode.Plot(PlotOrigin.Editing(#at))) -> Selected(at)
+  @control button_icon
+  @requiresConfirmation
+
+------------------------------------------------------------------------------------
+-- The mission list
+
+selectMission core.At#at
+  :: InPlan(PMode.ShowMission(MissionPanel.List)) // App(core.Core(core.Missions[at]))
+  -> Selected(at)
+  @control list_row
+
+backToList
+  :: InPlan(PMode.ShowMission(MissionPanel.Selected))
+  -> InPlan(PMode.ShowMission(MissionPanel.List))
+  @control button_icon  -- inside the panel
+
+-- Only NotStarted: once a run has flown ground, its figures and its
+-- BreakPoint are measured against the plot as it was.
+editSelectedMission
+  :: App(Page.Plan(PMode.ShowMission(MissionPanel.Selected(core.At#at)))
+       * core.Core(core.Missions[at](core.MissionState.NotStarted * core.Plot#p)))
+  -> InPlan(PMode.Plot(PlotOrigin.Editing(at) * p))
+  @control button_icon_f
+
+copyMission NewName(core.At#new * core.MissionName#n)
+  :: Selected(core.At#at) -> Selected(new)
+  >> core.copyMission(core.CopyOf(at) * new * n)
+  @control name_prompt
+
+-- Not while a run is active, which may be flying it.
+deleteMission
+  :: App(Page.Plan(PMode.ShowMission(MissionPanel.Selected(core.At#at)))
+       * core.Core(core.Run.Idle))
+  -> InPlan(PMode.ShowMission(MissionPanel.List))
+  >> core.deleteMission(at)
+  @control button_icon_f
+  @requiresConfirmation
+
+------------------------------------------------------------------------------------
+-- The run
+--
+-- A run needs the core's conditions: an aircraft connected, disarmed, with
+-- a 3D fix or better, a battery that isn't Low and a live feed. The map
+-- must have its tiles. Nothing is written to the mission until the core's
+-- armedEvent, so an arming that fails or is cancelled keeps its BreakPoint.
+
+startMission
+  :: App(Page.Plan(PMode.ShowMission(MissionPanel.Selected(core.At#at)))
+       * Map(TileStatus.{Loading | Ready})
+       * core.Core(
+           core.Run.Idle
+         * core.Missions[at](core.MissionState.{NotStarted | Stopped})
+         * ReadyToFly))
+  -> InPlan(PMode.MissionRun)
+  >> core.startMission(at)
+  @control button_icon_f
+  @requiresConfirmation
+
+-- Landed, on a Stopped mission: the primary action, beside startMission's
+-- "Start over". In flight, from Holding: flies back out to the route.
+resumeMission
+  :: App(Page.Plan(PMode.ShowMission(MissionPanel.Selected(core.At#at)))
+       * Map(TileStatus.{Loading | Ready})
+       * core.Core(
+           core.Run.Idle
+         * core.Missions[at](core.MissionState.Stopped)
+         * ReadyToFly))
+  -> InPlan(PMode.MissionRun)
+  >> core.resumeMission(at)
+  @control button_icon_f
+  @requiresConfirmation
+  :: Running(core.At#at * core.MissionFlight.Flying(core.FPhase.Holding)) -> App
+  >> core.resumeMission(at)
+  @control button_icon_f
+
+retryArming
+  :: Running(core.MissionFlight.Failed)
+  // App(core.Core(ReadyToFly))
+  -> App
+  >> core.retryArming
+  @control button
+
+-- Arming asks first: the aircraft is still working on the upload. Failed
+-- doesn't: the attempt is over.
+cancelArming
+  :: Running(core.At#at * core.MissionFlight.Arming) -> Selected(at)
+  >> core.cancelArming
+  @control button
+  @requiresConfirmation
+  :: Running(core.At#at * core.MissionFlight.Failed) -> Selected(at)
+  >> core.cancelArming
+  @control button
+
+stopMission
+  :: Running(core.MissionFlight.Flying(core.FPhase.{Spraying | Approaching})) -> App
+  >> core.stopMission
+  @control button_icon_f
+  @requiresConfirmation
+
+-- The way a flight ends early; the run stays on screen until home.
+returnToHome
+  :: Running(core.MissionFlight.Flying(core.FPhase.{Approaching | Holding})) -> App
+  >> core.returnToHome
+  @control button_icon_f
+
+-- What the core's occurrences do to the screens. The run view stays until
+-- the run ends; then it goes back to the mission, or to ManualAircraft
+-- when the aircraft is flown by hand or by its own failsafe.
+
+core.routeReachedEvent :: App -> App  @announce
+
+-- The route upload tells the aircraft to fly home when the route ends, so
+-- the run stays on screen until core.homeReachedEvent.
+core.missionCompletedEvent :: App -> App  @announce
+
+core.manualControlTakenEvent
+  :: Running(core.MissionFlight.Flying(core.FPhase.{Approaching | Spraying | Holding}))
+  -> App
+  @announce
+  :: Running(core.MissionFlight.{Arming | Failed | Flying(core.FPhase.Returning)})
+  -> InPlan(PMode.ManualAircraft)
+  @announce
+
+core.autoRestoredEvent :: App -> App  @announce
+
+core.landedEvent :: Running(core.At#at) -> Selected(at)  @announce
+
+core.batteryLowEvent :: App -> App  @announce
+
+core.gpsLostEvent
+  :: Running(core.MissionFlight.Flying) -> InPlan(PMode.ManualAircraft)
+  @announce
+
+core.homeReachedEvent :: Running(core.At#at) -> Selected(at)  @announce
+
+-- Outside a run, an armed aircraft is never left unwatched.
+core.armedEvent
+  :: App(Page.Plan(PMode.JustMap) * core.Core(core.Run.Idle))
+  -> InPlan(PMode.ManualAircraft)
+  @announce
+
+core.linkLossEvent
+  :: Running(core.At#at) -> Selected(at)                    @announce
+  :: InPlan(PMode.ManualAircraft) -> InPlan(PMode.JustMap)  @announce
+  :: InPlan(PMode.{JustMap | Plot | ShowMission}) -> App    @announce
+  :: App(Page.{Home | Devices | Logs}) -> App               @announce
+
+-- The mission flown when the link was lost moves on, never the one a run
+-- holds.
+core.flownAwayDoneEvent :: App -> App  @announce
+core.flownAwayToEvent   :: App -> App  @announce
+
+-- The link and the aircraft, announced on any page: the app reopens the
+-- remembered device at launch, before the operator looks for it. A new
+-- home moves where a return flies to.
+core.aircraftConnectedEvent :: App -> App  @announce
+core.linkFailedEvent        :: App -> App  @announce
+core.homeSetEvent           :: App -> App  @announce
+core.telemetryLostEvent     :: App -> App  @announce
+core.telemetryBackEvent     :: App -> App  @announce
+
+------------------------------------------------------------------------------------
+-- Watching the aircraft
+
+watchAircraft
+  :: InPlan(PMode.JustMap) // Connected(core.AircraftStatus)
+  -> InPlan(PMode.ManualAircraft)
+  @control button_icon_f
+
+-- ManualAircraft is the only view of an aircraft in the air, so leaving
+-- waits until it disarms; watchAircraft reopens it from the map.
+leaveManualAircraft
+  :: InPlan(PMode.ManualAircraft) // not Armed -> InPlan(PMode.JustMap)
+  @control button_icon_f
+
+maximizeCamera :: AircraftCanvas => FCamera.Minimized -> FCamera.Maximized  @control button_icon_f
+minimizeCamera :: AircraftCanvas => FCamera.Maximized -> FCamera.Minimized  @control button_icon_f
+hideCamera
+  :: AircraftCanvas => FCamera.{Minimized | Maximized} -> FCamera.Hidden
+  @control button_icon_f
+unhideCamera   :: AircraftCanvas => FCamera.Hidden -> FCamera.Minimized     @control button_icon_f
+panMap         :: AircraftCanvas => MapFollow -> MapFollow.Free             @control map_pan
+recenterMap    :: AircraftCanvas => MapFollow.Free -> MapFollow.Following   @control button_icon_f
+
+switchBatteryFigure
+  :: BatteryFigure.Voltage -> BatteryFigure.Charge    @control tile_tap
+  :: BatteryFigure.Charge  -> BatteryFigure.Voltage   @control tile_tap
+
+------------------------------------------------------------------------------------
+-- Drawing the plot
+--
+-- Each transition writes the draft (core.Plot) and the editor's own parts.
+-- An edit that changes the plot makes Undo Ready and clears Redo.
+
+-- BoundaryPoint starts the one Boundary, or extends it. Another point type
+-- starts a Marking, once the Boundary is enclosed. With a shape selected,
+-- the Point joins it: extending it while open, joining its nearest edge
+-- once Enclosed. Its EdgeMargins follow, see core.Edge.
+pointAdd core.Point#pt
+  :: Editor
+  => PlotController.Field(PointType.BoundaryPoint) * core.Plot.Empty * ShapeSelection.Empty
+  -> core.Plot.Drawn
+   * ShapeSelection.Selected(Shape.Boundary)
+   * PointHistory(Undo.Ready * Redo.Empty)
+  => PlotController.Field * ShapeSelection.Selected
+  -> core.Plot' * PointHistory(Undo.Ready * Redo.Empty)
+  => PlotController.Field
+   * ShapeSelection.Empty
+   * core.Plot.Drawn(core.Boundary(core.Ring.Enclosed))
+  // not PlotController.Field(PointType.BoundaryPoint)
+  -> core.Plot.Drawn(core.Markings')
+   * ShapeSelection.Selected(Shape.Marking)
+   * PointHistory(Undo.Ready * Redo.Empty)
+  @control crosshair_add  -- inside the panel
+
+-- A tap on a placed point arms it, in the selected shape. A second tap on
+-- it disarms it.
+pointSelect core.Point#pt
+  :: Editor
+  => PlotController.Field * ShapeSelection.Selected
+  -> ShapeSelection.Selected(PointSelection.Selected(pt))
+  @control map_point_picker
+
+pointDeselect
+  :: Editor
+  => PlotController.Field * ShapeSelection.Selected(PointSelection.Selected)
+  -> ShapeSelection.Selected(PointSelection.Empty)
+  @control map_point_picker
+
+-- Takes the armed point. The shape keeps its other points, and a Ring
+-- that still has three stays Enclosed. A Marking that loses its last
+-- point goes, and the selection with it; a plot that loses its whole
+-- Boundary loses its Markings too, and is Empty. EdgeMargins follow.
+pointDelete
+  :: Editor
+  => PlotController.Field * ShapeSelection.Selected(PointSelection.Selected)
+  -> core.Plot' * ShapeSelection' * PointHistory(Undo.Ready * Redo.Empty)
+  @control button
+
+-- The panel's Delete with no point armed takes the selected Marking whole;
+-- an unfinished one too. The Boundary goes only a point at a time.
+shapeDelete
+  :: Editor
+  => PlotController.Field
+   * ShapeSelection.Selected(Shape.Marking * PointSelection.Empty)
+   * core.Plot.Drawn
+  -> core.Plot.Drawn(core.Markings')
+   * ShapeSelection.Empty
+   * PointHistory(Undo.Ready * Redo.Empty)
+  @control button  -- pointDelete's own button: the PointSelection decides
+
+-- Drags the armed point; the shape keeps its variant, and the selection
+-- follows the point. An EdgeMargin follows it too.
+pointMove core.Point#pt
+  :: Editor
+  => PlotController.Field * ShapeSelection.Selected(PointSelection.Selected) * core.Plot.Drawn
+  -> core.Plot' * PointHistory(Undo.Ready * Redo.Empty)
+  @control map_handle_drag
+
+-- Closes the selected shape. A Point landing back on a Closeable Ring's
+-- own start also triggers it.
+pointEnclose
+  :: Editor
+  => PlotController.Field
+   * ShapeSelection.Selected(Shape.Boundary)
+   * core.Plot.Drawn(core.Boundary(core.Ring.Closeable))
+  -> core.Plot.Drawn(core.Boundary') * PointHistory(Undo.Ready * Redo.Empty)
+
+  => PlotController.Field * ShapeSelection.Selected(Shape.Marking) * core.Plot.Drawn
+  -> core.Plot.Drawn(core.Markings')
+   * ShapeSelection.Empty
+   * PointHistory(Undo.Ready * Redo.Empty)
+  @control button
+
+-- Picking a point type says what to draw next, so it releases the shape
+-- being edited; BoundaryPoint names the one Boundary, and selects it. Not
+-- while the Boundary is unfinished (likewise a Marking, which the spec
+-- can't say).
+setPointType PointType#t
+  :: Editor
+  => PlotController.Field * ShapeSelection
+  // not core.Plot.Drawn(core.Boundary(core.Ring.{Partial | Closeable}))
+  -> PlotController.Field(t) * ShapeSelection'
+  @control drop_down
+
+-- Switches the panel between drawing the field and the Route form. Route
+-- needs an enclosed Boundary, so there is always one to come back to.
+setPlotController
+  :: Editor
+  => PlotController.Field
+  // core.Plot.Drawn(core.Boundary(core.Ring.Enclosed))
+  -> PlotController.Route * ShapeSelection.Selected(Shape.Boundary)
+
+  => PlotController.Route
+  -> PlotController.Field(PointType.BoundaryPoint)
+   * ShapeSelection.Selected(Shape.Boundary)
+   * CornerPick.Idle
+   * EdgePick.Idle
+  @control segmented
+
+-- A tap on a drawn shape arms it, and sets the point type to name it. A
+-- tap on bare ground releases it; an unfinished shape holds the
+-- selection, as does BoundaryPoint, which names the one Boundary.
+shapeSelect Shape#s
+  :: Editor
+  => PlotController.Field * core.Plot.Drawn
+  // not core.Plot.Drawn(core.Boundary(core.Ring.{Partial | Closeable}))
+  -> ShapeSelection.Selected(s * PointSelection.Empty) * PlotController.Field(PointType')
+  @control map_shape_picker
+
+shapeDeselect
+  :: Editor
+  => PlotController.Field * ShapeSelection.Selected
+  // not core.Plot.Drawn(core.Boundary(core.Ring.{Partial | Closeable}))
+     and not PlotController.Field(PointType.BoundaryPoint)
+  -> ShapeSelection.Empty
+  @control map_point_picker  -- also the panel's done button, for a shape
+                             -- with no Enclosed to reach
+
+-- Undo and redo restore the shape being edited, not only the geometry:
+-- it is selected again and named in the panel.
+pointUndo
+  :: Editor
+  => PlotController.Field * PointHistory(Undo.Ready)
+  -> core.Plot'
+   * ShapeSelection'
+   * PlotController.Field(PointType')
+   * PointHistory(Undo' * Redo.Ready)
+  @control button
+
+pointRedo
+  :: Editor
+  => PlotController.Field * PointHistory(Redo.Ready)
+  -> core.Plot'
+   * ShapeSelection'
+   * PlotController.Field(PointType')
+   * PointHistory(Undo.Ready * Redo')
+  @control button
+
+------------------------------------------------------------------------------------
+-- The Route form: picking the StartCorner and the edges' own margins
+
+-- Arms the map to choose the StartCorner among the Boundary's points; it
+-- ends an edge pick.
+startCornerPick
+  :: Editor
+  => PlotController.Route * CornerPick.Idle
+  -> CornerPick.Picking * EdgePick.Idle
+  @control button
+
+-- A tap on a Boundary point makes it the StartCorner (a Marking's isn't
+-- offered); the current one may be tapped again.
+startCornerSet core.Point#pt
+  :: Editor
+  => PlotController.Route * CornerPick.Picking * core.Plot.Drawn
+  -> core.Plot.Drawn(core.RouteSettings(core.StartCorner(pt))) * CornerPick.Idle
+  @control map_point_picker
+
+-- The same button again, or bare map: nothing changes.
+startCornerCancel
+  :: Editor => CornerPick.Picking -> CornerPick.Idle
+  @control button
+
+-- Arms the map to choose a Boundary edge; it ends a StartCorner pick.
+edgeMarginPick
+  :: Editor
+  => PlotController.Route * EdgePick.Idle
+  -> CornerPick.Idle * EdgePick.Picking
+  @control button
+
+-- A tap on a Boundary edge selects it for its own margin; another edge
+-- moves the selection.
+edgeSelect core.Edge#e
+  :: Editor
+  => PlotController.Route * EdgePick.{Picking | Selected}
+  -> EdgePick.Selected(e)
+  @control map_edge_picker
+
+-- The selected edge's stepper; the first nudge gives the edge its own
+-- EdgeMargin, at this inset.
+edgeMarginSet core.EdgeInset#i
+  :: Editor
+  => PlotController.Route * EdgePick.Selected * core.Plot.Drawn
+  -> core.Plot.Drawn(core.RouteSettings(core.EdgeMargins'))
+  @control stepper
+  @step 0.5
+
+-- Drops the selected edge's EdgeMargin, so it takes DefaultEdgeMargin
+-- again. Disabled for an edge with none, which the spec can't say.
+edgeMarginReset
+  :: Editor
+  => PlotController.Route * EdgePick.Selected * core.Plot.Drawn
+  -> core.Plot.Drawn(core.RouteSettings(core.EdgeMargins'))
+  @control button
+
+-- The same button again, or bare map; the margins set stay.
+edgeMarginDone
+  :: Editor => EdgePick.{Picking | Selected} -> EdgePick.Idle
+  @control button
+
+------------------------------------------------------------------------------------
+-- The Route form: its fields, each written into the draft's RouteSettings
+
+setRouteSpacing core.RouteSpacing#v           :: RouteForm -> Setting(v)  @control stepper  @step 0.5
+setSprayHeight core.SprayHeight#v             :: RouteForm -> Setting(v)  @control stepper  @step 0.5
+setReturnHeight core.ReturnHeight#v           :: RouteForm -> Setting(v)  @control stepper  @step 1
+setSpraySpeed core.SpraySpeed#v               :: RouteForm -> Setting(v)  @control stepper  @step 0.5
+setDefaultEdgeMargin core.DefaultEdgeMargin#v :: RouteForm -> Setting(v)  @control stepper  @step 0.5
+setCoverageArea core.CoverageArea#v           :: RouteForm -> Setting(v)  @control segmented
+setObstacleBoundary core.ObstacleBoundary#v   :: RouteForm -> Setting(v)  @control stepper  @step 0.5
+setSingleSideSpraying core.SingleSideSpraying#v :: RouteForm -> Setting(v)  @control toggle
+
+-- Auto or Manual, and Manual's angle by a slider.
+setCourse core.Course#v :: RouteForm -> Setting(v)  @control segmented
+
+------------------------------------------------------------------------------------
+-- Devices
+
+addDevice :: DeviceList -> Form(DeviceOrigin.New)  @control button_icon_f
+
+-- The form opens as a copy of the row's device.
+editDevice core.DeviceId#id
+  :: App(Page.Devices(DevicesView.Listing)
+       * core.Core(core.Devices[id](core.DeviceName#n * core.LinkSettings.Udp(core.Port#p))))
+  -> Form(DeviceOrigin.Existing(id) * n * LinkKind.Udp * p)
+  @control button_icon  -- on the row
+  :: App(Page.Devices(DevicesView.Listing)
+       * core.Core(core.Devices[id](
+           core.DeviceName#n * core.LinkSettings.Tcp(core.HostName#h * core.Port#p))))
+  -> Form(DeviceOrigin.Existing(id) * n * LinkKind.Tcp * Host.Named(h) * p)
+  @control button_icon
+  :: App(Page.Devices(DevicesView.Listing)
+       * core.Core(core.Devices[id](core.DeviceName#n * core.LinkSettings.Serial(core.Baud#b))))
+  -> Form(DeviceOrigin.Existing(id) * n * LinkKind.Serial * b)
+  @control button_icon
+
+cancelDevice :: App / Page.Devices => DevicesView.Editing -> DevicesView.Listing  @control button_icon
+
+setDeviceName core.DeviceName#n :: DeviceEditor => core.DeviceName -> n  @control text_field
+setLinkKind LinkKind#k          :: DeviceEditor => LinkKind -> k         @control segmented
+setHost core.HostName#h         :: DeviceEditor => Host -> Host.Named(h) @control text_field
+setPort core.Port#p             :: DeviceEditor => core.Port -> p        @control text_field
+setBaud core.Baud#b             :: DeviceEditor => core.Baud -> b        @control text_field
+
+-- A New device is appended, unlinked: selecting its row links it. Its id
+-- is the time now. An Existing one is rewritten in place; if it is the
+-- linked device, the link reopens on the new settings, so not while the
+-- aircraft is armed. A Tcp device needs its HostName.
+saveDevice core.DeviceId#now
+  :: Form(DeviceOrigin.New * core.DeviceName#n * LinkKind.Udp * core.Port#p)
+  -> DeviceList
+  >> core.saveDevice(now * n * core.LinkSettings.Udp(p))
+  @control button
+  :: Form(DeviceOrigin.New * core.DeviceName#n * LinkKind.Tcp * Host.Named(core.HostName#h) * core.Port#p)
+  -> DeviceList
+  >> core.saveDevice(now * n * core.LinkSettings.Tcp(h * p))
+  @control button
+  :: Form(DeviceOrigin.New * core.DeviceName#n * LinkKind.Serial * core.Baud#b)
+  -> DeviceList
+  >> core.saveDevice(now * n * core.LinkSettings.Serial(b))
+  @control button
+  :: Form(DeviceOrigin.Existing(#id) * core.DeviceName#n * LinkKind.Udp * core.Port#p)
+  // not Armed
+  -> DeviceList
+  >> core.saveDevice(id * n * core.LinkSettings.Udp(p))
+  @control button
+  :: Form(DeviceOrigin.Existing(#id) * core.DeviceName#n * LinkKind.Tcp * Host.Named(core.HostName#h) * core.Port#p)
+  // not Armed
+  -> DeviceList
+  >> core.saveDevice(id * n * core.LinkSettings.Tcp(h * p))
+  @control button
+  :: Form(DeviceOrigin.Existing(#id) * core.DeviceName#n * LinkKind.Serial * core.Baud#b)
+  // not Armed
+  -> DeviceList
+  >> core.saveDevice(id * n * core.LinkSettings.Serial(b))
+  @control button
+
+-- Removing the linked device closes the link.
+removeDevice
+  :: Form(DeviceOrigin.Existing(#id)) // not Armed -> DeviceList
+  >> core.removeDevice(id)
+  @control button
+  @requiresConfirmation
+
+-- Links the row's device, closing the old link first, so a connected
+-- aircraft is dropped. On the linked row it reconnects; on a Failed one it
+-- retries.
+selectDevice core.DeviceId#id
+  :: App(Page.Devices(DevicesView.Listing) * core.Core(core.Devices[id])) // not Armed
+  -> App
+  >> core.selectDevice(id)
+  @control list_row
+
+-- Frees the port for another ground station.
+closeLink
+  :: App(Page.Devices(DevicesView.Listing) * core.Core(core.LinkSession.{Open | Failed}))
+  // not Armed
+  -> App
+  >> core.closeLink
+  @control button
+
+------------------------------------------------------------------------------------
+-- The log
+
+setLogLevel LogLevelFilter#l :: App / Page.Logs => LogLevelFilter -> l  @control segmented
+setLogTags LogTagFilter#t    :: App / Page.Logs => LogTagFilter -> t    @control multi_select

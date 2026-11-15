@@ -4,7 +4,8 @@
 UI in one file. It is being rewritten as layered specs:
 
 - `parvaz-core.sumspec`: the domain, a base spec. Done; it checks clean.
-- `parvaz-ui.sumspec`: the screens, a layer over the core. Next.
+- `parvaz-ui.sumspec`: the screens, a layer over the core. Done; it
+  checks clean.
 
 ## Old notation to new
 
@@ -71,54 +72,43 @@ follow (`maximizeCamera`, ..., `panMap`, `recenterMap`), ManualAircraft
 `@announce` (an occurrence the UI must state) goes on the UI's reactions;
 `@stream` stays on the core's two streaming occurrences.
 
-## For the UI step
+## The UI layer
 
-The old `@from` views (HomeAircraft, LinkStatus, DeviceRow,
-MissionSummary, the run panel, ...) become projections, `__from` (see
-"Projections" in `spec/spec-v1.md`): UI types in the UI's state that read
-the core's data and are never written. What the old spec computed
-(RouteSummary's RouteLength, SprayLength, EstimatedTime, Passes) isn't a
-projection; it waits for computed values.
+`parvaz-ui.sumspec` holds only what the screens add: the page, the map
+(at `App` level, so it opens where it was left), the plot being drawn,
+the forms, the selections and how things are shown. It reads the core
+through `core.Core` in sources and guards, changes it only with `>>`, and
+follows its occurrences with reactions.
 
-The UI writes its long, repeated paths as `__pattern`s (see "Named
-patterns" in `spec/spec-v1.md`). The core already uses three:
-`ReadyToFly` (connected, Disarmed, a fix of 3D or better, BatteryReserve
-Enough, a live feed: `startMission`, `resumeMission` and `retryArming`,
-which now needs a live feed too), `InFlight(phase)` and
-`SprayingRun(at)`. A base's patterns aren't visible to a layer, so the UI
-writes its own. The paths below are sketches; the UI's layout decides
-them.
+| Old | New |
+|---|---|
+| `ui { App = Page * AircraftLink * Devices * ... }` | `App = Page * Map * core.Core`; the domain parts are the core's |
+| `@from` views (HomeAircraft, LinkStatus, DeviceRow, MissionSummary, MissionRun_, Aircraft_, AircraftPose, HomeMarker, ...) | projections, `__from`: LinkStatus, HomeAircraft, DeviceRows, MissionRows, LogList, RunPanel, AircraftPanel and the ones nested in them |
+| `@when` on a view of a sum (HomeAircraft while connected) | a sum projection: its `Disconnected` variant draws nothing |
+| `@edits RouteSettings` on `PlotController.Route` | one setter per field (`setRouteSpacing`, ..., `setCourse`), `RouteForm -> Setting(v)`; `@view form`, `@overflow scroll` on `Route` |
+| `@control` on a type (`Zoom`, `LogLevelFilter`, `LinkKind`, `Battery_`, the form fields) | a transition carrying the control (`zoomMap`, `setLogLevel`, `setLinkKind`, `switchBatteryFigure`, `setDeviceName`, ...) |
+| `@unless` | guards, mostly through the patterns `Armed`, `Connected(x)`, `ReadyToFly` |
+| `PMode.Plot = PlotOrigin * Plot * ...` | `PlotEditor = PlotOrigin * core.Plot * ...`, the draft beside its origin; `Editing` holds the mission's `At` |
+| `PMode.ShowMission.Selected = MissionName * ... * RouteSummary` | `MissionPanel.Selected(core.At)`: the selection only; what it shows is that mission's row |
+| `PMode.MissionRun = MissionRun * MissionRun_ * ...` | `RunView = RunPanel * AircraftPanel * AircraftCanvas * BatteryFigure`; the run is the core's |
+| a UI transition writing domain state (`savePlot`, `startMission`, `saveDevice`, ...) | the UI event, same name, firing the core's (`>> core.addMission(...)`); a new mission's or device's key is the time now, the event's input |
+| an occurrence changing the view (`landedEvent`, `gpsLostEvent`, ...) | a reaction, `core.landedEvent :: Running(core.At#at) -> Selected(at)` |
+| `@announce` on an occurrence | on the UI's reaction to it (`core.routeReachedEvent :: App -> App @announce`) |
+| `pointDelete` ×3 | one transition writing `core.Plot'` and `ShapeSelection'`; the three outcomes in its comment, since the spec can't tell a shape's last point |
+| `(1/4)*screen` in `@size` | `(1/4*screen)`: an annotation's arguments end at a `*` outside brackets |
 
-- The connected aircraft, for the old `@unless
-  App(AircraftLink.Connected(Aircraft(...)))` conditions (armed, fix,
-  battery, stale feed):
-  `__pattern Connected(x) = App(core.Core(core.AircraftLink.Connected(x)))`,
-  used in guards: `// not Connected(core.AircraftStatus(core.ArmState.Armed))`.
-- The active run:
-  `__pattern Running(x) = App(core.Core(core.Run.Active(x)))`.
-- The selected mission, with `at` from the UI's selection:
-  `__pattern Selected(at, x) = App(core.Core(core.Missions[at](x)))`.
-- The Route form. Its setters replace the old `@edits RouteSettings`:
-  one event per field, each with its own `@control`:
-
-  ```
-  __pattern RouteForm  = App(Plan(PlotEditor(PlotController.Route * core.Plot.Drawn)))
-  __pattern Setting(v) = App(Plan(PlotEditor(core.Plot.Drawn(core.RouteSettings(v)))))
-
-  setRouteSpacing core.RouteSpacing#v :: RouteForm -> Setting(v)  @control stepper  @step 0.5
-  setSprayHeight  core.SprayHeight#v  :: RouteForm -> Setting(v)  @control stepper  @step 0.5
-  ...
-  ```
-
-  The plot sits beside the origin (`PlotEditor(PlotOrigin * core.Plot *
-  PlotController)`), as the old `PMode.Plot(PlotOrigin.Draft * Plot.Empty)`
-  had it, not inside `Draft`/`Editing`: one `Setting` then covers both
-  origins, since a target can't use alternatives. The form's own
-  presentation, `@view form` and `@overflow scroll`, goes on the UI's
-  `PlotController`'s `Route` variant, with its `@size`.
+Patterns (`__pattern`) in the UI: `InPlan(m)`, `Editor` (the plot
+transitions' shared path), `RouteForm`, `Setting(v)`, `Connected(x)`,
+`Armed`, `ReadyToFly` (the core's isn't visible to a layer), `Running(x)`,
+`Selected(at)`, `Form(x)`, `DeviceEditor`, `DeviceList`.
 
 ## Open points
 
+- **What a projection can't show yet.** A projection's path has no key,
+  so the mission the UI selected, or the one the run flies, is described
+  as "that mission's row of MissionRows", in comments. Values the old
+  spec computed (RouteSummary's RouteLength, SprayLength, EstimatedTime,
+  Passes) and the log through its filters aren't projections either.
 - **Presentation on core types.** `@status`, `@view tiles` and `@region`
   sit on core types (StopReason, Feed, MissionFlight, GroundMeasurements,
   Plot's Drawn, BreakPoint). They belong in the UI: with `__from`, the UI
