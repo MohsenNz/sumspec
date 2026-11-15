@@ -52,8 +52,12 @@ renderAtomic (Atomic name base) =
 
 renderDefinition :: Definition -> Text
 renderDefinition = \case
-  DefType (TypeDef name notes body) ->
-    nameText name <> renderAnnotations notes <> " = " <> renderTypeExpr body
+  DefType (TypeDef name notes body from) ->
+    nameText name
+      <> maybe "" ((" __from " <>) . renderPattern) from
+      <> renderAnnotations notes
+      <> " = "
+      <> renderTypeExpr body
   DefConst (ConstDef name ty value) ->
     nameText name <> " = " <> nameText ty <> case value of
       ConstLiteral _ lit -> "(" <> renderLiteral lit <> ")"

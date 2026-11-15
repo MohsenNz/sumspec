@@ -1,0 +1,9 @@
+-- __from comes right after the type's name, before its annotations.
+__atomics { }
+__events { }
+__annotations { @view }
+
+__init :: App.A
+
+App = A | B
+View @view status __from core.Core = A | B

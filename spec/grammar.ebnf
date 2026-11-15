@@ -72,8 +72,14 @@ pattern_def   = "__pattern" , UPPER ,
 (* Annotations after the name belong to the type; so do those after the
    body of a newtype or a list:
      Plot @default Empty = Empty | Drawn Shape
-     PortSetting = Port @default 14550 @range 1..65535                  *)
-type_def      = UPPER , { annotation } , "=" , type_expr ;
+     PortSetting = Port @default 14550 @range 1..65535
+   "__from" right after the name makes the type a projection: it reads
+   the part of a base's state at the path, a chain of the base's types,
+   and is never written (see "Projections" in spec-v1.md):
+     HomeAircraft __from core.Core(core.AircraftLink) @view tiles
+       = Disconnected | Connected (core.BatteryReserve * Battery)        *)
+type_def      = UPPER , [ "__from" , type_pattern ] , { annotation } , "=" ,
+                type_expr ;
 
 (* A named constant: a fixed value with a name, used as a side of a
    comparison in a guard or as a value in a target (see "Named
@@ -372,9 +378,9 @@ character     = ? any Unicode character ? ;
    and "//" is never two "/". No token contains "--", so "--" always starts a comment.
 
    Definition boundary: a variant's payload can be a bare UPPER, so
-   "Failed FailureReason" is one variant. An UPPER followed by "=", or by
-   annotations and then "=", always starts a new type_def and is never a
-   payload or a variant. A parser checks this with one extra token of
+   "Failed FailureReason" is one variant. An UPPER followed by "=", by
+   annotations and then "=", or by "__from", always starts a new type_def
+   and is never a payload or a variant. A parser checks this with one extra token of
    lookahead (LL(2) at this point), reading past the annotations.
 
    Header blocks: a parser reports a header block written twice, and a
@@ -410,6 +416,21 @@ character     = ? any Unicode character ? ;
    the rest is checked on the expansion. A transition with shared paths is
    checked as its expanded form, one transition per branch (S => a -> b
    as S(a) -> S(b)), and a problem in a shared path is reported once:
+   - projections (see "Projections" in spec-v1.md): a projection is in a
+     spec with __imports; its path is a chain of a base's types, each with
+     at most one argument, the next type (no variant, element_key, name,
+     prime or alternatives); outside any projection it starts with a
+     base's root, inside one with the type of the parent's source part
+     or one of its factors, and each later type is a factor of the one
+     before. Its body fits the type at the end, through newtypes: a
+     product's factors are factors of the source or projections read
+     inside it; a sum has every variant of the source, and each payload
+     fits the source variant's; a keyed list has the source's key and
+     its element or a projection of it; a single type is the source's
+     type (or one factor of a product). No target or __init names a
+     projection. "__from" in an annotation's arguments is reported: it
+     goes before the annotations. A projection's variants count as
+     reached from the start;
    - named patterns (see "Named patterns" in spec-v1.md): a pattern's
      name is new to the spec (no type, atomic, constant or other pattern
      has it); its parameters are distinct and each is used in the body;

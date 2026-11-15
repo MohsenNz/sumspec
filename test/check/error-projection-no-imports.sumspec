@@ -1,0 +1,11 @@
+-- A projection reads a base spec's state, so a spec without __imports
+-- has none.
+__atomics { }
+__events { flip }
+
+__init :: App(Mode.On)
+
+App = Mode * View
+Mode = On | Off
+View __from App(Mode) = On | Off
+flip :: Mode.On -> Mode.Off

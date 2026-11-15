@@ -1012,6 +1012,57 @@ A dispatching transition counts as a transition of the event it fires,
 so a reaction whose source can apply to the same state gets the overlap
 warning (see "Warnings").
 
+### Projections (__from)
+
+A layer often shows the base's data: a screen draws the connected aircraft's battery, or a row per saved device. The data is the base's, so the layer doesn't copy it; a copy would need a reaction to every base event to stay up to date. A **projection** is a type of the layer that reads a part of the base's state. `__from`, right after its name, gives the path to that part:
+
+```
+HomeView = About * LinkStatus * HomeAircraft
+
+LinkStatus          __from core.Core
+                    @view status
+  = core.LinkSession
+  * core.AircraftLink
+
+HomeAircraft        __from core.Core(core.AircraftLink)
+                    @view tiles
+  = Disconnected
+  | Connected (core.BatteryReserve * Battery * HomeIndicators)
+
+Battery             __from core.AircraftStatus(core.Battery)
+  = core.BatteryCharge
+
+HomeIndicators      __from core.AircraftStatus
+  = core.GPSFix * core.Satellites * core.ArmState
+```
+
+A projection is part of the layer's state like any other type, and it carries its own annotations, so presentation lives in the layer, not on the base's types. Its value is always the base part's, seen through its structure: no transition writes it.
+
+**The path** is a chain of the base's types, each holding the next: `core.Core(core.AircraftLink)`. It has no variant, element key, name, prime or alternative. Where it starts:
+
+- A projection outside any other reads from the base's root: its path starts with it (`core.Core`).
+- A projection inside another reads from where its parent reads. Its path starts with the type of the parent's source part there, or with one of that type's factors. Inside `HomeAircraft.Connected`, the source is the connected `core.Aircraft`, so `HomeIndicators` reads `core.AircraftStatus`, one of its factors. For a list's element, the path starts with the element's type: `DeviceRow __from core.Device` inside `DeviceRows __from core.Core(core.Devices) = [DeviceRow by core.DeviceId]`.
+- Each type after the first is a factor of the type before it. The type at the end is the projection's **source**.
+
+**The body fits the source**, through newtypes:
+
+- A product, or a single type when the source is a product, shows some of the source's factors, each the same type, or a projection read inside the source.
+- A sum has every variant of the source sum, by name. A variant without a payload shows nothing of the source's payload, so `HomeAircraft.Disconnected` draws nothing; this is how a part is drawn only in some states. A payload is projected against the source variant's payload.
+- A keyed list `[E by K]` has a keyed list source with the same key, and `E` is the source's element type or a projection of it.
+- A single type with any other source is the source's type.
+
+**Reading and writing.** Sources and guards match a projection like any state: `App(Page.Home(HomeView(HomeAircraft.Connected)))`. No target and no `__init` names a projection or anything inside it: it is read, not set. A new state that holds one leaves it out. For reachability, a projection's variants count as reached from the start, as the base decides them.
+
+A projection selects parts of the base's state; it doesn't compute. A value worked out from the base's data, such as a count or a route's length, isn't a projection.
+
+The checker reports:
+
+- a path that isn't a chain, or names a type that isn't a base's;
+- a path that starts elsewhere than it should, or a step that isn't a factor of the type before it;
+- a factor, a variant, a key or an element that doesn't fit the source, or a missing variant;
+- a target or an `__init` that names a projection;
+- `__from` in a spec without `__imports`, or written after the annotations (where it would read as their arguments).
+
 ## Summary:
 
 ```

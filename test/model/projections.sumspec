@@ -1,0 +1,39 @@
+-- Projections (__from) in a layer over base-todo.sumspec: types read from
+-- the base's state and never written. A sum projection, rows of a keyed
+-- list, a product of the root's factors, and one nested in another. A
+-- guard and a source read them like any state.
+__imports {
+  core "base-todo.sumspec"
+}
+
+__atomics { }
+__events { open close stopClicked }
+
+__init :: App(Page.Home)
+
+App = Page * core.Core
+
+Page
+  = Home (Status * Rows)
+  | Detail
+
+-- The link, with the same two variants.
+Status __from core.Core(core.Link)
+  = Up
+  | Down
+
+-- Every todo, by its key: its title only.
+Rows __from core.Core(core.Todos) = [Row by core.TodoId]
+Row __from core.Todo = core.Title * Done
+
+-- Nested: read inside the todo its row reads.
+Done __from core.Completion
+  = Active
+  | Completed
+
+-- A product of the root's own factors.
+Summary __from core.Core = core.Link
+
+open :: App(Page.Home(Status.Up)) -> App(Page.Detail)
+close :: App(Page.Detail) // App(core.Core(core.Link.Up)) -> App(Page.Home)
+stopClicked :: App(Page.Home(Status.Up)) -> App  >> core.stop

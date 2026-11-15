@@ -1,0 +1,12 @@
+test/check/error-from-after-annotations.sumspec:8:11:
+  |
+8 | App = A | B
+  |           ^
+warning: App.B is never reached: neither __init nor any transition that can happen puts the app there
+
+test/check/error-from-after-annotations.sumspec:9:6:
+  |
+9 | View @view status __from core.Core = A | B
+  |      ^
+__from goes right after the type's name, before its annotations: View __from ... @view ...
+

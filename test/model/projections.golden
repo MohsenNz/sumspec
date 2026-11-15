@@ -1,0 +1,22 @@
+types
+  App : product of Page, core.Core
+  Done : sum of Active, Completed, from core.Completion
+  Page : sum of Home, Detail
+  Row : product of core.Title, Done, from core.Todo
+  Rows : list of Row by core.TodoId, from core.Core(core.Todos)
+  Status : sum of Up, Down, from core.Core(core.Link)
+  Summary : newtype of core.Link, from core.Core
+variants
+  Active : Done
+  Completed : Done
+  Detail : Page
+  Down : Status
+  Home : Page
+  Up : Status
+constants
+events
+  close : 1 transition
+  open : 1 transition
+  stopClicked : 1 transition
+annotations
+root App

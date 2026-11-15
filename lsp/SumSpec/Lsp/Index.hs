@@ -93,8 +93,11 @@ use kind n = Occurrence n kind False
 
 definition :: Model -> Definition -> [Occurrence]
 definition env = \case
-  DefType (TypeDef n annotations body) ->
-    define KType n : map (annotation env) annotations <> typeExpr env body
+  DefType (TypeDef n annotations body from) ->
+    define KType n
+      : foldMap (pattern env []) from
+        <> map (annotation env) annotations
+        <> typeExpr env body
   DefConst (ConstDef n t constant) ->
     define KConst n
       : typeUse env t

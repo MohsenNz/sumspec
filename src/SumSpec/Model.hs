@@ -52,6 +52,7 @@ import Data.Set qualified as S
 import Data.Text (Text)
 import Data.Text qualified as T
 import SumSpec.Expand (Expansion (..), expandSpec, patternDefs)
+import SumSpec.Pretty (renderPattern)
 import SumSpec.Syntax
 
 data Model = Model
@@ -275,7 +276,8 @@ qualifySpec q raw =
       _ -> False
     qn (Name pos t) = Name pos (q <> "." <> t)
     definition = \case
-      DefType (TypeDef n notes body) -> DefType (TypeDef (qn n) notes (typeExpr body))
+      DefType (TypeDef n notes body from) ->
+        DefType (TypeDef (qn n) notes (typeExpr body) (pat <$> from))
       DefConst (ConstDef n ty v) -> DefConst (ConstDef (qn n) (qn ty) v)
       DefInit k p -> DefInit k (pat p)
       DefPattern d -> DefPattern d
@@ -474,7 +476,7 @@ renderModel :: Model -> Text
 renderModel m =
   T.unlines $
     ["types"]
-      <> [ "  " <> name <> " : " <> shape (typeInfoShape t)
+      <> [ "  " <> name <> " : " <> shape (typeInfoShape t) <> from name
          | (name, t) <- M.toList (modelTypes m)
          ]
       <> ["variants"]
@@ -541,6 +543,10 @@ renderModel m =
       TermName n -> nameText n
       TermList t key -> "[" <> term t <> maybe "" ((" by " <>) . nameText) key <> "]"
     count k = T.pack (show k) <> if k == 1 then " transition" else " transitions"
+    -- A projection's path.
+    from name = case M.lookup name (modelTypeDefs m) >>= typeDefFrom of
+      Just p -> ", from " <> renderPattern p
+      Nothing -> ""
     params [] = ""
     params ps = "(" <> T.intercalate ", " (map nameText ps) <> ")"
     -- A body is a type pattern, so it has a head.

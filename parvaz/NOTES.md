@@ -73,6 +73,13 @@ follow (`maximizeCamera`, ..., `panMap`, `recenterMap`), ManualAircraft
 
 ## For the UI step
 
+The old `@from` views (HomeAircraft, LinkStatus, DeviceRow,
+MissionSummary, the run panel, ...) become projections, `__from` (see
+"Projections" in `spec/spec-v1.md`): UI types in the UI's state that read
+the core's data and are never written. What the old spec computed
+(RouteSummary's RouteLength, SprayLength, EstimatedTime, Passes) isn't a
+projection; it waits for computed values.
+
 The UI writes its long, repeated paths as `__pattern`s (see "Named
 patterns" in `spec/spec-v1.md`). The core already uses three:
 `ReadyToFly` (connected, Disarmed, a fix of 3D or better, BatteryReserve
@@ -114,8 +121,9 @@ them.
 
 - **Presentation on core types.** `@status`, `@view tiles` and `@region`
   sit on core types (StopReason, Feed, MissionFlight, GroundMeasurements,
-  Plot's Drawn, BreakPoint), because a layer can't annotate a base's types
-  yet. They belong in the UI.
+  Plot's Drawn, BreakPoint). They belong in the UI: with `__from`, the UI
+  declares projections of those parts and annotates them, and the core
+  can drop them.
 - **Values the core can't name.** Stopping marks a BreakPoint at the
   aircraft's position, but no event brings the position, so the
   BreakPoint is any value (as in the old spec). The same for the figures

@@ -103,6 +103,10 @@ data TypeDef = TypeDef
   -- ^ The annotations of the type: after its name (@T \@a = ...@), or
   -- after the body of a newtype or a list (@T = A \@a@).
   , typeDefBody :: TypeExpr
+  , typeDefFrom :: Maybe Pattern
+  -- ^ @T __from path = ...@: the base part a projection reads, a chain of
+  -- type names (@core.Core(core.AircraftLink)@). A projection is read from
+  -- the base's state and never written.
   }
   deriving stock (Eq, Show)
 

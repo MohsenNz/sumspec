@@ -271,17 +271,19 @@ constDef = do
         , ConstVariant <$> (symbol "." *> upperName)
         ]
 
--- type_def = UPPER , { annotation } , "=" , type_expr ;
+-- type_def = UPPER , [ "__from" , type_pattern ] , { annotation } , "=" ,
+--            type_expr ;
 --
 -- The annotations of a newtype or a list may also follow its body; they
 -- belong to the type either way.
 typeDef :: Parser TypeDef
 typeDef = do
   name <- upperName
+  from <- optional (keyword "__from" *> typePattern)
   before <- many annotation
   equals
   (body, after) <- typeExpr
-  pure (TypeDef name (before <> after) body)
+  pure (TypeDef name (before <> after) body from)
 
 -- type_expr = sum | product | type_term , { annotation } ;
 --
@@ -334,8 +336,9 @@ factor = Factor <$> typeTerm <*> many annotation
 
 -- payload = type_term | "(" , type_expr , ")" ;
 --
--- A bare UPPER followed by "=", or by annotations and then "=", starts the
--- next type definition, so it is never taken as a payload. A payload in
+-- A bare UPPER followed by "=", or by annotations and then "=", or by
+-- "__from", starts the next type definition, so it is never taken as a
+-- payload. A payload in
 -- parentheses gives the annotations after a single term inside them.
 payload :: Parser (TypeExpr, [Annotation])
 payload =
@@ -343,7 +346,7 @@ payload =
     [ parens typeExpr
     , (,[]) . TypeTerm . uncurry TermList <$> listTerm
     , (,[]) . TypeTerm . TermName
-        <$> try (typeName <* notFollowedBy (many annotation *> equals))
+        <$> try (typeName <* notFollowedBy (keyword "__from" <|> (many annotation *> equals)))
     ]
 
 -- type_term = type_name | "[" , type_term , [ "by" , type_name ] , "]" ;

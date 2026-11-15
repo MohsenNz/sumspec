@@ -1,0 +1,26 @@
+-- Projections: __from and its path after the type's name, before its
+-- annotations, on a product, a sum, a keyed list and a newtype.
+__imports {
+  core "base.sumspec"
+}
+
+__atomics { }
+__events { }
+__annotations { @view }
+
+App = Page * core.Core
+Page = Home Status | Other Rows
+
+Status __from core.Core(core.Link)
+       @view status
+  = Up
+  | Down
+
+Rows __from core.Core(core.Todos) = [Row by core.TodoId]
+
+Row __from core.Todo
+    @view row
+  = core.Title
+  * core.Completion
+
+Summary __from core.Core = core.Link

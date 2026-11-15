@@ -100,8 +100,32 @@ update before any code:
       `parvaz.sumspec` as a base spec (see `parvaz/NOTES.md`).
 - [ ] Parvaz UI: `parvaz/parvaz-ui.sumspec`, a layer over the core; the
       patterns and reactions it needs are in `parvaz/NOTES.md`.
-- [ ] A layer annotates a base's types (`@status`, `@view`, `@region`), so
-      presentation leaves the core: Parvaz keeps them on core types for now.
+- [x] `__from`: projections, a layer's types that read a part of a base's
+      state and are never written (see "Projections" in
+      `spec/spec-v1.md`). Presentation goes on them, in the layer.
+- [ ] `__from` takes its own rule, `type_path = type_name , [ "(" ,
+      type_path , ")" ]`, instead of a `type_pattern` the checker then
+      narrows down. A path with `*`, a variant step, a name, a key, a prime
+      or alternatives becomes a syntax error. Steps:
+      - `grammar.ebnf`: the rule, used in `type_def`; drop the "chain"
+        clause from the checker notes.
+      - `Syntax.hs`: `typeDefFrom :: Maybe (NonEmpty Name)`, outermost
+        first. `Parser.hs`: `typePath`.
+      - `Pretty.hs`: `renderTypePath` (`a(b(c))`), also used by
+        `renderModel`. `qualifySpec` qualifies each name.
+      - `Check.hs`: drop `chain` and its three messages; the base-type,
+        start and factor checks stay.
+      - LSP `Index.hs`: each name in the path is a type use.
+      - `spec-v1.md`: the path is a chain of types, anything else a syntax
+        error; adjust the checker's list.
+      - Tests: move the `Chain` and `Variant` cases from
+        `test/check/error-projections.sumspec` to
+        `test/parse/error-from-chain.sumspec` (`core.Core(core.Todos * core.Link)`)
+        and `test/parse/error-from-variant.sumspec` (`core.Core(core.Link.Up)`).
+- [ ] Move Parvaz's presentation annotations (`@status`, `@view`,
+      `@region`) from the core's types to the UI's projections.
+- [ ] Computed projections (`:=`, Part B in `spec/efsm-gaps.md`): a value
+      worked out from the base's data, such as a count or a route's length.
 - [ ] A target adds or removes one element of a keyed list, instead of
       writing the whole list (`Missions'`).
 - [ ] The overlap check reads `x == V` and `x != V` on a sum with payloads,

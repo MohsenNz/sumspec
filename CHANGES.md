@@ -10,6 +10,16 @@ release" in `VERSIONING.md`).
 
 ### Language
 
+- Projections: `HomeAircraft __from core.Core(core.AircraftLink) = Disconnected | Connected (core.BatteryReserve * Battery)`
+  makes a layer's type read a part of a base's state instead of holding
+  its own value. The path is a chain of the base's types, from the base's
+  root, or from where an enclosing projection reads. The body fits the
+  source: some of a product's factors, every variant of a sum, a keyed
+  list's element. No target or `__init` writes a projection; sources and
+  guards read it like any state, and a layer's presentation annotations
+  go on it. The checker reports a path that isn't a chain of the base's
+  types or starts in the wrong place, a body that doesn't fit, a write,
+  `__from` in a spec without imports, and `__from` after the annotations.
 - Named patterns: `__pattern Setting(v) = App(PlotEditor(core.Plot.Drawn(core.RouteSettings(v))))`
   names a state pattern with parameters, and `Setting(v)` uses it, the
   arguments separated by commas (`Selected(at, MissionState.Stopped)`).
@@ -206,6 +216,8 @@ release" in `VERSIONING.md`).
 
 ### Tool
 
+- Projections: `TypeDef` has `typeDefFrom`; the printer, the model render
+  and the language server's index and hover show the path.
 - Named patterns: the library has `SumSpec.Expand` (`expandSpec`,
   `patternOrigin`), and the model the patterns (`modelPatterns`). The
   language server indexes a pattern and its uses (definition,

@@ -1,0 +1,6 @@
+-- __from is followed by a path.
+__atomics { }
+__events { }
+
+App = A | B
+View __from = A | B

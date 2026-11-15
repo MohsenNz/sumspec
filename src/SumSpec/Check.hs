@@ -16,6 +16,7 @@ module SumSpec.Check
   , renderCheckErrors
   ) where
 
+import Control.Monad (foldM)
 import Data.Char (digitToInt, isSpace)
 import Data.Containers.ListUtils (nubOrdOn)
 import Data.List (elemIndex, find, nub, sortOn)
@@ -145,6 +146,10 @@ checkSpecWith imports file source raw
       concat
         [ checkImports imports
         , checkLayer env inits rawEvents events
+        , checkProjections
+            env
+            (map snd inits)
+            [to | Flat _ _ _ to _ _ <- concatMap flatten events]
         , checkHeaders spec
         , checkAnnotations spec
         , concatMap
@@ -390,7 +395,7 @@ checkLayerRoot env inits =
              <> " is the root of "
              <> T.pack (baseInfoFile b)
              <> ", so it is a factor of this spec's root only"
-       | TypeDef d _ body <- Map.elems (modelTypeDefs env)
+       | TypeDef d _ body _ <- Map.elems (modelTypeDefs env)
        , isNothing (nameQualifier d)
        , n <- termNames body
        , Just q <- [nameQualifier n]
@@ -583,6 +588,273 @@ warnDispatches env events =
         [] -> True
         parts -> any (\p -> not (excludes (fixedVariants p) (fixedVariants source))) parts
 
+-- ---------- Projections ----------
+
+-- | A layer's projections (@T __from path = ...@): types read from a base's
+-- state, never written. The path is a chain of a base's types; a
+-- projection outside another reads from the base's root, one inside
+-- another from where its parent reads. Its body fits its source: some of
+-- a product's factors, every variant of a sum, a keyed list's element.
+-- No target and no @__init@ names one. See "Projections" in spec-v1.md.
+checkProjections :: Model -> [Pattern] -> [Pattern] -> [CheckError]
+checkProjections env inits targets = misplaced <> checkProjectionTypes env inits targets
+  where
+    -- After an annotation, __from would be read as its arguments.
+    misplaced =
+      [ errorAt n $
+          "__from goes right after the type's name, before its annotations: "
+            <> nameText (typeDefName t)
+            <> " __from ... @"
+            <> nameText n
+            <> " ..."
+      | t <- Map.elems (modelTypeDefs env)
+      , isNothing (nameQualifier (typeDefName t))
+      , Annotation n args <- typeDefAnnotations t
+      , "__from" `elem` T.words args
+      ]
+
+-- | The projections' paths and bodies, and the patterns that would write
+-- one.
+checkProjectionTypes :: Model -> [Pattern] -> [Pattern] -> [CheckError]
+checkProjectionTypes env inits targets
+  | Map.null projections = []
+  | Map.null (modelImports env) =
+      [ errorAt (patternHead path) $
+          "a projection reads a base spec's state, and this spec imports none; "
+            <> "list the base in __imports"
+      | TypeDef _ _ _ (Just path) <- Map.elems projections
+      ]
+  | otherwise =
+      concat
+        [ case chain path of
+            Left e -> [e]
+            Right names
+              | Left e <- traverse baseType names -> [e]
+            Right names@(h :| _)
+              | isRoot h -> case resolveFrom Nothing names of
+                  Left e -> [e]
+                  Right src -> project (Set.singleton (nameText d)) d body (sourceOf src)
+              | nameText d `Set.member` nested
+              , nameText d `Set.notMember` topLevel ->
+                  [] -- checked inside the projections that hold it
+              | otherwise ->
+                  [ errorAt h $
+                      "projection "
+                        <> nameText d
+                        <> " isn't inside another projection, so it reads from the base's root; "
+                        <> "start its path with "
+                        <> T.intercalate " or " (map nameText roots)
+                  ]
+        | TypeDef d _ body (Just path) <- Map.elems projections
+        ]
+        <> [ errorAt n $
+               "projection "
+                 <> nameText n
+                 <> " is read from the base's state, so "
+                 <> what
+                 <> " doesn't set it; leave it out"
+           | (what, ps) <- [("__init", inits), ("a target", targets)]
+           , p <- ps
+           , q <- subPatterns p
+           , n <- take 1 (patternHeads' q)
+           , nameText n `Map.member` projections
+           ]
+  where
+    -- This spec's own projections.
+    projections =
+      Map.filter
+        (\t -> isJust (typeDefFrom t) && isNothing (nameQualifier (typeDefName t)))
+        (modelTypeDefs env)
+    roots = [r | BaseInfo _ (Just r) <- Map.elems (modelImports env)]
+    isRoot h = nameText h `elem` map nameText roots
+    isProjection t = Map.member t projections
+    patternHeads' = \case
+      PatternPath (h :| _) _ -> [h]
+      PatternElement (h :| _) _ _ -> [h]
+      PatternAlts (h :| _) _ -> [h]
+      _ -> []
+    -- The projections named inside another projection's body.
+    nested =
+      Set.fromList
+        [ t
+        | TypeDef _ _ body _ <- Map.elems projections
+        , t <- exprTypes body
+        , isProjection t
+        ]
+    -- The projections the layer's state holds outside any projection.
+    topLevel = case modelRoot env of
+      Nothing -> Set.empty
+      Just r -> stateTypes Set.empty [nameText r]
+    stateTypes seen = \case
+      [] -> Set.filter isProjection seen
+      t : rest
+        | Set.member t seen -> stateTypes seen rest
+        | isProjection t -> stateTypes (Set.insert t seen) rest
+        | isJust (nameQualifier' t) -> stateTypes seen rest
+        | otherwise ->
+            stateTypes (Set.insert t seen) (foldMap exprTypes (typeBody env t) <> rest)
+    nameQualifier' t = if T.any (== '.') t then Just () else Nothing
+    exprTypes = \case
+      TypeSum vs -> concat [foldMap exprTypes p | Variant _ p _ <- vs]
+      TypeProduct fs -> concatMap (termTypes . factorTerm) fs
+      TypeTerm t -> termTypes t
+    termTypes = \case
+      TermName n -> [nameText n]
+      TermList t _ -> termTypes t
+    -- The path's names, outermost first, or why it isn't a chain.
+    chain = \case
+      PatternPath (n :| []) [] -> Right (n :| [])
+      PatternPath (n :| []) [inner] -> (n NE.<|) <$> chain inner
+      PatternPath (_ :| v : _) _ ->
+        Left $
+          errorAt v "a __from path names types only, each holding the next; not a variant"
+      PatternPath _ (_ : extra : _) ->
+        Left $
+          errorAt (patternHead extra) "each type in a __from path holds one, the next type"
+      q ->
+        Left $
+          errorAt
+            (patternHead q)
+            "a __from path is a chain of a base's types, such as core.Core(core.Link)"
+    -- The type at the end of a path, read from the base's root (no parent)
+    -- or from the parent's source part.
+    resolveFrom parent (h :| rest) = do
+      _ <- baseType h
+      case parent of
+        Nothing
+          | isRoot h -> pure ()
+          | otherwise ->
+              Left $
+                errorAt h $
+                  nameText h
+                    <> " is not a base's root; a projection reads from "
+                    <> T.intercalate " or " (map nameText roots)
+        Just src
+          | nameText h == srcName src || nameText h `elem` srcFactors src -> pure ()
+          | otherwise ->
+              Left $
+                errorAt h $
+                  nameText h
+                    <> " is not "
+                    <> srcName src
+                    <> " or one of its factors, where the enclosing projection reads"
+      foldM stepTo (nameText h) rest
+    stepTo prev n = do
+      _ <- baseType n
+      if nameText n `elem` factorsOf prev
+        then pure (nameText n)
+        else Left (errorAt n (nameText n <> " is not a factor of " <> prev))
+    baseType n = case nameQualifier n of
+      Just q
+        | Map.member q (modelImports env)
+        , isType env (nameText n) ->
+            Right ()
+      _ ->
+        Left $
+          errorAt n $
+            nameText n <> " is not a type of a base spec; a projection reads a base's state"
+    factorsOf t = case typeInfoShape <$> underlying env t of
+      Just (ShapeProduct fs) -> map (termKey . factorTerm) fs
+      _ -> []
+    -- A source: a name for messages, and its body.
+    sourceOf t = ProjSource t (typeInfoBody =<< underlying env t)
+    srcName (ProjSource n _) = n
+    srcFactors (ProjSource _ body) = case body of
+      Just (TypeProduct fs) -> map (termKey . factorTerm) fs
+      Just (TypeTerm (TermName n)) -> factorsOf (nameText n)
+      _ -> []
+    -- A payload or element of the source, as a source of its own.
+    sourceOfExpr label = \case
+      TypeTerm (TermName n) -> sourceOf (nameText n)
+      e -> ProjSource label (Just e)
+    -- The body of projection d against its source.
+    project seen d body src@(ProjSource label sbody) = case (body, sbody) of
+      (TypeSum vs, Just (TypeSum svs)) ->
+        [ errorAt d $
+            "projection "
+              <> nameText d
+              <> " has no variant "
+              <> nameText (variantName sv)
+              <> "; it has every variant of "
+              <> label
+        | sv <- svs
+        , nameText (variantName sv) `notElem` map (nameText . variantName) vs
+        ]
+          <> concat
+            [ case find ((== nameText (variantName v)) . nameText . variantName) svs of
+                Nothing ->
+                  [ errorAt
+                      (variantName v)
+                      (nameText (variantName v) <> " is not a variant of " <> label)
+                  ]
+                Just sv -> case (variantPayload v, variantPayload sv) of
+                  (Nothing, _) -> []
+                  (Just _, Nothing) ->
+                    [ errorAt (variantName v) $
+                        label <> "." <> nameText (variantName v) <> " has no payload to show"
+                    ]
+                  (Just p, Just sp) ->
+                    project
+                      seen
+                      (variantName v)
+                      p
+                      (sourceOfExpr (label <> "." <> nameText (variantName v)) sp)
+            | v <- vs
+            ]
+      (TypeSum _, _) ->
+        [ errorAt
+            d
+            (label <> " is not a sum, so its projection " <> nameText d <> " isn't one")
+        ]
+      (TypeTerm (TermList (TermName e) key), Just (TypeTerm (TermList (TermName se) skey)))
+        | fmap nameText key /= fmap nameText skey ->
+            [ errorAt d $
+                "projection "
+                  <> nameText d
+                  <> " is keyed "
+                  <> maybe "by nothing" (("by " <>) . nameText) key
+                  <> ", but "
+                  <> label
+                  <> " is keyed "
+                  <> maybe "by nothing" (("by " <>) . nameText) skey
+            ]
+        | otherwise -> part seen (sourceOf (nameText se)) True e
+      (TypeTerm (TermList _ _), _) ->
+        [ errorAt
+            d
+            (label <> " is not a list of that kind, so projection " <> nameText d <> " isn't one")
+        ]
+      (TypeProduct fs, Just _) -> concatMap (part seen src False . termName . factorTerm) fs
+      (TypeTerm (TermName n), Just (TypeProduct _)) -> part seen src False n
+      (TypeTerm (TermName n), _) -> part seen src True n
+      (_, Nothing) ->
+        [errorAt d (label <> " has no parts for projection " <> nameText d <> " to show")]
+    -- A part of a projection: a part of the source of the same type, or a
+    -- projection read inside the source. @whole@: it stands for the whole
+    -- source (a list element, or a single term), not one of its factors.
+    part seen src whole n
+      | isProjection (nameText n) =
+          case Map.lookup (nameText n) projections of
+            Just (TypeDef d _ body (Just path))
+              | Set.member (nameText d) seen -> []
+              | otherwise -> case chain path >>= resolveFrom (Just src) of
+                  Left e -> [e]
+                  Right t -> project (Set.insert (nameText d) seen) d body (sourceOf t)
+            _ -> []
+      | whole, nameText n == srcName src = []
+      | not whole, nameText n `elem` srcFactors src = []
+      | otherwise =
+          [ errorAt n $
+              nameText n
+                <> " is not "
+                <> (if whole then "" else "a part of ")
+                <> srcName src
+                <> "; a projection shows its source's parts, or projections of them"
+          ]
+
+-- | Where a projection reads: a name for messages, and the body there.
+data ProjSource = ProjSource Text (Maybe TypeExpr)
+
 -- ---------- Environment ----------
 
 -- | The body of the type with this name: 'Nothing' for an atomic (which
@@ -622,7 +894,7 @@ annotationUses :: Spec -> [Annotation]
 annotationUses spec = concatMap fromDefinition (specDefinitions spec)
   where
     fromDefinition = \case
-      DefType (TypeDef _ notes body) -> notes <> fromExpr body
+      DefType (TypeDef _ notes body _) -> notes <> fromExpr body
       DefEvent (Event _ _ transitions) ->
         [ a
         | Transition _ branches <- NE.toList transitions
@@ -716,10 +988,10 @@ checkInit file env inits = case inits of
 checkTypeDefs :: Model -> [TypeDef] -> [CheckError]
 checkTypeDefs env defs =
   [ errorAt n (nameText n <> " is defined twice (first on line " <> lineOf first <> ")")
-  | (TypeDef n _ _, TypeDef first _ _) <- repeats (nameText . typeDefName) defs
+  | (TypeDef n _ _ _, TypeDef first _ _ _) <- repeats (nameText . typeDefName) defs
   ]
     <> [ errorAt n (nameText n <> " is declared in __atomics and also defined")
-       | TypeDef n _ _ <- defs
+       | TypeDef n _ _ _ <- defs
        , Map.member (nameText n) (modelAtomics env)
        ]
     <> concatMap (checkTypeExpr env . typeDefBody) defs
@@ -796,7 +1068,7 @@ checkTerm env term =
 -- | A newtype that leads back to itself (@A = B@, @B = A@) has no
 -- structure at all. Reported at the definition, with the chain.
 newtypeCycle :: Model -> TypeDef -> Maybe CheckError
-newtypeCycle env (TypeDef start _ _) = go [nameText start] (nameText start)
+newtypeCycle env (TypeDef start _ _ _) = go [nameText start] (nameText start)
   where
     go seen current = case typeBody env current of
       Just (TypeTerm (TermName next))
@@ -2419,8 +2691,19 @@ reach env names fixed = goPattern []
 -- tested one by one, and names are ignored, so this may find more than
 -- the app can really reach, never less.
 reachable :: Model -> Pattern -> [Flat] -> (Set Label, Set Text)
-reachable env initial transitions = go (reach env Map.empty Nothing AnyValue initial)
+reachable env initial transitions =
+  go (reach env Map.empty Nothing AnyValue initial <> projected)
   where
+    -- A projection is read from the base's state, so it may hold any of
+    -- its values from the start.
+    projected =
+      foldMap
+        (anyType env . nameText . typeDefName)
+        [ t
+        | t <- Map.elems (modelTypeDefs env)
+        , isJust (typeDefFrom t)
+        , isNothing (nameQualifier (typeDefName t))
+        ]
     go found =
       let found' = found <> foldMap fire [t | t <- transitions, enabled found t]
       in  if found' == found then found else go found'
