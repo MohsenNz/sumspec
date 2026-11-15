@@ -4,6 +4,8 @@
 humans and AI agents edit it and approve each other's
 changes, and agents generate the application from it.**
 
+What is spec-driven development? See the [video](https://www.youtube.com/watch?v=mViFYTwWvcM)
+
 ## The idea
 
 In AI agents era, spec-driven development has become popular more and more:
