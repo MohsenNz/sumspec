@@ -51,6 +51,7 @@ import Data.Maybe (fromMaybe, listToMaybe)
 import Data.Set qualified as S
 import Data.Text (Text)
 import Data.Text qualified as T
+import SumSpec.Expand (Expansion (..), expandSpec, patternDefs)
 import SumSpec.Syntax
 
 data Model = Model
@@ -65,6 +66,9 @@ data Model = Model
   -- ^ Every variant by its name, inline payloads included, in source
   -- order. A name may belong to several sums.
   , modelConsts :: Map Text ConstDef
+  , modelPatterns :: Map Text PatternDef
+  -- ^ The named patterns (@__pattern@) of this spec; a base's aren't
+  -- visible.
   , modelEvents :: Map Text EventInfo
   -- ^ The events defined, whether listed in @__events@ or not.
   , modelAnnotations :: Map Text Name
@@ -138,6 +142,7 @@ data Ref
   = RefType Name
   | RefVariant VariantInfo
   | RefConst ConstDef
+  | RefPattern PatternDef
   | RefUnknown
 
 -- | The type a path is at: the body of a named type, or an inline
@@ -196,18 +201,21 @@ ownModel spec =
           , v <- nested (typeDefName t) [] (typeDefBody t)
           ]
     , modelConsts = firsts constName [c | DefConst c <- defs]
+    , modelPatterns = patternDefs spec
     , modelEvents =
         firsts
           (eventName . eventInfo)
           [EventInfo e (nameText (eventName e) `S.member` listed) | DefEvent e <- defs]
     , modelAnnotations = firsts id (fromMaybe [] (specAnnotations spec))
-    , modelRoot = listToMaybe [headName p | DefInit _ p <- defs]
+    , modelRoot = listToMaybe [headName p | DefInit _ p <- expandedDefs]
     , modelImports = M.empty
     , modelBaseVariants = M.empty
     , modelBaseEvents = M.empty
     }
   where
     defs = specDefinitions spec
+    -- The root is the head of @__init@ with its patterns expanded.
+    expandedDefs = specDefinitions (expansionSpec (expandSpec spec))
     atomics = firsts atomicName (specAtomics spec)
     typeDefs = firsts typeDefName [t | DefType t <- defs]
     listed = S.fromList (map nameText (specEvents spec))
@@ -230,6 +238,7 @@ ownModel spec =
       PatternPath (h :| _) _ -> h
       PatternElement (h :| _) _ _ -> h
       PatternAlts (h :| _) _ -> h
+      PatternApply (h :| _) _ -> h
       PatternNamed p _ -> headName p
       PatternPrimed _ p -> headName p
       PatternList t _ -> termHead t
@@ -249,21 +258,27 @@ ownModel spec =
 -- type, constant and event it declares, and every use of one, is written
 -- with the qualifier (@Todos@ becomes @core.Todos@, @lib.T@ becomes
 -- @core.lib.T@). Variants and value names stay as they are: a variant is
--- reached through its type.
+-- reached through its type. The base's named patterns are expanded first:
+-- they aren't visible to the spec importing it.
 qualifySpec :: Text -> Spec -> Spec
-qualifySpec q spec =
+qualifySpec q raw =
   spec
     { specImports = []
     , specAtomics = [a {atomicName = qn (atomicName a)} | a <- specAtomics spec]
     , specEvents = map qn (specEvents spec)
-    , specDefinitions = map definition (specDefinitions spec)
+    , specDefinitions = [definition d | d <- specDefinitions spec, not (isPattern d)]
     }
   where
+    spec = expansionSpec (expandSpec raw)
+    isPattern = \case
+      DefPattern _ -> True
+      _ -> False
     qn (Name pos t) = Name pos (q <> "." <> t)
     definition = \case
       DefType (TypeDef n notes body) -> DefType (TypeDef (qn n) notes (typeExpr body))
       DefConst (ConstDef n ty v) -> DefConst (ConstDef (qn n) (qn ty) v)
       DefInit k p -> DefInit k (pat p)
+      DefPattern d -> DefPattern d
       DefEvent (Event n input ts) -> DefEvent (Event (qn n) (pat <$> input) (fmap transition ts))
     typeExpr = \case
       TypeSum vs -> TypeSum [v {variantPayload = typeExpr <$> variantPayload v} | v <- vs]
@@ -286,6 +301,7 @@ qualifySpec q spec =
       PatternNamed p n -> PatternNamed (pat p) n
       PatternBound n -> PatternBound n
       PatternAlts ns alts -> PatternAlts (headed ns) (fmap alt alts)
+      PatternApply ns groups -> PatternApply (headed ns) (fmap (map pat) groups)
       PatternPrimed pos p -> PatternPrimed pos (pat p)
       PatternExpr e -> PatternExpr (expr e)
     -- An alternative is written from the sum: its path is variants.
@@ -405,6 +421,8 @@ resolvePath m (h :| rest) = ((h, ref) : refs, here')
       Just t -> (RefType (typeInfoName t), typeInfoBody t)
       Nothing -> case M.lookup (nameText h) (modelConsts m) of
         Just c -> (RefConst c, Nothing)
+        Nothing
+          | Just d <- M.lookup (nameText h) (modelPatterns m) -> (RefPattern d, Nothing)
         Nothing -> case uniqueVariant m h of
           Just v -> (RefVariant v, variantPayload (variantInfo v))
           Nothing -> (RefUnknown, Nothing)
@@ -468,6 +486,18 @@ renderModel m =
       <> [ "  " <> name <> " : " <> nameText (constType c)
          | (name, c) <- M.toList (modelConsts m)
          ]
+      <> ( if M.null (modelPatterns m)
+             then []
+             else
+               ["patterns"]
+                 <> [ "  "
+                        <> name
+                        <> params (patternDefParams d)
+                        <> " : "
+                        <> bodyHead (patternDefBody d)
+                    | (name, d) <- M.toList (modelPatterns m)
+                    ]
+         )
       <> ["events"]
       <> [ "  "
              <> name
@@ -511,3 +541,13 @@ renderModel m =
       TermName n -> nameText n
       TermList t key -> "[" <> term t <> maybe "" ((" by " <>) . nameText) key <> "]"
     count k = T.pack (show k) <> if k == 1 then " transition" else " transitions"
+    params [] = ""
+    params ps = "(" <> T.intercalate ", " (map nameText ps) <> ")"
+    -- A body is a type pattern, so it has a head.
+    bodyHead = \case
+      PatternPath (h :| _) _ -> nameText h
+      PatternElement (h :| _) _ _ -> nameText h
+      PatternApply (h :| _) _ -> nameText h
+      PatternAlts (h :| _) _ -> nameText h
+      PatternList t _ -> term t
+      _ -> "?"

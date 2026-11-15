@@ -1,0 +1,6 @@
+test/parse/error-pattern-no-body.sumspec:7:1:
+  |
+7 | __init :: App(App.A)
+  | ^
+unexpected '_'
+expecting '[' or type or variant name

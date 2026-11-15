@@ -1,0 +1,29 @@
+-- The rules of a pattern's definition: a new name, defined once, distinct
+-- parameters each used, a body that names nothing and uses only its
+-- parameters, and no cycle.
+__atomics { Name = __text }
+__events { e }
+
+App = Page * Link
+Page = Home | Editor (Doc * Mode)
+Doc = Title * Mode
+Title = Name
+Mode = Viewing | Editing
+Link = Off | On
+Max = Title("x")
+
+__pattern Link = App(Link.On)
+__pattern Max = App(Link.On)
+__pattern P(x, x) = App(x)
+__pattern Q(x, y) = App(x)
+__pattern R(x) = App(Page.Editor(Doc#d * z))
+__pattern R = App
+__pattern V(x) = App(Page.Editor(Doc(Title(x + 1)) * x'))
+__pattern W(x) = App(Page.Editor(Doc(Title(#t)) * Mode))
+__pattern S = T
+__pattern T = U(S)
+__pattern U(x) = App(x)
+
+__init :: App(Page.Home * Link.Off)
+
+e :: App(Link.Off) -> App(Link.On)

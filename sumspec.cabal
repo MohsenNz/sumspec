@@ -34,6 +34,7 @@ library
   exposed-modules:
     SumSpec
     SumSpec.Check
+    SumSpec.Expand
     SumSpec.Load
     SumSpec.Model
     SumSpec.Parser
@@ -48,6 +49,7 @@ library
     , filepath    >=1.5  && <1.6
     , megaparsec  >=9.7  && <10
     , text        >=2.1  && <2.2
+    , transformers >=0.6 && <0.7
 
 -- The language server. A library of its own, so the core library above
 -- keeps its few dependencies.

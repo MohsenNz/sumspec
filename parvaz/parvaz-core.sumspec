@@ -1,0 +1,841 @@
+------------------------------------------------------------------------------------
+-- Parvaz Agro: the core
+--
+-- The domain of the Parvaz Agro ground station: the missions an operator
+-- plans and flies, the devices that reach an aircraft, the link and the
+-- connected aircraft as it reports itself, and the app's log. It is a
+-- base spec: parvaz-ui.sumspec (to come) is a layer over it, and knows
+-- nothing the core doesn't say. The core knows nothing of screens.
+--
+-- Rewritten from ../parvaz.sumspec (the old notation, domain and UI in one
+-- file). NOTES.md says where each old type and transition went.
+--
+-- Commands come from the operator through a layer (addMission,
+-- startMission, selectDevice...). Occurrences come from the aircraft or
+-- the link, and are named *Event; @after says what fires one, @stream that
+-- it refreshes values in place.
+------------------------------------------------------------------------------------
+
+__version 1.0
+
+__annotations {
+  @default  -- the value a part starts with, or that a new one takes
+  @range    -- permitted values of a numeric part, low..high, inclusive
+  @after    -- the measure that fires an occurrence: @after <member> <value>
+  @stream   -- an occurrence that refreshes values in place, continuously
+  @status   -- a transient condition: loading, empty or error
+  @view     -- how a part is drawn (presentation, kept here until a layer
+            -- can annotate the base's types)
+  @region   -- where a part is drawn (as @view)
+}
+
+__atomics {
+  Int           = __int
+  Meters        = __float
+  Hectares      = __float
+  LitersPerMin  = __float
+  MetersPerSec  = __float
+  Degrees       = __float   -- 0..360, clockwise from north
+  Latitude      = __float   -- -90..+90
+  Longitude     = __float   -- -180..+180
+  Seconds       = __float
+  Percent       = __float   -- 0..100
+  Volts         = __float
+  Text          = __text    -- one short line of text
+  FailureReason = __text    -- a code and a human-readable cause, reported by the
+                            -- flight controller; not interpreted by the app
+  Timestamp
+  Unimplemented             -- reserved marker: this part has no behaviour yet
+}
+
+__events {
+  -- Missions
+  addMission
+  updatePlot
+  copyMission
+  deleteMission
+
+  -- The run
+  startMission
+  resumeMission
+  stopMission
+  returnToHome
+  retryArming
+  cancelArming
+  armedEvent
+  armingFailedEvent
+  routeReachedEvent
+  groundMeasuredEvent
+  missionCompletedEvent
+  manualControlTakenEvent
+  autoRestoredEvent
+  landedEvent
+  batteryLowEvent
+  gpsLostEvent
+  homeReachedEvent
+  linkLossEvent
+  flownAwayDoneEvent
+  flownAwayToEvent
+
+  -- Devices and the link
+  saveDevice
+  removeDevice
+  selectDevice
+  closeLink
+  aircraftConnectedEvent
+  linkFailedEvent
+  homeSetEvent
+  telemetryFrameEvent
+  telemetryLostEvent
+  telemetryBackEvent
+
+  -- The log
+  logged
+}
+
+-- A first launch: no run, no link. The missions, devices and log are
+-- remembered across launches; on a first launch they are empty.
+__init :: Core(Run.Idle * AircraftLink.Disconnected * LinkSession.Closed * LastDevice.None)
+
+Core
+  = Missions
+  * Run
+  * AircraftLink
+  * Devices
+  * LinkSession
+  * LastDevice
+  * Logs
+
+------------------------------------------------------------------------------------
+-- The ground
+
+Point = Latitude * Longitude        -- a position on the map
+
+Points = [Point]
+
+Plot                @default Empty
+  = Empty
+  | Drawn PlotDrawn                 @region canvas
+
+PlotDrawn
+  = Boundary
+  * Markings                        -- everything laid over that edge
+  * RouteSettings
+
+Boundary = Ring
+
+Markings = [Marking]
+
+Marking
+  = Obstacle      (Ring)
+  | RoundObstacle (Spot)
+  | PowerLine     (Path)
+  | NonSprayArea  (Ring)
+  | MarkPoint     (Spot)
+
+Ring
+  = Partial   (Points)              -- one or two points; too few to enclose
+  | Closeable (Points)              -- three or more; the shape can be closed
+  | Enclosed  (Points)              -- the shape is closed
+
+Path                                -- a PowerLine's shape. A line is not an area,
+                                    -- so it has no Enclosed state
+  = Partial (Point)                 -- one point; not a line yet
+  | Total   (Points)                -- two or more; the line as it was drawn
+
+Spot = Point
+
+------------------------------------------------------------------------------------
+-- Route settings: how the route is planned within the Boundary
+
+RouteSettings
+  = RouteSpacing
+  * SprayHeight
+  * ReturnHeight
+  * SpraySpeed
+  * DefaultEdgeMargin
+  * EdgeMargins
+  * StartCorner
+  * CoverageArea
+  * ObstacleBoundary
+  * SingleSideSpraying
+  * Course
+
+RouteSpacing  = Meters  @default 8
+                        @range 2..12      -- swath width the nozzles cover at
+                                          -- SprayHeight
+SprayHeight   = Meters  @default 3
+                        @range 1..10      -- height the route is flown at, above
+                                          -- the ground under the aircraft, as
+                                          -- RangefinderAlt; takeoff climbs to it
+                                          -- above the HomePoint
+ReturnHeight  = Meters  @default 15
+                        @range 12..50     -- height every return home is flown at,
+                                          -- above the HomePoint: route done,
+                                          -- returnToHome, BatteryLow and the
+                                          -- aircraft's own failsafes. The low end
+                                          -- clears SprayHeight's top
+SpraySpeed    = MetersPerSec @default 5
+                        @range 1..10      -- ground speed while Spraying
+DefaultEdgeMargin = Meters @default 1.5
+                        @range 0..10      -- inset from every Boundary edge with no
+                                          -- EdgeMargin of its own; 0 sprays to the
+                                          -- edge
+
+EdgeMargins   = [EdgeMargin]              -- empty: every edge takes DefaultEdgeMargin
+
+EdgeMargin    = Edge * EdgeInset
+
+Edge          = Point                     -- the Boundary edge from this point to the
+                                          -- next; followed if the point moves. A
+                                          -- point added on the edge splits it and
+                                          -- both halves keep the inset; a deleted
+                                          -- point merges its two edges, and the
+                                          -- merged edge keeps the larger inset
+
+EdgeInset     = Meters  @range 0..10
+
+StartCorner   = Point   @default first_added_point
+                                          -- one of the Boundary's points, followed if
+                                          -- it moves; if it is deleted the default
+                                          -- stands in. The route starts at a swath
+                                          -- end by it: the RouteStart. Not where the
+                                          -- aircraft takes off; see HomePoint
+
+CoverageArea  @default RouteOnly
+  = RouteOnly
+  | RouteAndBoundary
+  | BoundaryOnly
+
+ObstacleBoundary = Meters @default 1.5
+                        @range 0.5..10    -- keep-out around an Obstacle, PowerLine or
+                                          -- RoundObstacle; never 0, by intent
+
+SingleSideSpraying @default Off
+  = Off
+  | On
+
+-- The swaths' bearing, clockwise from north; 0 and 180 are the same line.
+Course        @default Auto
+  = Auto   (CourseAngle)                  -- the bearing of least braking, worked
+                                          -- out by the app
+  | Manual (CourseAngle)                  -- the operator's bearing
+
+CourseAngle   = Degrees @range 0..180
+
+------------------------------------------------------------------------------------
+-- Missions
+
+Missions = [Mission by At]
+
+Mission
+  = MissionName
+  * GroundMeasurements
+  * MissionState
+  * Plot                                  -- the ground to cover, route settings
+                                          -- included
+
+MissionName = Text                        -- what the operator called this plot
+
+At = Timestamp                            -- when the mission was saved: its key.
+                                          -- Set once and never rewritten: a
+                                          -- mission is edited in place
+
+MissionState              @default NotStarted
+  = NotStarted                            -- nothing sprayed yet: never flown, or
+                                          -- stopped before reaching its RouteStart
+  | Completed                             -- the route was finished
+  | Stopped (StopReason * BreakPoint)
+
+StopReason                                -- why spraying stopped
+  = Commanded                             -- stopMission
+  | BatteryLow      @status error         -- batteryLowEvent
+  | LinkLost        @status error         -- linkLossEvent; the figures are last-known
+  | ManualTakeover                        -- manualControlTakenEvent
+  | GpsLost         @status error         -- gpsLostEvent
+
+BreakPoint = Point  @region canvas        -- where spraying stopped; a resumed run
+                                          -- picks the planned route up from here,
+                                          -- in flight or after landing
+
+GroundMeasurements  @view tiles
+  = Distance
+  * Area
+  * RouteProgress
+
+Distance      = Meters    -- ground distance sprayed. Neither ferry adds to it,
+                          -- nor the turns between swaths: it moves only along
+                          -- swaths, while Spraying
+Area          = Hectares  -- ground area sprayed so far
+RouteProgress = Percent   -- how much of the planned route is flown, turns
+                          -- included
+
+-- The inputs of the mission commands.
+NewMission  = At * MissionName * Plot
+PlotUpdate  = At * MissionName * Plot
+MissionCopy = CopyOf * At * MissionName
+CopyOf      = At          -- the mission a copy is made from
+
+------------------------------------------------------------------------------------
+-- The run: the mission being flown, at most one at a time
+
+Run
+  = Idle
+  | Active (MissionRun)
+
+MissionRun
+  = At                                    -- the mission flown, in Missions. Every
+                                          -- transition that settles the run
+                                          -- writes it there
+  * MissionFlight
+
+MissionFlight
+  = Arming (RouteEntry)                   @status loading
+                                          -- uploading the route and ReturnHeight,
+                                          -- waiting for the aircraft
+  | Flying (FPhase)
+  | Failed (FailureReason * RouteEntry)   @status error
+                                          -- upload or takeoff rejected. The
+                                          -- RouteEntry stays, so a retry keeps it
+
+FPhase
+  = Approaching  (RouteEntry)             -- flying out to the route, sprayer off;
+                                          -- from Home after takeoff, or from where
+                                          -- it held
+  | Spraying                              -- flying the planned route: wet along
+                                          -- the swaths, dry on the turns
+  | Holding      (RouteEntry)             -- not spraying; holding position, waiting
+                                          -- on the operator to resume, leave it
+                                          -- holding, or send it home
+  | PilotControl (RouteEntry)             -- the pilot flies from the transmitter and
+                                          -- the run waits; switching back to AUTO
+                                          -- hands it back, Holding
+  | Returning    ( Interrupted (StopReason * RouteEntry)
+                                          -- the run stopped early; the RouteEntry
+                                          -- is where a later run resumes
+                 | Finished               -- the route is done
+                 )                        -- flying home to the HomePoint at
+                                          -- ReturnHeight
+
+RouteEntry                                -- where the aircraft joins the route
+  = FromStart                             -- the RouteStart, by the StartCorner
+  | FromBreakPoint (BreakPoint)           -- where an earlier run stopped spraying
+
+FlownTo = At * Point                      -- the furthest route waypoint the
+                                          -- aircraft passed flying that mission
+
+Sprayer = Unimplemented                   -- the pump: on along each swath while
+                                          -- Spraying, off on the turns and outside
+                                          -- Spraying. None is fitted yet
+
+------------------------------------------------------------------------------------
+-- The aircraft
+
+AircraftLink        @default Disconnected -- whether an aircraft is connected
+  = Disconnected
+  | Connected (Aircraft)
+
+Aircraft                                  -- the connected aircraft, as it reports
+                                          -- itself, flying a mission or not
+  = AircraftStatus
+  * Feed
+  * HomePoint
+  * BatteryReserve
+  * SystemId                              -- reported with its first frame, fixed
+                                          -- for the life of the connection
+
+AircraftStatus                            -- one telemetry frame
+  = ArmState
+  * FlightMode
+  * GPSFix
+  * Satellites
+  * Battery
+  * SprayFlow
+  * Altitude
+  * RangefinderAlt
+  * OffsetAlt
+  * Speed
+  * Heading
+  * Latitude
+  * Longitude
+
+ArmState            @default Disarmed     -- reported by the aircraft; armedEvent is
+  = Disarmed                              -- it turning Armed
+  | Armed
+
+FlightMode          @default Unknown      -- the mode the aircraft reports, by its own
+                                          -- name; shown, never interpreted
+  = Unknown                               -- not reported yet, or a mode the app
+                                          -- cannot name
+  | Named (Text)
+
+GPSFix
+  = NoFix                                 -- position cannot be determined
+  | Fix2D                                 -- latitude and longitude only
+  | Fix3D                                 -- latitude, longitude and altitude
+  | DGPS                                  -- improved by correction data
+  | RTKFix                                -- very high precision, RTK corrections
+
+Satellites      = Int           -- GPS satellites the aircraft sees
+SprayFlow       = LitersPerMin  -- how fast the sprayer puts out liquid: a rate
+Altitude        = Meters        -- above the HomePoint
+Speed           = MetersPerSec  -- ground speed
+Heading         = Degrees       -- where the aircraft's nose points
+BatteryVoltage  = Volts         -- pack voltage, as reported
+BatteryCharge   = Percent       -- remaining charge, as the aircraft estimates it
+
+Battery = BatteryVoltage * BatteryCharge
+
+RangefinderAlt      @default NoSensor     -- above the ground under the aircraft,
+                                          -- from its downward rangefinder
+  = NoSensor                              -- none fitted, or silent
+  | NoReading                             -- fitted, but out of range or invalid
+  | Reading (Meters)
+
+OffsetAlt           @default NoSensor     -- the altitude offset the aircraft's own
+                                          -- onboard script reports
+  = NoSensor                              -- no script, or silent
+  | NoReading                             -- reported, but not a number
+  | Reading (Meters)
+
+TelemetryAge = Seconds    -- time since the last telemetry frame
+LinkQuality  = Percent    -- share of the aircraft's frames that reached the app
+                          -- over the last few seconds
+
+Feed
+  = Live  (LinkQuality)
+  | Stale (TelemetryAge)  @status error   -- a telemetry gap: every Aircraft value
+                                          -- is last-known, never current.
+                                          -- telemetryBackEvent returns to Live;
+                                          -- linkLossEvent is where the app stops
+                                          -- waiting
+
+HomePoint           @default Unknown      -- where the aircraft returns to; it
+                                          -- reports one at its first GPS fix and
+                                          -- again at each arming
+  = Unknown
+  | Known (Point)
+
+BatteryReserve      @default Enough       -- computed by the app, never reported:
+                                          -- Low once BatteryCharge is at or below
+                                          -- BatteryLowThreshold. Sticky: it stays
+                                          -- Low until the link is made again
+  = Enough
+  | Low
+
+BatteryLowThreshold = Percent(15)         -- where BatteryReserve turns Low; a
+                                          -- product fact, not a setting
+
+------------------------------------------------------------------------------------
+-- Devices and the link
+
+Devices = [Device by DeviceId]
+
+Device                                    -- a saved way to reach an aircraft. Two
+                                          -- devices may reach one drone;
+                                          -- LastSystemId tells drones apart
+  = DeviceName
+  * LinkSettings
+  * LastSystemId
+
+DeviceId    = Timestamp                   -- when the device was added: its key
+DeviceName  = Text                        -- what the operator calls it
+
+LinkSettings        @default Udp          -- a saved link: only what its kind uses
+  = Udp    (Port)                         -- listen on Port
+  | Tcp    (HostName * Port)              -- connect to HostName at Port
+  | Serial (Baud)                         -- the serial port wired to the phone
+
+HostName  = Text                          -- a name or an address; never blank
+
+Port      = Int   @default 14550
+                  @range 1..65535
+
+Baud      = Int   @default 57600
+                  @range 1200..921600
+
+SystemId  = Int   @range 1..255           -- the MAVLink system id the aircraft
+                                          -- names itself with
+
+LastSystemId        @default Unheard
+  = Unheard                               -- never answered on this device
+  | Heard (SystemId)                      -- what it answered with last time
+
+LinkSession         @default Closed       -- what the app is doing to reach an
+                                          -- aircraft; AircraftLink says whether
+                                          -- one answered. Remembered: at launch
+                                          -- the app reopens the device it left
+                                          -- Open or Failed
+  = Closed
+  | Open (DeviceId)
+  | Failed (DeviceId * LinkFailure)       @status error
+
+LinkFailure = Text                        -- why the device could not open the link
+
+LastDevice          @default None         -- the device last linked; kept after
+                                          -- closeLink, so it can be reconnected
+  = None
+  | Known (DeviceId)
+
+SavedDevice = DeviceId * DeviceName * LinkSettings
+
+------------------------------------------------------------------------------------
+-- The log
+
+Logs = [LogEntry]                         -- oldest first. Capped: the oldest go
+                                          -- first. Remembered across launches, a
+                                          -- crash included
+
+LogEntry
+  = Timestamp
+  * LogLevel
+  * LogTag
+  * Text
+
+LogLevel
+  = Info
+  | Warning
+  | Error
+
+LogTag                                    -- the part of the app that wrote it
+  = Link                                  -- the link opening, failing, closing
+  | Mavlink                               -- the app's exchange with the aircraft
+  | Vehicle                               -- the aircraft's own words
+  | Storage                               -- saved missions and devices
+  | Basemap                               -- the basemap's tiles
+  | Crash                                 -- the app stopped; written before it went
+
+------------------------------------------------------------------------------------
+-- Transitions: missions
+--
+-- A list grows or shrinks with a new value (Missions'); the comment says
+-- what changed.
+
+-- Appends the mission at At: NotStarted, its figures at zero.
+addMission NewMission :: Missions -> Missions'
+
+-- Rewrites a mission's name and plot in place. Only NotStarted, and not
+-- while a run is active: once a run has flown ground, its figures and its
+-- BreakPoint are measured against the plot as it was.
+updatePlot PlotUpdate(At#at * MissionName#n * Plot#p)
+  :: Core
+  => Run.Idle * Missions[at](MissionState.NotStarted)
+  -> Missions[at](n * p)
+
+-- A new mission from another one's Plot, under a new MissionName and At:
+-- NotStarted, figures at zero. From any MissionState, so a flown field can
+-- be flown again; the original stays as it was.
+copyMission MissionCopy(CopyOf(#from) * At * MissionName)
+  :: Missions[from] -> Missions'
+
+-- From any MissionState; its figures and BreakPoint go with it. Not while
+-- a run is active, which may be flying it.
+deleteMission At#at
+  :: Core
+  => Run.Idle * Missions[at]
+  -> Missions'
+
+------------------------------------------------------------------------------------
+-- Transitions: the run
+--
+-- A run needs an aircraft that is connected, disarmed, has a 3D fix or
+-- better, a battery that isn't Low, and a live feed. Nothing is written to
+-- the mission until armedEvent, so an arming that fails or is cancelled
+-- keeps its BreakPoint.
+
+-- The aircraft a run can start, resume or re-arm with.
+__pattern ReadyToFly
+  = AircraftLink.Connected(
+      Feed.Live
+    * AircraftStatus(ArmState.Disarmed * GPSFix.{Fix3D | DGPS | RTKFix})
+    * BatteryReserve.Enough)
+
+-- The run, with the aircraft out on the mission in this phase.
+__pattern InFlight(phase) = Run.Active(MissionFlight.Flying(phase))
+
+-- The run of the mission at, while it sprays.
+__pattern SprayingRun(at) = Run.Active(at * MissionFlight.Flying(FPhase.Spraying))
+
+-- Flies the route from its start. On a Stopped mission it is "start over":
+-- the BreakPoint is dropped at armedEvent.
+startMission At#at
+  :: Core
+  => Run.Idle
+   * Missions[at](MissionState.{NotStarted | Stopped})
+   * ReadyToFly
+  -> Run.Active(at * MissionFlight.Arming(RouteEntry.FromStart))
+
+-- Landed, on a Stopped mission: arms the aircraft to approach the
+-- BreakPoint its Stopped holds. In flight, from Holding: flies back out to
+-- the held RouteEntry.
+resumeMission At#at
+  :: Core
+  => Run.Idle
+   * Missions[at](MissionState.Stopped(BreakPoint#b))
+   * ReadyToFly
+  -> Run.Active(at * MissionFlight.Arming(RouteEntry.FromBreakPoint(b)))
+  :: Run.Active
+  => at * MissionFlight.Flying(FPhase.Holding(RouteEntry#e))
+  -> MissionFlight.Flying(FPhase.Approaching(e))
+
+-- The aircraft reports Armed while the run is Arming, and first ferries
+-- out, Approaching its RouteEntry. From the start, the mission is reset:
+-- NotStarted, its figures at zero. From a BreakPoint, its figures keep
+-- accumulating. Outside a run the core changes nothing: a layer may still
+-- react, as the aircraft is about to fly.
+armedEvent
+  :: Core
+  => Run.Active(At#at * MissionFlight.Arming(RouteEntry.FromStart))
+   * Missions[at]
+  -> InFlight(FPhase.Approaching(RouteEntry.FromStart))
+   * Missions[at](
+       MissionState.NotStarted
+     * GroundMeasurements(Distance(0) * Area(0) * RouteProgress(0)))
+
+  :: MissionFlight.Arming(RouteEntry.FromBreakPoint#bp)
+  -> MissionFlight.Flying(FPhase.Approaching(bp))
+
+  :: Core(Run.Idle) -> Core
+  @after ArmState Armed
+
+armingFailedEvent FailureReason#r
+  :: MissionFlight.Arming(RouteEntry#e) -> MissionFlight.Failed(r * e)
+
+retryArming
+  :: Core
+  => Run.Active(MissionFlight.Failed(RouteEntry#e))
+   * ReadyToFly
+  -> Run.Active(MissionFlight.Arming(e))
+
+-- Gives up on arming, from either state it can be in.
+cancelArming
+  :: Run.Active(MissionFlight.{Arming | Failed}) -> Run.Idle
+
+-- Halts the run and holds position. While Spraying it marks a BreakPoint
+-- and settles the mission Stopped; while Approaching nothing has been
+-- sprayed, so it keeps the RouteEntry and writes nothing.
+stopMission
+  :: Core
+  => SprayingRun(At#at)
+   * Missions[at]
+  -> InFlight(FPhase.Holding(RouteEntry.FromBreakPoint))
+   * Missions[at](MissionState.Stopped(StopReason.Commanded))
+  :: MissionFlight.Flying
+  => FPhase.Approaching(RouteEntry#e)
+  -> FPhase.Holding(e)
+
+-- The aircraft joins the route at its RouteEntry, and the sprayer opens.
+routeReachedEvent
+  :: MissionFlight.Flying => FPhase.Approaching -> FPhase.Spraying
+
+-- Ends a flight early, from Holding or before the route is reached: the
+-- aircraft flies home. stopMission already settled the mission.
+returnToHome
+  :: MissionFlight.Flying
+  => FPhase.Approaching(RouteEntry#e)
+  -> FPhase.Returning.Interrupted(StopReason.Commanded * e)
+  => FPhase.Holding(RouteEntry#e)
+  -> FPhase.Returning.Interrupted(StopReason.Commanded * e)
+
+-- Fires with every telemetry frame while Spraying; the figures are
+-- computed from that frame.
+groundMeasuredEvent
+  :: Core
+  => SprayingRun(At#at)
+   * Missions[at]
+  -> Missions[at](GroundMeasurements')
+  @stream
+
+-- The route is done: the mission is Completed, and the aircraft flies home
+-- (the route upload tells it to).
+missionCompletedEvent
+  :: Core
+  => SprayingRun(At#at)
+   * Missions[at]
+   * AircraftLink.Connected(Feed.Live)
+  -> InFlight(FPhase.Returning.Finished)
+   * Missions[at](MissionState.Completed)
+
+-- The operator takes the transmitter. Out on the route the run waits in
+-- PilotControl; while Spraying that marks a BreakPoint, so the mission can
+-- resume. Otherwise the run ends, and the aircraft is only watched.
+-- Returning is not paused: a battery-low ferry home must not be resumed.
+manualControlTakenEvent
+  :: Core
+  => SprayingRun(At#at)
+   * Missions[at]
+  -> InFlight(FPhase.PilotControl(RouteEntry.FromBreakPoint))
+   * Missions[at](MissionState.Stopped(StopReason.ManualTakeover))
+  :: MissionFlight.Flying
+  => FPhase.Approaching(RouteEntry#e) -> FPhase.PilotControl(e)
+  => FPhase.Holding(RouteEntry#e) -> FPhase.PilotControl(e)
+  :: Run.Active(MissionFlight.{Arming | Failed | Flying(FPhase.Returning)})
+  -> Run.Idle
+
+-- The pilot switches back to AUTO: the app holds the aircraft instead of
+-- letting it fly on, and waits on resumeMission.
+autoRestoredEvent
+  :: MissionFlight.Flying
+  => FPhase.PilotControl(RouteEntry#e)
+  -> FPhase.Holding(e)
+
+-- The aircraft disarms in PilotControl; the mission keeps what the
+-- takeover settled.
+landedEvent
+  :: InFlight(FPhase.PilotControl) -> Run.Idle
+
+-- The aircraft flies home, whatever its own failsafe does. While Spraying
+-- it marks a BreakPoint and settles the mission Stopped.
+batteryLowEvent
+  :: Core
+  => SprayingRun(At#at)
+   * Missions[at]
+  -> InFlight(FPhase.Returning.Interrupted(StopReason.BatteryLow * RouteEntry.FromBreakPoint))
+   * Missions[at](MissionState.Stopped(StopReason.BatteryLow))
+  :: MissionFlight.Flying
+  => FPhase.Approaching(RouteEntry#e)
+  -> FPhase.Returning.Interrupted(StopReason.BatteryLow * e)
+  => FPhase.Holding(RouteEntry#e)
+  -> FPhase.Returning.Interrupted(StopReason.BatteryLow * e)
+  => FPhase.PilotControl(RouteEntry#e)
+  -> FPhase.Returning.Interrupted(StopReason.BatteryLow * e)
+  @after BatteryReserve Low
+
+-- The fix drops below 3D while flying. The aircraft can't hold or fly home
+-- without GPS, so its failsafe lands or drifts: the run ends. While
+-- Spraying it marks a BreakPoint at the last position with a fix.
+gpsLostEvent
+  :: Core
+  => SprayingRun(At#at)
+   * Missions[at]
+  -> Run.Idle
+   * Missions[at](MissionState.Stopped(StopReason.GpsLost))
+  :: InFlight(FPhase.{Approaching | Holding | Returning | PilotControl}) -> Run.Idle
+  @after GPSFix (NoFix | Fix2D)
+
+homeReachedEvent
+  :: InFlight(FPhase.Returning) -> Run.Idle
+
+-- At TelemetryAge 60, twenty times the gap that makes the feed Stale: a
+-- stale feed may still recover, a lost link is where the app stops
+-- waiting. A run ends; while Spraying it settles the mission Stopped,
+-- with last-known figures.
+linkLossEvent
+  :: Core
+  => SprayingRun(At#at)
+   * Missions[at]
+   * AircraftLink.Connected(Feed.Stale)
+  -> Run.Idle
+   * Missions[at](MissionState.Stopped(StopReason.LinkLost))
+   * AircraftLink.Disconnected
+  => Run.Active(MissionFlight.{
+       Arming | Failed | Flying(FPhase.{Approaching | Holding | Returning | PilotControl})})
+   * AircraftLink.Connected(Feed.Stale)
+  -> Run.Idle
+   * AircraftLink.Disconnected
+  => Run.Idle
+   * AircraftLink.Connected(Feed.Stale)
+  -> AircraftLink.Disconnected
+  @after TelemetryAge 60
+
+-- After linkLossEvent, the aircraft heard again reports how far it flew
+-- the mission it was flying meanwhile; it only moves the mission on.
+
+-- It passed the last waypoint: the mission is Completed.
+flownAwayDoneEvent At#at
+  :: Missions[at] => MissionState.{NotStarted | Stopped} -> MissionState.Completed
+
+-- It passed this waypoint. Where further along the route than the
+-- mission's BreakPoint, the mission is Stopped(LinkLost) at that waypoint;
+-- otherwise nothing changes.
+flownAwayToEvent FlownTo(At#at * Point)
+  :: Missions[at] => MissionState.{NotStarted | Stopped} -> MissionState'
+
+------------------------------------------------------------------------------------
+-- Transitions: devices and the link
+--
+-- While the aircraft is armed, the link isn't touched: no device is saved
+-- over the linked one, removed, selected, or closed.
+
+-- A new device is appended, unlinked: selecting it links it. An existing
+-- one is rewritten in place; if it is the linked device, the link reopens
+-- on the new settings.
+saveDevice SavedDevice(DeviceId#id * DeviceName#n * LinkSettings#s)
+  :: Core
+  => Devices
+  // not Devices[id]
+  -> Devices'
+  => Devices
+  // Devices[id]
+     and LinkSession.Open(id)
+     and not AircraftLink.Connected(AircraftStatus(ArmState.Armed))
+  -> Devices[id](n * s) * AircraftLink.Disconnected
+  => Devices
+  // Devices[id] and not LinkSession.Open(id)
+  -> Devices[id](n * s)
+
+-- Removing the linked device closes the link; removing LastDevice's device
+-- clears it.
+removeDevice DeviceId#id
+  :: Core
+  => Devices * LinkSession * AircraftLink * LastDevice
+  // Devices[id] and not AircraftLink.Connected(AircraftStatus(ArmState.Armed))
+  -> Devices' * LinkSession' * AircraftLink' * LastDevice'
+
+-- Links the device, closing the old link first, so a connected aircraft is
+-- dropped. On the linked device it reconnects; on a Failed one it retries.
+-- The device becomes LastDevice.
+selectDevice DeviceId#id
+  :: Core
+  => Devices[id] * LinkSession * AircraftLink * LastDevice
+  // not AircraftLink.Connected(AircraftStatus(ArmState.Armed))
+  -> LinkSession.Open(id) * AircraftLink.Disconnected * LastDevice.Known(id)
+
+-- Frees the port for another ground station.
+closeLink
+  :: Core
+  => LinkSession.{Open | Failed} * AircraftLink
+  // not AircraftLink.Connected(AircraftStatus(ArmState.Armed))
+  -> LinkSession.Closed * AircraftLink.Disconnected
+
+-- The link to the aircraft comes up. The device records the aircraft's
+-- SystemId; the first frame arrives with it, so the feed starts Live.
+aircraftConnectedEvent Aircraft#a
+  :: Core
+  => LinkSession.Open(DeviceId#id) * AircraftLink.Disconnected * Devices[id]
+  -> AircraftLink.Connected(a) * Devices[id](LastSystemId.Heard)
+
+-- The device could not open the link: the port is taken, the host is
+-- unknown, no serial port is attached or its use was refused.
+linkFailedEvent LinkFailure#f
+  :: Core
+  => LinkSession.Open(DeviceId#id) * AircraftLink.Disconnected
+  -> LinkSession.Failed(id * f)
+
+-- The aircraft reports a new home: at its first GPS fix, at each arming,
+-- or when the pilot resets it.
+homeSetEvent Point#p
+  :: AircraftLink.Connected
+  => HomePoint -> HomePoint.Known(p)
+
+telemetryFrameEvent AircraftStatus#s
+  :: AircraftLink.Connected
+  => Feed.Live
+  -> Feed.Live(LinkQuality') * s * BatteryReserve'
+  @stream
+
+telemetryLostEvent
+  :: AircraftLink.Connected
+  => Feed.Live -> Feed.Stale
+  @after TelemetryAge 3
+
+telemetryBackEvent AircraftStatus#s
+  :: AircraftLink.Connected
+  => Feed.Stale
+  -> Feed.Live * s * BatteryReserve'
+
+------------------------------------------------------------------------------------
+-- Transitions: the log
+
+-- The app appends an entry, dropping the oldest when the log is full.
+logged LogEntry :: Logs -> Logs'

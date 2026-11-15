@@ -1,0 +1,7 @@
+-- A pattern has a body after "=", a type pattern.
+__atomics { }
+__events { }
+
+App = A | B
+__pattern P(x) =
+__init :: App(App.A)

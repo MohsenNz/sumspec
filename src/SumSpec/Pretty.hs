@@ -93,6 +93,12 @@ renderDefinition = \case
         T.intercalate "." (map nameText (NE.toList names))
           <> maybe "" renderKey key
   DefInit _ p -> "__init :: " <> renderPattern p
+  DefPattern (PatternDef name params body) ->
+    "__pattern "
+      <> nameText name
+      <> (if null params then "" else "(" <> T.intercalate ", " (map nameText params) <> ")")
+      <> " = "
+      <> renderPattern body
 
 -- | The brackets of an element path: @[x]@, @[each]@, @[each #x]@,
 -- @[each in xs]@ or @[each #x in xs]@.
@@ -189,6 +195,11 @@ renderPattern = \case
       <> ".{"
       <> T.intercalate " | " (map renderPattern (NE.toList alts))
       <> "}"
+  PatternApply names groups ->
+    renderPath names
+      <> "("
+      <> T.intercalate ", " (map renderArguments (NE.toList groups))
+      <> ")"
   PatternPrimed _ p -> renderPattern p <> "'"
   PatternExpr e -> renderArith e
   where

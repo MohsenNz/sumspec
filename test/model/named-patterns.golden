@@ -1,0 +1,31 @@
+types
+  App : product of Page, Items
+  Body : newtype of Name
+  Doc : product of Title, Body
+  Id : atomic
+  Item : sum of Done, Todo
+  Items : list of Item by Id
+  Mode : sum of Viewing, Editing
+  Name : atomic __text
+  Page : sum of Home, Editor
+  Title : newtype of Name
+variants
+  Done : Item
+  Editing : Mode
+  Editor : Page
+  Home : Page
+  Todo : Item
+  Viewing : Mode
+constants
+patterns
+  Ed : App
+  Edit(d, m) : App
+  InEditor(x) : App
+  Picked(i, s) : App
+events
+  close : 1 transition
+  open : 1 transition
+  pick : 1 transition
+  rename : 1 transition
+annotations
+root App

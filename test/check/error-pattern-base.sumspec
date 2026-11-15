@@ -1,0 +1,19 @@
+-- A layer over base-patterns.sumspec. The base's events are read with
+-- its patterns expanded, so a dispatch from where stop can't happen is
+-- found; the base's patterns aren't visible to the layer.
+__imports {
+  core "base-patterns.sumspec"
+}
+
+__atomics { }
+__events { halted stopClicked busy }
+
+__init :: App(View.Idle)
+
+App = View * core.Core
+View = Idle | Busy
+
+-- stop needs the link up.
+halted :: App => core.Core(core.Link.Down) * View.Busy -> View.Idle  >> core.stop
+stopClicked :: core.Ready => View.Busy -> View.Idle
+busy :: App => View.Idle -> View.Busy

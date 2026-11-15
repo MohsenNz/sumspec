@@ -11,6 +11,7 @@ module SumSpec.Lsp.Hover
 
 import Data.Foldable (toList)
 import Data.List (find)
+import Data.List.NonEmpty (NonEmpty (..))
 import Data.Map.Strict qualified as M
 import Data.Maybe (fromMaybe)
 import Data.Text (Text)
@@ -21,6 +22,7 @@ import Language.LSP.Protocol.Types
   , MarkupKind (..)
   , type (|?) (..)
   )
+import SumSpec.Expand (expandPatternIn)
 import SumSpec.Lsp.Index (Kind (..), Occurrence (..))
 import SumSpec.Lsp.Position (nameRange)
 import SumSpec.Model
@@ -34,7 +36,7 @@ import Text.Megaparsec (SourcePos (..), unPos)
 hover :: Text -> (SourcePos -> Text) -> Spec -> Model -> Occurrence -> Maybe Hover
 hover source sourceAt spec m occ = do
   target <- occTarget occ
-  body <- describe source spec m (occKind occ) target
+  body <- describe source spec m (occKind occ) (occName occ) target
   -- A value's line is a transition: its comment isn't about the value.
   let docs
         | occKind occ == KValue = []
@@ -47,8 +49,8 @@ hover source sourceAt spec m occ = do
       }
 
 -- | The paragraphs that describe a definition, before its comments.
-describe :: Text -> Spec -> Model -> Kind -> Name -> Maybe [Text]
-describe source spec m kind target = case kind of
+describe :: Text -> Spec -> Model -> Kind -> Name -> Name -> Maybe [Text]
+describe source spec m kind occName' target = case kind of
   KType -> do
     t <- M.lookup (nameText target) (modelTypes m)
     pure . (: []) . code $ case M.lookup (nameText target) (modelAtomics m) of
@@ -101,6 +103,25 @@ describe source spec m kind target = case kind of
               entry <- find ((== nameText n) . nameText) (specEvents spec)
               docComment source (namePos entry)
           )
+  KPattern -> do
+    d <- M.lookup (nameText target) (modelPatterns m)
+    let params = length (patternDefParams d)
+    pure $
+      [ code (renderDefinition (DefPattern d))
+      , "Named pattern"
+          <> ( if params == 0
+                 then ""
+                 else
+                   " with "
+                     <> T.pack (show params)
+                     <> (if params == 1 then " parameter" else " parameters")
+             )
+          <> "."
+      ]
+        -- At a use, what it stands for.
+        <> [ "Expands to:\n\n" <> code (renderPattern (expandPatternIn spec p))
+           | Just p <- [patternUse spec occName']
+           ]
   KAnnotation -> pure [code ("@" <> nameText target)]
   KQualifier -> do
     b <- M.lookup (nameText target) (modelImports m)
@@ -132,6 +153,45 @@ describe source spec m kind target = case kind of
       p -> renderPattern p
     path = T.intercalate "." . map nameText . toList
 
+-- | The use of a named pattern whose head is this name, as written: with
+-- its arguments, or alone as a shared path.
+patternUse :: Spec -> Name -> Maybe Pattern
+patternUse spec n = find ((== Just n) . useHead) (concatMap definition (specDefinitions spec))
+  where
+    useHead = \case
+      PatternPath (h :| []) _ -> Just h
+      PatternApply (h :| []) _ -> Just h
+      _ -> Nothing
+    definition = \case
+      DefInit _ p -> pattern p
+      DefPattern d -> pattern (patternDefBody d)
+      DefEvent (Event _ input transitions) ->
+        concatMap pattern (toList input)
+          <> concat
+            [ [PatternPath (h :| []) [] | Shared (h :| []) Nothing <- paths]
+                <> concatMap pattern (toList from <> toList to)
+                <> maybe [] guardPatterns g
+                <> concat [concatMap pattern args | Dispatch _ args <- toList d]
+            | Transition paths branches <- toList transitions
+            , Branch from g to _ d <- toList branches
+            ]
+      _ -> []
+    pattern p =
+      p : case p of
+        PatternPath _ args -> concatMap pattern args
+        PatternApply _ groups -> concatMap (concatMap pattern) groups
+        PatternElement _ _ args -> concatMap pattern args
+        PatternAlts _ alts -> concatMap pattern alts
+        PatternNamed q _ -> pattern q
+        PatternPrimed _ q -> pattern q
+        _ -> []
+    guardPatterns = \case
+      GuardPattern p -> pattern p
+      GuardNot g -> guardPatterns g
+      GuardAnd gs -> concatMap guardPatterns gs
+      GuardOr gs -> concatMap guardPatterns gs
+      _ -> []
+
 -- | The values an event names, in its input and its transitions: @#x@
 -- with the pattern it names (@T#x@), or none for @Head(#x)@.
 eventValues :: Event -> [(Name, Maybe Pattern)]
@@ -151,6 +211,7 @@ eventValues (Event _ input transitions) =
       PatternNamed p x -> (x, Just p) : pattern p
       PatternBound x -> [(x, Nothing)]
       PatternAlts _ alts -> concatMap pattern alts
+      PatternApply _ groups -> concatMap (concatMap pattern) groups
       PatternPrimed _ p -> pattern p
       PatternList {} -> []
       PatternName _ -> []

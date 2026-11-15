@@ -1,0 +1,90 @@
+test/check/error-pattern-definitions.sumspec:8:15:
+  |
+8 | Page = Home | Editor (Doc * Mode)
+  |               ^
+warning: Page.Editor is never reached: neither __init nor any transition that can happen puts the app there
+
+test/check/error-pattern-definitions.sumspec:15:11:
+   |
+15 | __pattern Link = App(Link.On)
+   |           ^
+pattern Link has the name of a type; a pattern's name is new to the spec
+
+test/check/error-pattern-definitions.sumspec:16:11:
+   |
+16 | __pattern Max = App(Link.On)
+   |           ^
+pattern Max has the name of a constant; a pattern's name is new to the spec
+
+test/check/error-pattern-definitions.sumspec:17:16:
+   |
+17 | __pattern P(x, x) = App(x)
+   |                ^
+parameter x is written twice
+
+test/check/error-pattern-definitions.sumspec:18:16:
+   |
+18 | __pattern Q(x, y) = App(x)
+   |                ^
+parameter y is not used in the body of Q
+
+test/check/error-pattern-definitions.sumspec:19:13:
+   |
+19 | __pattern R(x) = App(Page.Editor(Doc#d * z))
+   |             ^
+parameter x is not used in the body of R
+
+test/check/error-pattern-definitions.sumspec:19:38:
+   |
+19 | __pattern R(x) = App(Page.Editor(Doc#d * z))
+   |                                      ^
+a pattern's body names no value; name it at the use, as an argument
+
+test/check/error-pattern-definitions.sumspec:19:42:
+   |
+19 | __pattern R(x) = App(Page.Editor(Doc#d * z))
+   |                                          ^
+z is not a parameter of R; a pattern's body uses only its parameters
+
+test/check/error-pattern-definitions.sumspec:20:11:
+   |
+20 | __pattern R = App
+   |           ^
+pattern R is defined twice (first on line 19)
+
+test/check/error-pattern-definitions.sumspec:21:44:
+   |
+21 | __pattern V(x) = App(Page.Editor(Doc(Title(x + 1)) * x'))
+   |                                            ^
+parameter x stands for a whole argument, not a value inside a computed one
+
+test/check/error-pattern-definitions.sumspec:21:54:
+   |
+21 | __pattern V(x) = App(Page.Editor(Doc(Title(x + 1)) * x'))
+   |                                                      ^
+parameter x stands for a whole argument; write the prime or the name at the use
+
+test/check/error-pattern-definitions.sumspec:22:13:
+   |
+22 | __pattern W(x) = App(Page.Editor(Doc(Title(#t)) * Mode))
+   |             ^
+parameter x is not used in the body of W
+
+test/check/error-pattern-definitions.sumspec:22:45:
+   |
+22 | __pattern W(x) = App(Page.Editor(Doc(Title(#t)) * Mode))
+   |                                             ^
+a pattern's body names no value; name it at the use, as an argument
+
+test/check/error-pattern-definitions.sumspec:23:11:
+   |
+23 | __pattern S = T
+   |           ^
+pattern S uses itself, through T; a pattern may use another, but not in a cycle
+
+test/check/error-pattern-definitions.sumspec:24:11:
+   |
+24 | __pattern T = U(S)
+   |           ^
+pattern T uses itself, through S; a pattern may use another, but not in a cycle
+

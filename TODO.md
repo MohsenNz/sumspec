@@ -96,6 +96,16 @@ update before any code:
 - [ ] The dispatch warning by coverage: warn when a dispatch's source can
       hold in some state where the event can't happen, not only when it
       excludes every source of the event.
+- [x] Parvaz core: `parvaz/parvaz-core.sumspec`, the domain of
+      `parvaz.sumspec` as a base spec (see `parvaz/NOTES.md`).
+- [ ] Parvaz UI: `parvaz/parvaz-ui.sumspec`, a layer over the core; the
+      patterns and reactions it needs are in `parvaz/NOTES.md`.
+- [ ] A layer annotates a base's types (`@status`, `@view`, `@region`), so
+      presentation leaves the core: Parvaz keeps them on core types for now.
+- [ ] A target adds or removes one element of a keyed list, instead of
+      writing the whole list (`Missions'`).
+- [ ] The overlap check reads `x == V` and `x != V` on a sum with payloads,
+      as it does on an enumeration.
 - [ ] `__const`: a named constant written with a keyword,
       `__const MaxPort = Port(100)`, so it no longer reads like a newtype
       and the parser needs no lookahead to tell it from a type (the
@@ -103,18 +113,14 @@ update before any code:
       first release: the plain `C = T(15)` form goes; migrate the drone
       example and the constants tests. Later, with literal patterns, a
       constant may also stand where a pattern goes (`Settings(DefaultPort)`).
-- [ ] `__pattern`: a named state pattern, with parameters that stand for
-      arguments, expanded before checking (as `=>` and `/` are):
-      `__pattern Setting v = PlotEditor(Draft(core.Plot.Drawn(core.RouteSettings(v))))`,
-      then `setRouteSpacing core.RouteSpacing#v :: Route -> Setting(v)`.
-      Usable in sources, targets, guards and shared paths. Rules: the name
-      is uppercase and clashes with no type or constant; a parameter
-      stands for a whole argument, never a path segment; the body names
-      nothing (`#x`) and uses only its parameters; a pattern may use
-      another, but no cycle. Errors at the use site, pointing into the
-      body; the printer keeps the pattern as written, and hover shows its
-      expansion. Replaces a `form` shorthand for setters, and shortens the
-      long guards of a layer (`App(core.Core(core.AircraftLink...))`).
+- [x] `__pattern`: a named state pattern with parameters, expanded
+      before checking: `__pattern Setting(v) = App(PlotEditor(core.Plot.Drawn(core.RouteSettings(v))))`,
+      used as `Setting(v)`, the arguments separated by commas (see "Named
+      patterns" in `spec/spec-v1.md`). The Parvaz core uses it.
+- [ ] A layer uses a base's patterns (`core.ReadyToFly`), their bodies
+      qualified as the base's events are.
+- [ ] Warn about a `__pattern` that is never used; its body is checked
+      only through its uses.
 - [ ] Dependent types and generic types.
 - [x] Arguments through a named product: a variant or a newtype that holds
       a named product takes the product's factors directly, one level

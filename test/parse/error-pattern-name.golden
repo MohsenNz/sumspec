@@ -1,0 +1,6 @@
+test/parse/error-pattern-name.sumspec:6:11:
+  |
+6 | __pattern app = App(App.A)
+  |           ^
+unexpected 'a'
+expecting type or variant name

@@ -90,6 +90,10 @@ the executable (`app/`) and two test suites:
   live here; judgements and their messages live in `Check.hs`. `step`
   is the one place the rule for a name after a dot (`Page.Plan`) is
   written; the checker uses it, so a change to that rule goes there.
+- `src/SumSpec/Expand.hs`: named patterns (`__pattern`): their rules and
+  their expansion, which runs before every check. A name copied from a
+  body carries a tag for its use (`patternOrigin`), so the checker
+  reports an error in it at the use.
 - `src/SumSpec/Check.hs`: the type checker. It validates the AST and
   returns every error, sorted by position. `checkSpecWith` takes what
   the loader found at each entry of `__imports`.

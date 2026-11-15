@@ -497,6 +497,44 @@ add Path#p
 The canonical form puts one branch on the line of its shared paths, and several one per line, each `=>` under the `::`.
 
 
+### Named patterns (__pattern)
+
+A spec often writes the same long path again and again. `__pattern` gives a state pattern a name, with parameters for the parts that change:
+
+```
+__pattern Setting(v)      = App(Plan(PlotEditor(core.Plot.Drawn(core.RouteSettings(v)))))
+__pattern RouteForm       = App(Plan(PlotEditor(PlotController.Route * core.Plot.Drawn)))
+__pattern Selected(at, x) = core.Core(core.Missions[at](x))
+
+setRouteSpacing core.RouteSpacing#v :: RouteForm -> Setting(v)  @control stepper
+setSprayHeight  core.SprayHeight#v  :: RouteForm -> Setting(v)  @control stepper
+```
+
+A use is written like any head, with its arguments in parentheses, one per parameter, separated by commas: `Selected(at, MissionState.Stopped)`. Each argument is what may go in a head's parentheses, so it may be several factors joined by `*`: `InEditor(Doc(Title#t) * Mode.Editing)`. A pattern without parameters is used by its name alone: `RouteForm`.
+
+A use stands for the body, each parameter replaced by its argument. The type checker expands every use before it checks the spec, as it does shared paths, so a pattern adds no meaning of its own: `setRouteSpacing` above is checked as
+
+```
+setRouteSpacing core.RouteSpacing#v
+  :: App(Plan(PlotEditor(PlotController.Route * core.Plot.Drawn)))
+  -> App(Plan(PlotEditor(core.Plot.Drawn(core.RouteSettings(v)))))
+```
+
+A pattern can be used wherever a pattern goes: in a source, a target, a guard, an input, a dispatch's arguments and `__init`. What it may hold there is what its expansion may hold: alternatives in its body are fine in a source or a guard, not in a target.
+
+A pattern without parameters whose body is a chain of paths, each holding at most the next one, is also a shared path: with `__pattern Ed = App(Page.Editor)`, `Ed => Mode.Viewing -> Mode.Editing` means `App(Page.Editor(Mode.Viewing)) -> App(Page.Editor(Mode.Editing))`. A pattern with parameters isn't one, since a shared path takes no arguments.
+
+Rules:
+
+- The name is uppercase. It is new to the spec: no type, atomic, constant or other pattern has it.
+- The parameters are lowercase and distinct, and the body uses each one.
+- The body is a type pattern. It names nothing (no `#x`, `Head(#x)` or `[each #x]`): a value is named at the use, in an argument (`Setting(core.RouteSpacing#v)`). Every lowercase name in it is a parameter, standing for a whole argument (spliced into the arguments where it is), or for the key of an element path (`Missions[at]`), whose argument is then one name. A parameter is never a path segment, a primed or named pattern, or a value inside a computed one.
+- A use gives exactly one argument per parameter. A comma goes only between a pattern's arguments; a type's arguments are joined by `*`. Nothing follows a pattern after a dot (`P.X`), and it takes no element key (`P[x]`).
+- A pattern may use another, but not in a cycle.
+- A pattern is local to its spec: a layer doesn't see a base's patterns. The base's events are read with them expanded.
+
+An error found in an expansion is reported at the use, with the place in the body it comes from: `Of is not a variant of Link (in pattern Bad, at 20:26)`. A pattern that is never used is checked only against the rules above. The canonical form keeps patterns and their uses as written.
+
 ## Named values (#name)
 
 A pattern followed by `#x` names the value it matches; a lowercase name
@@ -985,6 +1023,7 @@ warning (see "Warnings").
 :: starts a transition
 -> state transition
 => a path both sides of a transition share
+,  separates the arguments of a named pattern (__pattern)
 @  an annotation: metadata for the target
 >> fires an event of a base spec (see "Layered specs")
 ```

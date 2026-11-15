@@ -226,6 +226,17 @@ hoverTests =
   , testCase "nothing at an operator" $ do
       result <- withDescribed (`getHover` Position 17 10)
       result @?= Nothing
+  , testCase "a named pattern's use, with its expansion" $ do
+      result <- withServer $ do
+        doc <- createDoc "patterns.sumspec" "sumspec" patterns
+        _ <- waitForDiagnostics
+        getHover doc (Position 7 13)
+      case result of
+        Just (Hover (InL (MarkupContent _ text)) _) ->
+          mapM_
+            (\e -> assertBool (T.unpack (e <> " in: " <> text)) (e `T.isInfixOf` text))
+            ["__pattern Chosen(x) = App(Mode.On * Sel.One(x))", "App(Mode.On * Sel.One(i))"]
+        _ -> assertBool "a hover" False
   ]
   where
     hoverAt pos expected = do
@@ -339,7 +350,7 @@ completionTests =
         ==> ["go"]
   , testCase "at the start of a line, keywords and events not yet defined" $
       completeAt "__atomics { }\n__events { go }\nApp = A | B\ng" (Position 3 1)
-        ==> ["__annotations", "__imports", "__init", "go"]
+        ==> ["__annotations", "__imports", "__init", "__pattern", "go"]
   , testCase "nothing in a comment" $ typing "-- App." ==> []
   ]
   where
@@ -375,6 +386,15 @@ described =
   \Sel = None | One(Id) @control\nAlias = Mode\nMax = Id(3)\n\n\
   \__init :: App(Mode.Off * Sel.None)\n\n\
   \pick Id#i :: App => Sel.None -> Sel.One(i)\n"
+
+-- | A named pattern and a use of it, at line 7, column 13.
+patterns :: Text
+patterns =
+  "__atomics { Id }\n__events { pick }\n\
+  \App = Mode * Sel\nMode = On | Off\nSel = None | One(Id)\n\
+  \__pattern Chosen(x) = App(Mode.On * Sel.One(x))\n\
+  \__init :: App(Mode.Off * Sel.None)\n\
+  \pick Id#i :: Chosen(i) -> App(Mode.Off)\n"
 
 -- | A small spec for the navigation tests. Positions are zero-based:
 --

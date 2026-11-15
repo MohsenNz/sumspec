@@ -1,0 +1,239 @@
+types
+  Aircraft : product of AircraftStatus, Feed, HomePoint, BatteryReserve, SystemId
+  AircraftLink : sum of Disconnected, Connected
+  AircraftStatus : product of ArmState, FlightMode, GPSFix, Satellites, Battery, SprayFlow, Altitude, RangefinderAlt, OffsetAlt, Speed, Heading, Latitude, Longitude
+  Altitude : newtype of Meters
+  Area : newtype of Hectares
+  ArmState : sum of Disarmed, Armed
+  At : newtype of Timestamp
+  Battery : product of BatteryVoltage, BatteryCharge
+  BatteryCharge : newtype of Percent
+  BatteryReserve : sum of Enough, Low
+  BatteryVoltage : newtype of Volts
+  Baud : newtype of Int
+  Boundary : newtype of Ring
+  BreakPoint : newtype of Point
+  CopyOf : newtype of At
+  Core : product of Missions, Run, AircraftLink, Devices, LinkSession, LastDevice, Logs
+  Course : sum of Auto, Manual
+  CourseAngle : newtype of Degrees
+  CoverageArea : sum of RouteOnly, RouteAndBoundary, BoundaryOnly
+  DefaultEdgeMargin : newtype of Meters
+  Degrees : atomic __float
+  Device : product of DeviceName, LinkSettings, LastSystemId
+  DeviceId : newtype of Timestamp
+  DeviceName : newtype of Text
+  Devices : list of Device by DeviceId
+  Distance : newtype of Meters
+  Edge : newtype of Point
+  EdgeInset : newtype of Meters
+  EdgeMargin : product of Edge, EdgeInset
+  EdgeMargins : list of EdgeMargin
+  FPhase : sum of Approaching, Spraying, Holding, PilotControl, Returning
+  FailureReason : atomic __text
+  Feed : sum of Live, Stale
+  FlightMode : sum of Unknown, Named
+  FlownTo : product of At, Point
+  GPSFix : sum of NoFix, Fix2D, Fix3D, DGPS, RTKFix
+  GroundMeasurements : product of Distance, Area, RouteProgress
+  Heading : newtype of Degrees
+  Hectares : atomic __float
+  HomePoint : sum of Unknown, Known
+  HostName : newtype of Text
+  Int : atomic __int
+  LastDevice : sum of None, Known
+  LastSystemId : sum of Unheard, Heard
+  Latitude : atomic __float
+  LinkFailure : newtype of Text
+  LinkQuality : newtype of Percent
+  LinkSession : sum of Closed, Open, Failed
+  LinkSettings : sum of Udp, Tcp, Serial
+  LitersPerMin : atomic __float
+  LogEntry : product of Timestamp, LogLevel, LogTag, Text
+  LogLevel : sum of Info, Warning, Error
+  LogTag : sum of Link, Mavlink, Vehicle, Storage, Basemap, Crash
+  Logs : list of LogEntry
+  Longitude : atomic __float
+  Marking : sum of Obstacle, RoundObstacle, PowerLine, NonSprayArea, MarkPoint
+  Markings : list of Marking
+  Meters : atomic __float
+  MetersPerSec : atomic __float
+  Mission : product of MissionName, GroundMeasurements, MissionState, Plot
+  MissionCopy : product of CopyOf, At, MissionName
+  MissionFlight : sum of Arming, Flying, Failed
+  MissionName : newtype of Text
+  MissionRun : product of At, MissionFlight
+  MissionState : sum of NotStarted, Completed, Stopped
+  Missions : list of Mission by At
+  NewMission : product of At, MissionName, Plot
+  ObstacleBoundary : newtype of Meters
+  OffsetAlt : sum of NoSensor, NoReading, Reading
+  Path : sum of Partial, Total
+  Percent : atomic __float
+  Plot : sum of Empty, Drawn
+  PlotDrawn : product of Boundary, Markings, RouteSettings
+  PlotUpdate : product of At, MissionName, Plot
+  Point : product of Latitude, Longitude
+  Points : list of Point
+  Port : newtype of Int
+  RangefinderAlt : sum of NoSensor, NoReading, Reading
+  ReturnHeight : newtype of Meters
+  Ring : sum of Partial, Closeable, Enclosed
+  RouteEntry : sum of FromStart, FromBreakPoint
+  RouteProgress : newtype of Percent
+  RouteSettings : product of RouteSpacing, SprayHeight, ReturnHeight, SpraySpeed, DefaultEdgeMargin, EdgeMargins, StartCorner, CoverageArea, ObstacleBoundary, SingleSideSpraying, Course
+  RouteSpacing : newtype of Meters
+  Run : sum of Idle, Active
+  Satellites : newtype of Int
+  SavedDevice : product of DeviceId, DeviceName, LinkSettings
+  Seconds : atomic __float
+  SingleSideSpraying : sum of Off, On
+  Speed : newtype of MetersPerSec
+  Spot : newtype of Point
+  SprayFlow : newtype of LitersPerMin
+  SprayHeight : newtype of Meters
+  SpraySpeed : newtype of MetersPerSec
+  Sprayer : newtype of Unimplemented
+  StartCorner : newtype of Point
+  StopReason : sum of Commanded, BatteryLow, LinkLost, ManualTakeover, GpsLost
+  SystemId : newtype of Int
+  TelemetryAge : newtype of Seconds
+  Text : atomic __text
+  Timestamp : atomic
+  Unimplemented : atomic
+  Volts : atomic __float
+variants
+  Active : Run
+  Approaching : FPhase
+  Armed : ArmState
+  Arming : MissionFlight
+  Auto : Course
+  Basemap : LogTag
+  BatteryLow : StopReason
+  BoundaryOnly : CoverageArea
+  Closeable : Ring
+  Closed : LinkSession
+  Commanded : StopReason
+  Completed : MissionState
+  Connected : AircraftLink
+  Crash : LogTag
+  DGPS : GPSFix
+  Disarmed : ArmState
+  Disconnected : AircraftLink
+  Drawn : Plot
+  Empty : Plot
+  Enclosed : Ring
+  Enough : BatteryReserve
+  Error : LogLevel
+  Failed : MissionFlight
+  Failed : LinkSession
+  Finished : FPhase.Returning
+  Fix2D : GPSFix
+  Fix3D : GPSFix
+  Flying : MissionFlight
+  FromBreakPoint : RouteEntry
+  FromStart : RouteEntry
+  GpsLost : StopReason
+  Heard : LastSystemId
+  Holding : FPhase
+  Idle : Run
+  Info : LogLevel
+  Interrupted : FPhase.Returning
+  Known : HomePoint
+  Known : LastDevice
+  Link : LogTag
+  LinkLost : StopReason
+  Live : Feed
+  Low : BatteryReserve
+  Manual : Course
+  ManualTakeover : StopReason
+  MarkPoint : Marking
+  Mavlink : LogTag
+  Named : FlightMode
+  NoFix : GPSFix
+  NoReading : RangefinderAlt
+  NoReading : OffsetAlt
+  NoSensor : RangefinderAlt
+  NoSensor : OffsetAlt
+  NonSprayArea : Marking
+  None : LastDevice
+  NotStarted : MissionState
+  Obstacle : Marking
+  Off : SingleSideSpraying
+  On : SingleSideSpraying
+  Open : LinkSession
+  Partial : Ring
+  Partial : Path
+  PilotControl : FPhase
+  PowerLine : Marking
+  RTKFix : GPSFix
+  Reading : RangefinderAlt
+  Reading : OffsetAlt
+  Returning : FPhase
+  RoundObstacle : Marking
+  RouteAndBoundary : CoverageArea
+  RouteOnly : CoverageArea
+  Serial : LinkSettings
+  Spraying : FPhase
+  Stale : Feed
+  Stopped : MissionState
+  Storage : LogTag
+  Tcp : LinkSettings
+  Total : Path
+  Udp : LinkSettings
+  Unheard : LastSystemId
+  Unknown : FlightMode
+  Unknown : HomePoint
+  Vehicle : LogTag
+  Warning : LogLevel
+constants
+  BatteryLowThreshold : Percent
+patterns
+  InFlight(phase) : Run
+  ReadyToFly : AircraftLink
+  SprayingRun(at) : Run
+events
+  addMission : 1 transition
+  aircraftConnectedEvent : 1 transition
+  armedEvent : 3 transitions
+  armingFailedEvent : 1 transition
+  autoRestoredEvent : 1 transition
+  batteryLowEvent : 4 transitions
+  cancelArming : 1 transition
+  closeLink : 1 transition
+  copyMission : 1 transition
+  deleteMission : 1 transition
+  flownAwayDoneEvent : 1 transition
+  flownAwayToEvent : 1 transition
+  gpsLostEvent : 2 transitions
+  groundMeasuredEvent : 1 transition
+  homeReachedEvent : 1 transition
+  homeSetEvent : 1 transition
+  landedEvent : 1 transition
+  linkFailedEvent : 1 transition
+  linkLossEvent : 3 transitions
+  logged : 1 transition
+  manualControlTakenEvent : 4 transitions
+  missionCompletedEvent : 1 transition
+  removeDevice : 1 transition
+  resumeMission : 2 transitions
+  retryArming : 1 transition
+  returnToHome : 2 transitions
+  routeReachedEvent : 1 transition
+  saveDevice : 3 transitions
+  selectDevice : 1 transition
+  startMission : 1 transition
+  stopMission : 2 transitions
+  telemetryBackEvent : 1 transition
+  telemetryFrameEvent : 1 transition
+  telemetryLostEvent : 1 transition
+  updatePlot : 1 transition
+annotations
+  @after
+  @default
+  @range
+  @region
+  @status
+  @stream
+  @view
+root Core

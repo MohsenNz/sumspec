@@ -10,6 +10,20 @@ release" in `VERSIONING.md`).
 
 ### Language
 
+- Named patterns: `__pattern Setting(v) = App(PlotEditor(core.Plot.Drawn(core.RouteSettings(v))))`
+  names a state pattern with parameters, and `Setting(v)` uses it, the
+  arguments separated by commas (`Selected(at, MissionState.Stopped)`).
+  A use stands for the body with each parameter replaced by its
+  argument, and is expanded before checking, in sources, targets,
+  guards, inputs, dispatches and `__init`; a pattern without parameters
+  whose body is a chain of paths is also a shared path (`Ed => a -> b`).
+  The checker reports a name that isn't new, a pattern defined twice, a
+  repeated or unused parameter, a body that names a value or uses a name
+  that isn't a parameter, a cycle, a use with the wrong number of
+  arguments, a comma after a head that isn't a pattern, and a pattern
+  that can't be a shared path. An error in an expansion is reported at
+  the use, pointing into the body. A base's patterns aren't visible to
+  a layer. `parvaz/parvaz-core.sumspec` uses them.
 - Arguments through a named product: a variant carrying one named product
   (`| Drawn PlotDrawn`), or a newtype of one (`B = D`, `D = G * H`), takes
   the product's factors directly, one level deep: `Plot.Drawn(Boundary)`
@@ -192,6 +206,11 @@ release" in `VERSIONING.md`).
 
 ### Tool
 
+- Named patterns: the library has `SumSpec.Expand` (`expandSpec`,
+  `patternOrigin`), and the model the patterns (`modelPatterns`). The
+  language server indexes a pattern and its uses (definition,
+  references, outline, semantic tokens as a macro), completes pattern
+  names and `__pattern`, and shows a use's expansion on hover.
 - `sumspec check` reads the base specs a spec imports, relative to it,
   and checks each on its own first. The library has `SumSpec.Load`
   (`loadSpec`, `loadImports`) and `checkSpecWith`, and the model the

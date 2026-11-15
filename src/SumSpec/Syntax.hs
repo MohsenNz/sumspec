@@ -13,6 +13,7 @@ module SumSpec.Syntax
   , TypeDef (..)
   , ConstDef (..)
   , ConstValue (..)
+  , PatternDef (..)
   , TypeExpr (..)
   , Atomic (..)
   , Primitive (..)
@@ -91,6 +92,8 @@ data Definition
     DefInit Name Pattern
   | -- | @T = A(15)@ or @T = A.B@: a named constant.
     DefConst ConstDef
+  | -- | @__pattern P(a, b) = body@: a named state pattern.
+    DefPattern PatternDef
   deriving stock (Eq, Show)
 
 -- | @T = expr@
@@ -110,6 +113,17 @@ data ConstDef = ConstDef
   { constName :: Name
   , constType :: Name
   , constValue :: ConstValue
+  }
+  deriving stock (Eq, Show)
+
+-- | @__pattern P(a, b) = body@: a named state pattern with parameters. A
+-- use, @P(x, y)@, stands for the body with each parameter replaced by its
+-- argument; it is expanded before checking (see "SumSpec.Expand").
+data PatternDef = PatternDef
+  { patternDefName :: Name
+  , patternDefParams :: [Name]
+  -- ^ The parameters, in order; none without parentheses.
+  , patternDefBody :: Pattern
   }
   deriving stock (Eq, Show)
 
@@ -375,6 +389,11 @@ data Pattern
     -- after any pattern; the checker allows it only on a bare type name on
     -- the target side.
     PatternPrimed SourcePos Pattern
+  | -- | @P(a, b * c)@: a head with its arguments in two or more groups,
+    -- separated by commas, one per parameter of the pattern @P@. A head
+    -- with one group is a 'PatternPath'. Only a named pattern takes
+    -- several groups; the expansion replaces every use.
+    PatternApply (NonEmpty Name) (NonEmpty [Pattern])
   | -- | A value computed by the transition, such as @n + 1@ or @0@. The
     -- parser gives a lone name as 'PatternName', never as an expression.
     -- The checker allows it only on the target side and in @__init@.

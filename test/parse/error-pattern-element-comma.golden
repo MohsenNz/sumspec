@@ -1,0 +1,5 @@
+test/parse/error-pattern-element-comma.sumspec:11:23:
+   |
+11 | t Id#i :: App(Items[i](A.X, B.X)) -> App(Items[i](A.Y))
+   |                       ^
+an element takes its arguments joined by "*"; a comma separates the arguments of a named pattern

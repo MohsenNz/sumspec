@@ -71,14 +71,14 @@ completions source sourceAt spec m (Position line character) =
     InBlock _ -> []
     LineStart ->
       [ item CompletionItemKind_Keyword k k Nothing Nothing
-      | k <- ["__init", "__annotations", "__imports"]
+      | k <- ["__init", "__pattern", "__annotations", "__imports"]
       ]
         <> [ item CompletionItemKind_Event name name (Just "listed in __events") Nothing
            | n <- specEvents spec
            , let name = nameText n
            , name `M.notMember` modelEvents m
            ]
-    Anywhere -> types <> constants <> values
+    Anywhere -> types <> constants <> patterns <> values
   where
     sourceLines = T.lines source
     lineNo = fromIntegral line
@@ -129,6 +129,10 @@ completions source sourceAt spec m (Position line character) =
     constants =
       [ item CompletionItemKind_Constant name name (Just (nameText (constType c))) Nothing
       | (name, c) <- M.toList (modelConsts m)
+      ]
+    patterns =
+      [ item CompletionItemKind_Function name name (Just "pattern") (doc (patternDefName d))
+      | (name, d) <- M.toList (modelPatterns m)
       ]
     -- The values named so far in the definition being written: each
     -- @#x@ from the line where it starts (in column 1) to the cursor. Read

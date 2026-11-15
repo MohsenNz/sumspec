@@ -45,6 +45,7 @@ events_block  = "__events" , "{" , { LOWER } , "}" ;
 annotations_block = "__annotations" , "{" , { ANNOTATION } , "}" ;
 
 definition    = init_state
+              | pattern_def
               | type_def
               | const_def
               | event_def ;
@@ -53,6 +54,17 @@ definition    = init_state
    state. It isn't a transition: no source, no "->", no event.
      __init :: App(Page.Home)                                          *)
 init_state    = "__init" , "::" , pattern ;
+
+(* A named pattern: a state pattern with a name and parameters, expanded
+   wherever it is used (see "Named patterns" in spec-v1.md). The body
+   names nothing, and its LOWERs are its parameters:
+     __pattern Setting(v) = App(PlotEditor(core.Plot.Drawn(core.RouteSettings(v))))
+     __pattern Ed         = App(Page.Editor)
+   A use is written as a head with its arguments, one per parameter,
+   separated by ",":  Setting(v)   Selected(at, MissionState.Stopped)   *)
+pattern_def   = "__pattern" , UPPER ,
+                [ "(" , LOWER , { "," , LOWER } , ")" ] , "=" ,
+                type_pattern ;
 
 
 (* ---------- Type definitions ---------- *)
@@ -261,15 +273,18 @@ arith_product = arith_atom , { "*" , arith_atom } ;
 
 arith_atom    = LOWER | literal | UPPER | "(" , arith , ")" ;
 
+(* A "," separates the arguments of a named pattern, one per parameter
+   (see "Named patterns" in spec-v1.md):  Edit(Doc, Mode.Viewing)        *)
 type_pattern  = path , "." , "{" , alternatives , "}"
               | path , [ element_key ] ,
-                [ "(" , ( NAMING | arguments ) , ")" ]
+                [ "(" , ( NAMING | arguments , { "," , arguments } ) , ")" ]
               | "[" , type_term , [ "by" , UPPER ] , "]" ;
 
 alternatives  = alternative , "|" , alternative , { "|" , alternative } ;
 
 alternative   = path , [ "." , "{" , alternatives , "}"
-                       | "(" , ( NAMING | arguments ) , ")" ] ;
+                       | "(" , ( NAMING | arguments , { "," , arguments } ) ,
+                         ")" ] ;
 
 element_key   = "[" , ( LOWER | "each" , [ NAMING ] , [ "in" , LOWER ] ) , "]" ;
 
@@ -383,14 +398,33 @@ character     = ? any Unicode character ? ;
    followed by another "/": "//" starts a guard. Everywhere else the
    grammar is LL(1).
 
+   Element path: a parser reports a "," in the arguments of an element
+   path (L[x](a, b)), which only a named pattern takes.
+
    Version: a parser stops at a version_header whose version it doesn't
    implement (a different major version, or a newer minor version) and
    says so, instead of failing later on syntax it doesn't know.
 
    Not in the grammar (the type checker, src/SumSpec/Check.hs, checks
-   these). A transition with shared paths is checked as its expanded
-   form, one transition per branch (S => a -> b as S(a) -> S(b)), and a
-   problem in a shared path is reported once:
+   these). Named patterns are expanded first (src/SumSpec/Expand.hs), and
+   the rest is checked on the expansion. A transition with shared paths is
+   checked as its expanded form, one transition per branch (S => a -> b
+   as S(a) -> S(b)), and a problem in a shared path is reported once:
+   - named patterns (see "Named patterns" in spec-v1.md): a pattern's
+     name is new to the spec (no type, atomic, constant or other pattern
+     has it); its parameters are distinct and each is used in the body;
+     the body names nothing (no NAMING, Head(#x) or [each #x]), and each
+     LOWER in it is a parameter, standing for a whole argument or for the
+     key of an element path (whose argument is then one LOWER), never
+     primed, named or inside an arith; no pattern uses itself, directly
+     or through others. A use has one argument per parameter; a "," goes
+     only between a pattern's arguments; nothing follows a pattern after
+     a "." and it takes no element_key. As a shared path, a pattern has no
+     parameters and its body is a chain of paths, each with at most one
+     argument, the next path. A use stands for the body with each
+     parameter replaced by its argument (spliced into the arguments
+     where it is); an error in it is reported at the use, pointing into
+     the body. A base's patterns aren't visible to a layer;
    - alternatives (S.{A | B}) go only in a source or a pattern in a
      guard, each written once in its group, and bind no value. A source
      with alternatives is checked as one transition per alternative (per

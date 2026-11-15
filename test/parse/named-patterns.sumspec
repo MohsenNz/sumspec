@@ -1,0 +1,25 @@
+-- Named patterns: definitions with no, one and two parameters, and uses
+-- with commas between the arguments.
+__atomics { Name = __text  Id }
+__events { rename open close pick }
+
+App = Page * Items
+Page = Home | Editor (Doc * Mode)
+Doc = Title * Body
+Title = Name
+Body = Name
+Mode = Viewing | Editing
+Items = [Item by Id]
+Item = Done | Todo
+
+__pattern Ed = App(Page.Editor)
+__pattern InEditor(x) = App(Page.Editor(x))
+__pattern Edit(d, m) = App(Page.Editor(d * m))
+__pattern Picked(i, s) = App(Items[i](s))
+
+__init :: App(Page.Home)
+
+rename Name#n :: InEditor(Doc(Title#t) * Mode.Editing) -> InEditor(Doc(Title(n)))
+open :: App(Page.Home) -> Edit(Doc, Mode.Viewing)
+close :: Ed => Mode.Viewing -> Mode.Editing
+pick Id#i :: Picked(i, Item.Todo) -> Picked(i, Item.Done)

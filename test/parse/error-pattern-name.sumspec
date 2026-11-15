@@ -1,0 +1,6 @@
+-- A pattern's name is uppercase.
+__atomics { }
+__events { }
+
+App = A | B
+__pattern app = App(App.A)

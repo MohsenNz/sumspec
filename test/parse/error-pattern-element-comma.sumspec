@@ -1,0 +1,11 @@
+-- An element takes its arguments joined by "*", never by commas.
+__atomics { Id }
+__events { t }
+
+App = Items
+Items = [Item by Id]
+Item = A * B
+A = X | Y
+B = X | Y
+__init :: App
+t Id#i :: App(Items[i](A.X, B.X)) -> App(Items[i](A.Y))

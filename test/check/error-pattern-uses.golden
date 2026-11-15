@@ -1,0 +1,90 @@
+test/check/error-pattern-uses.sumspec:9:15:
+  |
+9 | Page = Home | Editor (Doc * Mode)
+  |               ^
+warning: Page.Editor is never reached: neither __init nor any transition that can happen puts the app there
+
+test/check/error-pattern-uses.sumspec:21:11:
+   |
+21 | __pattern Loop = App(Loop)
+   |           ^
+pattern Loop uses itself; a pattern may use another, but not in a cycle
+
+test/check/error-pattern-uses.sumspec:25:6:
+   |
+25 | a :: W -> App(Link.Off)
+   |      ^
+pattern W takes 1 argument, but none is given
+
+test/check/error-pattern-uses.sumspec:26:6:
+   |
+26 | b :: W(Mode.Viewing, Mode.Editing) -> App(Link.Off)
+   |      ^
+pattern W takes 1 argument, but 2 arguments are given
+
+test/check/error-pattern-uses.sumspec:27:6:
+   |
+27 | c :: App(Link.Off, Link.On) -> App(Link.On)
+   |      ^
+a comma separates the arguments of a named pattern; join the arguments of a type with "*"
+
+test/check/error-pattern-uses.sumspec:27:20:
+   |
+27 | c :: App(Link.Off, Link.On) -> App(Link.On)
+   |                    ^
+factor Link is written twice
+
+test/check/error-pattern-uses.sumspec:28:6:
+   |
+28 | d :: W => Mode.Viewing -> Mode.Editing
+   |      ^
+pattern W has parameters, so it isn't a shared path, which takes no arguments; write it in each side
+
+test/check/error-pattern-uses.sumspec:29:6:
+   |
+29 | e :: Two => Link.Off -> Link.On
+   |      ^
+pattern Two isn't a chain of paths, so it isn't a shared path: each path in its body may hold only the next one
+
+test/check/error-pattern-uses.sumspec:30:6:
+   |
+30 | f :: Two.Home -> App(Link.On)
+   |      ^
+pattern Two is a whole pattern: nothing follows it after a dot
+
+test/check/error-pattern-uses.sumspec:31:11:
+   |
+31 | g Id#n :: Picked(Item.Done) -> App(Link.On)
+   |           ^
+parameter i is the key of an element path, so its argument is one name (in pattern Picked, at 19:33)
+
+test/check/error-pattern-uses.sumspec:32:6:
+   |
+32 | h :: Bad -> App(Link.On)
+   |      ^
+Of is not a variant of Link (in pattern Bad, at 20:26)
+
+test/check/error-pattern-uses.sumspec:33:24:
+   |
+33 | k :: App(Page.Home) // Bad -> App(Link.On)
+   |                        ^
+Of is not a variant of Link (in pattern Bad, at 20:26)
+
+test/check/error-pattern-uses.sumspec:34:6:
+   |
+34 | i :: Loop -> App(Link.On)
+   |      ^
+pattern Loop uses itself, so it can't be expanded
+
+test/check/error-pattern-uses.sumspec:35:12:
+   |
+35 | j :: Page.{Editor | W(Mode.Viewing, Mode.Editing)} -> Page.Home
+   |            ^
+warning: j: this transition can never happen: its source needs Page.Editor, which is never reached
+
+test/check/error-pattern-uses.sumspec:35:21:
+   |
+35 | j :: Page.{Editor | W(Mode.Viewing, Mode.Editing)} -> Page.Home
+   |                     ^
+a comma separates the arguments of a named pattern, not of a variant
+

@@ -1,0 +1,2009 @@
+------------------------------------------------------------------------------------
+-- Parvaz Agro -- application specification
+--
+-- The notation is defined in `./spec-grammar`. First read that before this file.
+------------------------------------------------------------------------------------
+
+__annotations {
+  @default
+  @requiresConfirmation
+  @unless        -- a transition, or a variant of a value, is unavailable while
+                 -- this state holds; the UI shows it disabled with a reason
+  @when          -- a part is drawn only while this state holds; otherwise
+                 -- it is not drawn at all, rather than shown disabled.
+                 -- Where @unless greys out a transition or variant in place,
+                 -- @when hides a part outright. It governs drawing only:
+                 -- a value keeps its state whether it is drawn or not.
+                 -- Like @unless, it carries a path, read from the
+                 -- enclosing type.
+  @stream        -- system-originated and continuous: it refreshes values in
+                 -- place. No control triggers it, no arrival is announced,
+                 -- and it never changes which view is shown.
+
+  @announce      -- this system-originated transition must state its arrival:
+                 -- the UI may not switch silently. Carried by every *Event
+                 -- except @stream and those leaving a @status loading source,
+                 -- where the operator is already waiting for the answer.
+
+  @from          -- this type is a projection of the named type: every member
+                 -- here must also be a member there, with the same signature,
+                 -- or a member that is itself @from one of them.
+                 -- On a member, only that member is projected: it is the named
+                 -- type's `_` form, or a member found under that type at any
+                 -- depth, by the same name or its `_` form.
+                 -- On a variant, its payload is projected from the named type;
+                 -- which variant is held is the view's own state.
+
+  @edits         -- this type is a form bound to the named type: every member
+                 -- here must also be a member there, with the same signature.
+                 -- Unlike @from, which derives a read-only value, an @edits
+                 -- surface writes through to its source and never copies it.
+
+  @view          -- What kind of experience. A drawn marker; see @region.
+                 --   status_tile the member's icon and value in a narrow tile at its natural
+                 --               width, tinted by the value: no label, never cropped
+  @control       -- What interaction mechanism represents a value or an action.
+                 -- On a type it says that widget edits this value, and no
+                 -- transition is needed to say so; on a transition it says that
+                 -- widget triggers this action. A drawn marker; see @region.
+                 -- A value may carry more than one: each is another way to
+                 -- reach it, and the design draws them all.
+                 -- One of:
+                 --   button            a labelled tap target for the action
+                 --   button_icon       an icon (no text) tap target for the action
+                 --   button_icon_f     a floating button_icon
+                 --   crosshair_add     a fixed crosshair the map pans under,
+                 --                     plus an add button
+                 --   drop_down         a closed list that opens to pick one value
+                 --   list_row          a row in a list, tapped as a whole
+                 --   menu_item         an entry in a short list a button_icon
+                 --                     opens; picking one closes the list
+                 --   map_handle_drag   a drag on a marker already on the map,
+                 --                     which supplies its new position
+                 --   map_pan           a drag on the map itself, not on a widget
+                 --   map_pinch         a two-finger pinch on the map itself
+                 --   map_point_picker  a tap on the map supplies the position
+                 --   map_edge_picker   a tap on a drawn shape's edge supplies it
+                 --   map_shape_picker  a tap on a drawn shape selects it
+                 --   multi_select      a closed list that opens to tick any number
+                 --                     of values; ticking none means all of them
+                 --   name_prompt       a button opening a single-field dialog
+                 --                     for a name, which it supplies as input
+                 --   nav_entry         a navigation row: icon, label, one-line
+                 --                     description and a chevron; the whole row
+                 --                     is the touch target
+                 --   segmented         adjacent options, exactly one selected
+                 --   stepper           a number nudged by minus and plus buttons
+                 --   text_field        a one-line input; for a number it holds
+                 --                     the value to its @range
+                 --   tile_tap          a tap on a tile as a whole; switches it
+                 --                     to its other unit
+                 --   toggle            a two-state switch over a Bool
+
+  @region        -- where a part is DRAWN, one of:
+                 --   canvas  fills the view; other regions sit beside or over it
+                 --   panel   persistent surface holding controls for the canvas
+                 --   bar     thin strip of navigation or status
+                 -- @region, @view and @control are the drawn markers. A
+                 -- definition the design draws carries at least one of them on
+                 -- its head line; a definition carrying none is pure state.
+                 -- In a newtype `A = B` an annotation after the `=` is A's own
+                 -- either way: there is no member for it to belong to, and
+                 -- `A = [B]` is the same case. In a sum or product it binds to
+                 -- the variant or member it follows.
+                 -- A drawn part inherits its parent's region unless it
+                 -- overrides it.
+
+  @placement     -- where a region sits:
+                 --   @placement <edge>
+                 -- edge: left | right | top | bottom
+
+  @status        -- transient condition of a view, one of:
+                 --   loading  awaiting data; show progress
+                 --   empty    nothing to show; explain how to proceed
+                 --   error    retrieval or action failed; offer recovery
+
+  @range         -- permitted values of a numeric member, `low..high`,
+                 -- inclusive; the units are the member's own
+  @step          -- the increment a @control stepper moves by
+
+  @after         -- the measure that fires a system transition:
+                 -- `@after <member> <value>`. The transition fires when
+                 -- that member reaches the value; the units are the
+                 -- member's own, as with @range. The value is a literal,
+                 -- a type holding one by @default, or one or more
+                 -- variants of the member, `(A | B)`, which fire when the
+                 -- member turns to any of them.
+
+  @size          -- a fraction of the reference screen fixed by @aspectRatio,
+                 -- so it pins a size at design time rather than describing a
+                 -- runtime formula
+  @overflow      -- the part holds more than its @size can show, and how the
+                 -- rest is reached:
+                 --   scroll  the content scrolls inside the region
+                 -- Without it a part is asserted to fit.
+  @aspectRatio
+  @platform
+  @targets
+  @orientation
+  @theme
+}
+
+__atomics {
+  Bool
+  Int
+  Meters
+  Hectares
+  LitersPerMin
+  MetersPerSec
+  Degrees             -- 0..360, clockwise from north
+  Latitude            -- -90..+90
+  Longitude           -- -180..+180
+  Timestamp
+  Seconds
+  Percent             -- 0..100
+  Volts
+  Text                -- one short line of text
+  FailureReason       -- a code and a human-readable cause, reported by the
+                      -- flight controller; not interpreted by the app
+  Unimplemented       -- reserved marker: this part has no behaviour yet
+}
+
+__state_scopes {
+  domain   -- facts about the world; meaningful with no screen concern
+  ui
+}
+
+__txs {
+  -- App Page
+  goToPlan              -- the Map opens where it was last left;
+                        -- the first launch opens on the defaults
+  goToDevices
+  goToAircraft          -- opens the map already watching the connected aircraft, as
+                        -- watchAircraft would from the map
+  reconnect             -- relinks LastDevice from Home, as selectDevice would on
+                        -- its row; on a Failed link it retries
+  pagePlanBackToHome
+  pageDevicesBackToHome -- drops an unsaved DeviceForm
+  goToLogs
+  pageLogsBackToHome
+  exportLogs            -- hands Logs to the platform's sharing, as one file; changes
+                        -- no state, and is offered on every build
+  showAbout
+  closeAbout
+
+  -- Page.Plan
+  newPlot               -- starts a Draft; nothing is saved until savePlot
+  startMission          -- flies the route from its start. On a Stopped mission it
+                        -- is "Start over", beside resumeMission, and its
+                        -- confirmation says the BreakPoint is dropped. Nothing
+                        -- is written until armedEvent, so an arming that fails
+                        -- or is cancelled keeps the BreakPoint
+  showMission
+  savePlot              -- names the plot and writes it into Missions. A run is one
+                        -- mission, created once and edited in place until it
+                        -- settles
+  cancelPlot            -- goes back where the plot came from: a Draft to the
+                        -- map, an Editing one to the mission it was opened
+                        -- from, mirroring savePlot's two signatures
+  closeMissionList      -- the map is what the list was covering, so closing
+                        -- it lands there
+  missionCompletedEvent
+
+  -- Map
+  retryMap
+  mapReadyEvent
+  mapFailedEvent
+  locateMe              -- centres the map on the operator. Located carries a
+                        -- Point, so a boundary can also be placed from where
+                        -- the operator is standing rather than from the
+                        -- crosshair, which is the one way to beat the
+                        -- basemap's resolution
+  locationFoundEvent
+  locationDeniedEvent
+  locationFailedEvent
+
+  -- PMode.Plot
+  pointAdd              -- the crosshair supplies the Point; the
+                        -- point type comes from PlotController.Field, already
+                        -- in the source state. That type splits the two
+                        -- signatures: BoundaryPoint extends the one Boundary,
+                        -- anything else extends a Marking. The second needs a
+                        -- Plot.Drawn to exist first, because Boundary has no
+                        -- empty state -- the edge is drawn before it is
+                        -- annotated.
+                        -- A Ring that is already Enclosed has no end to extend,
+                        -- so the Point joins the edge nearest it instead: that
+                        -- is how a closed shape is reshaped.
+                        -- Its EdgeMargins follow, see Edge
+  pointSelect           -- a tap on a placed point arms it, in the Boundary or
+                        -- in a Marking. It is what makes pointDelete a panel
+                        -- button rather than a tap: removing ground is not
+                        -- something a stray touch should do
+  pointDeselect         -- a second tap on the armed point, which is why it
+                        -- supplies nothing: the point to disarm is the one
+                        -- already armed. Bare ground deselects the shape
+                        -- instead, and takes the point with it
+  pointDelete           -- takes no input; the selection already holds the
+                        -- point. A plot that loses its whole Boundary loses
+                        -- its Markings with it: there is nowhere left to hang
+                        -- them. A Ring that still has three points stays
+                        -- Enclosed -- dropping a vertex from a closed polygon
+                        -- leaves it closed. EdgeMargins follow, see Edge
+  shapeDelete           -- the panel's Delete with no point armed: it takes
+                        -- the selected Marking whole. An unfinished one may go
+                        -- too: besides enclosing, it is the one way out of it.
+                        -- The Boundary has no such signature: the field is
+                        -- only ever removed a point at a time
+  pointMove             -- drags the selected point to a new position. It
+                        -- changes no arity at all, so a Ring keeps the variant
+                        -- it had, Enclosed included, and the selection follows
+                        -- the point rather than being cleared. An EdgeMargin
+                        -- follows it too, see Edge
+  pointEnclose
+  setPointType          -- picking a point type says what to draw next, so it
+                        -- releases the shape being edited. spec gives it a
+                        -- transition, unlike most @control-on-a-type, because
+                        -- the edit changes more than the value it names.
+                        -- BoundaryPoint names the one Boundary, so picking it
+                        -- selects that shape rather than releasing; the five
+                        -- Marking types name no shape in particular
+  setPlotController     -- switching between the two halves of the panel
+  startCornerPick       -- arms the map to choose the StartCorner among the
+                        -- Boundary's points. It ends an edge pick
+  startCornerSet        -- a tap on a Boundary point makes it the StartCorner;
+                        -- the current one may be tapped again
+  startCornerCancel     -- the same button again, or bare map: nothing changes
+  edgeMarginPick        -- arms the map to choose a Boundary edge. It ends a
+                        -- StartCorner pick: one map tap cannot mean both
+  edgeSelect            -- a tap on a Boundary edge selects it for its own
+                        -- margin; another edge moves the selection
+  edgeMarginSet         -- the selected edge's stepper; the first nudge gives
+                        -- the edge its own EdgeMargin
+  edgeMarginReset       -- drops the selected edge's EdgeMargin, so it takes
+                        -- DefaultEdgeMargin again
+  edgeMarginDone        -- the same button again, or bare map; set margins stay
+  shapeSelect           -- a tap on a drawn shape arms it, and with it decides
+                        -- where the next Point goes. It sets the point type too,
+                        -- so the panel names the shape being edited
+  shapeDeselect         -- the same tap landing on bare ground, which is why it
+                        -- supplies nothing. It clears the point selection with
+                        -- it: a point of an unselected shape cannot stay armed.
+                        -- An unfinished shape holds the selection: none of these
+                        -- three can leave a Ring short of Enclosed, or a Path of
+                        -- one point. What ends a Ring is enclosing it; what ends a
+                        -- line is leaving it.
+                        -- BoundaryPoint holds it too: it names the one Boundary,
+                        -- so leaving means picking another type, or another shape
+  pointUndo             -- restores the shape it was editing, not only the
+                        -- geometry: an undone step leaves that shape selected
+                        -- and names it in the panel.
+  pointRedo             -- the same, forwards
+
+  -- PMode.MissionRun
+  armedEvent            -- the aircraft reports Armed while the run is Arming.
+                        -- From the start or from a BreakPoint, the aircraft
+                        -- first ferries out as Approaching its RouteEntry.
+                        -- FromStart resets the mission: NotStarted, Distance
+                        -- and Area back to zero. FromBreakPoint keeps the
+                        -- mission's figures accumulating. Outside a run, on
+                        -- the map, it opens ManualAircraft: an aircraft that
+                        -- may take off is never left unwatched
+  armingFailedEvent
+  retryArming
+  cancelArming          -- gives up on arming from either state it can be in.
+                        -- Arming asks first: the aircraft is still working on
+                        -- the upload. Failed does not: the attempt is already
+                        -- over, and there is nothing left to interrupt
+  stopMission           -- halts the run and holds position. While Spraying it
+                        -- marks a BreakPoint; while Approaching nothing has
+                        -- been sprayed, so it keeps the RouteEntry and writes
+                        -- nothing: a FromStart mission stays NotStarted
+  resumeMission         -- picks spraying up again; the mission can still reach
+                        -- missionCompletedEvent afterwards. In flight, from
+                        -- Holding, it flies back out to the held
+                        -- RouteEntry. Landed, it is the primary action on a
+                        -- Stopped mission, beside startMission's "Start over":
+                        -- it arms the aircraft to approach the BreakPoint its
+                        -- Stopped holds
+  routeReachedEvent     -- the aircraft joins the route at its RouteEntry and the
+                        -- sprayer opens; see Sprayer
+  returnToHome          -- the way a flight ends early, from Holding or before
+                        -- the route is reached. It commands the aircraft home
+                        -- and keeps the flight on screen. stopMission already
+                        -- settled the mission, and the ferry home changes
+                        -- nothing in it
+  manualControlTakenEvent -- the operator takes the transmitter, from any state
+                        -- of the run. Out on the route (Approaching, Spraying,
+                        -- Holding) the run waits in PilotControl; otherwise it
+                        -- ends and the app only watches, in ManualAircraft.
+                        -- While Spraying it marks a BreakPoint, so the mission
+                        -- resumes in flight or from the ground
+  autoRestoredEvent     -- the pilot switches back to AUTO from PilotControl. The
+                        -- app holds the aircraft instead of letting it fly on
+                        -- toward its waypoint, and waits on resumeMission
+  landedEvent           -- the aircraft disarms in PilotControl; the mission
+                        -- keeps what the takeover settled
+  batteryLowEvent       -- BatteryReserve turns Low while Flying out, Holding,
+                        -- Spraying or in PilotControl. Like returnToHome it commands the aircraft
+                        -- home, whatever its own failsafe does. While Spraying it
+                        -- marks a BreakPoint and settles the mission Stopped
+  gpsLostEvent          -- the fix drops below 3D while a run is Flying. The
+                        -- aircraft cannot hold or fly home without GPS, so its
+                        -- failsafe lands or drifts; the run ends and the app
+                        -- only watches, in ManualAircraft. While Spraying it
+                        -- marks a BreakPoint at the last position with a fix
+  homeReachedEvent
+
+  -- PMode.ManualAircraft
+  watchAircraft         -- watches a connected aircraft from the map: its
+                        -- pre-flight checks, or again after leaving
+  leaveManualAircraft
+
+  -- Page.Devices
+  addDevice             -- opens an empty DeviceForm
+  editDevice            -- opens the row's device as a DeviceForm copy
+  saveDevice            -- appends a New device unlinked; rewrites an Existing
+                        -- one in place, reopening the link if it is the
+                        -- linked device
+  cancelDevice          -- drops the form; nothing was written
+  removeDevice          -- asks first; removing the linked device closes the link;
+                        -- removing LastDevice's device clears it to None
+  selectDevice          -- links the row's device, closing the old link first;
+                        -- on the linked row it reconnects, on a Failed one it
+                        -- retries. The device becomes LastDevice
+  closeLink             -- frees the port for another ground station
+
+  -- AircraftLink
+  aircraftConnectedEvent -- the link to the aircraft comes up, on any page,
+                        -- while LinkSession is Open: the app reopens the
+                        -- remembered device at launch. It records the
+                        -- device's LastSystemId
+  linkFailedEvent       -- the device could not open the link: the port is
+                        -- taken, the host is unknown, no serial port is
+                        -- attached or its use was refused
+  homeSetEvent          -- the aircraft reports a new home: at its first GPS
+                        -- fix, at each arming, or when the pilot resets it.
+                        -- Announced, because it moves where Returning flies to
+  telemetryFrameEvent   -- fires only while Feed.Live; a frame arriving during
+                        -- Feed.Stale is telemetryBackEvent
+  telemetryLostEvent
+  telemetryBackEvent
+  groundMeasuredEvent   -- fires with every telemetry frame while Spraying; the
+                        -- figures are computed from that frame
+  linkLossEvent         -- fires at TelemetryAge 60, twenty times the gap that
+                        -- makes Feed.Stale: a stale feed may still recover, a
+                        -- lost link is where the app stops waiting
+  flownAwayEvent        -- after linkLossEvent, the aircraft heard again reports
+                        -- how far it flew that mission meanwhile; it only moves
+                        -- the mission on, never back
+
+  -- AircraftCanvas
+  maximizeCamera
+  minimizeCamera
+  hideCamera
+  unhideCamera
+  panMap
+  recenterMap
+
+  -- PMode.ShowMission
+  editSelectedMission   -- reopens the plot as an Editing draft, so savePlot
+                        -- updates that mission instead of adding another.
+                        -- Only NotStarted: once a run has flown ground, its
+                        -- figures and its BreakPoint are measured against the
+                        -- plot as it was
+  copyMission           -- a new mission from the selected one's Plot, under a new
+                        -- MissionName and At: NotStarted, figures at zero. From
+                        -- any MissionState, so a flown field can be flown again;
+                        -- the original stays as it was
+  selectMission         -- At identifies the Mission, per its definition
+  backToList
+  deleteMission         -- from any MissionState; its figures and BreakPoint go with it
+}
+
+------------------------------------------------------------------------------------
+-- Types
+------------------------------------------------------------------------------------
+
+domain {
+  Point = Latitude * Longitude      -- a position on the map
+
+  Plot              @default Empty
+    = Empty
+    | Drawn _
+
+  Plot.Drawn        @region canvas
+    = Boundary
+    * Markings                      -- everything laid over that edge
+    * RouteSettings
+
+  Boundary = Ring
+
+  Markings = [Marking]
+
+  Marking
+    = Obstacle      (Ring)
+    | RoundObstacle (Spot)
+    | PowerLine     (Path)
+    | NonSprayArea  (Ring)
+    | MarkPoint     (Spot)
+
+  Shape                       -- what a selection acts on, and what pointAdd adds
+                              -- to: the one Boundary, or one of the Markings
+                              -- laid over it
+    = Boundary
+    | Marking
+
+  Ring
+    = Partial   ([Point])     -- one or two points; too few to enclose
+    | Closeable ([Point])     -- three or more; the shape can be closed
+    | Enclosed  ([Point])     -- the shape is closed
+
+  Path                        -- a PowerLine's shape. It has no Enclosed state to
+                              -- reach: a line is not an area, so pointEnclose
+                              -- never applies to one
+    = Partial (Point)         -- one point; not a line yet
+    | Total   ([Point])       -- two or more; the line as it was drawn
+
+  Spot = Point
+
+  RouteSettings
+    = RouteSpacing
+    * SprayHeight
+    * ReturnHeight
+    * SpraySpeed
+    * DefaultEdgeMargin
+    * EdgeMargins
+    * StartCorner
+    * CoverageArea
+    * ObstacleBoundary
+    * SingleSideSpraying
+    * CourseAngle
+
+  RouteSpacing  = Meters            @default 8
+                                    @range 2..12  -- swath width the nozzles
+                                                  -- cover at SprayHeight
+  SprayHeight   = Meters            @default 3
+                                    @range 1..10  -- height the route is flown at,
+                                                  -- above the ground under the aircraft,
+                                                  -- as RangefinderAlt; takeoff climbs
+                                                  -- to it above the HomePoint
+  ReturnHeight  = Meters            @default 15
+                                    @range 12..50 -- height every return home is flown
+                                                  -- at, above the HomePoint, as RTL
+                                                  -- flies it: route done, returnToHome,
+                                                  -- BatteryLow and the aircraft's own
+                                                  -- failsafes. The low end clears
+                                                  -- SprayHeight's top, so a return
+                                                  -- never flies at spray height
+  SpraySpeed   = MetersPerSec       @default 5
+                                    @range 1..10  -- ground speed while Spraying
+  DefaultEdgeMargin = Meters        @default 1.5
+                                    @range 0..10  -- inset from every Boundary edge
+                                                  -- with no EdgeMargin of its own;
+                                                  -- 0 sprays to the edge. Changing
+                                                  -- it leaves EdgeMargins alone
+  EdgeMargins   = [EdgeMargin]      -- empty: every edge takes DefaultEdgeMargin
+
+  EdgeMargin    = Edge * EdgeInset
+  Edge          = Point             -- the Boundary edge from this point to the next;
+                                    -- followed if the point moves. A point added
+                                    -- on the edge splits it and both halves keep
+                                    -- the inset. A deleted point merges its two
+                                    -- edges, and the merged edge keeps the larger
+                                    -- inset. Undo restores both
+  EdgeInset     = Meters            @range 0..10
+
+  StartCorner   = Point             @default first_added_point
+                                    -- one of the Boundary's points, followed
+                                    -- if it moves; if it is deleted the default
+                                    -- stands in, and an undo that restores the
+                                    -- point restores it as the start. The route
+                                    -- starts at a swath end by it, chosen for
+                                    -- the least dry flying: the RouteStart. Not
+                                    -- where the aircraft takes off; see HomePoint
+
+  CoverageArea                      @default RouteOnly
+                = RouteOnly
+                | RouteAndBoundary
+                | BoundaryOnly
+
+  ObstacleBoundary    = Meters      @default 1.5
+                                    @range 0.5..10
+                                    -- keep-out around an Obstacle, PowerLine or RoundObstacle;
+                                    -- never 0, by intent
+
+  SingleSideSpraying  = Bool        @default false
+
+  CourseAngle = Degrees             @default base_on_least_braking -- least drone braking
+                                    @range 0..180
+                                    -- the swaths' bearing, clockwise from north;
+                                    -- 0 and 180 are the same line
+
+  AircraftLink                  @default Disconnected
+                                -- whether an aircraft is connected; held by
+                                -- the App, so it outlives every page
+    = Disconnected
+    | Connected (Aircraft)
+
+  Aircraft                      -- the connected aircraft, as it reports
+                                -- itself, flying a mission or not
+    = AircraftStatus
+    * Feed
+    * HomePoint
+    * BatteryReserve
+    * SystemId                  -- reported with its first frame, fixed for
+                                -- the life of the connection
+
+  Device                        -- a saved way to reach an aircraft: one row on
+                                -- Page.Devices. A saved connection, not a
+                                -- verified aircraft: two devices may reach one
+                                -- drone, and LastSystemId tells drones apart
+    = DeviceId
+    * DeviceName
+    * LinkSettings
+    * LastSystemId
+
+  DeviceId = Timestamp          -- when the device was added. Set once, never
+                                -- rewritten: a device is edited in place, as At
+  DeviceName = Text             -- what the operator calls it; a blank name
+                                -- shows the link instead
+
+  LinkSettings  @default Udp    -- a saved link: only what its kind uses
+    = Udp    (Port)             -- listen on Port; the aircraft, or a relay,
+                                -- sends here
+    | Tcp    (HostName * Port)  -- connect to HostName at Port: an aircraft or
+                                -- a simulator
+    | Serial (Baud)             -- the serial port wired to the phone, at Baud:
+                                -- a telemetry radio, or the aircraft's own
+                                -- port. One is attached at a time
+
+  HostName = Text               -- a name or an address; never blank
+
+  Port = Int    @default 14550
+                @range 1..65535
+
+  Baud = Int    @default 57600  -- the serial line's speed; a port on the
+                @range 1200..921600 -- aircraft itself ignores it
+
+  SystemId = Int  @range 1..255 -- the number the aircraft names itself with on
+                                -- its link (MAVLink system id); two aircraft on
+                                -- one network differ by it
+
+  LastSystemId  @default Unheard
+    = Unheard                   -- never answered on this device
+    | Heard (SystemId)          -- what it answered with last time
+
+  LinkSession   @default Closed -- what the app is doing to reach an aircraft;
+                                -- AircraftLink says whether one answered.
+                                -- Remembered: at launch the app reopens the
+                                -- device it left Open or Failed
+    = Closed                    -- no device linked, or the operator closed it
+    | Open (DeviceId)           -- open on that device's LinkSettings, heard or
+                                -- waiting
+    | Failed (DeviceId * LinkFailure) @status error
+                                -- could not be opened: the port is taken, the
+                                -- host is unknown, no serial port is attached
+                                -- or its use was refused; selecting it again
+                                -- retries
+
+  LinkFailure = Text            -- why the device could not open the link, as
+                                -- it reports it
+
+  LastDevice    @default None   -- the device last linked; kept after closeLink
+                                -- so Home can reconnect it. Remembered, like
+                                -- LinkSession
+    = None
+    | Known (DeviceId)
+
+  AircraftStatus
+    = ArmState
+    * FlightMode
+    * GPSFix
+    * Satellites
+    * Battery
+    * SprayFlow
+    * Altitude
+    * RangefinderAlt
+    * OffsetAlt
+    * Speed
+    * Heading
+    * Latitude
+    * Longitude
+
+  Satellites      = Int           -- how many GPS satellites the aircraft currently sees
+  SprayFlow       = LitersPerMin  -- how fast the sprayer is putting out liquid: a rate, not a total
+  Altitude        = Meters        -- height of the aircraft above the HomePoint
+  Speed           = MetersPerSec  -- ground speed
+  Heading         = Degrees       -- direction the aircraft's nose is pointing
+  BatteryVoltage  = Volts         -- pack voltage, as reported
+  BatteryCharge   = Percent       -- remaining charge, as the aircraft estimates it
+  Battery         = BatteryVoltage
+                  * BatteryCharge
+
+  RangefinderAlt  @default NoSensor
+                  -- height above the ground under the aircraft, from its downward
+                  -- rangefinder; Altitude is above the HomePoint, not the ground
+    = NoSensor    -- none fitted, or silent; its tile is struck through
+    | NoReading   -- fitted, but out of its range or invalid; its tile is a dash
+    | Reading (Meters)
+
+  OffsetAlt       @default NoSensor
+                  -- altitude offset the aircraft reports from its own onboard
+                  -- script, live; an aircraft without the script never reports it
+    = NoSensor    -- no script, or silent; its tile is struck through
+    | NoReading   -- reported, but not a number; its tile is a dash
+    | Reading (Meters)
+
+  ArmState    @default Disarmed   -- reported by the aircraft; armedEvent is
+    = Disarmed                    -- it turning Armed
+    | Armed
+
+  FlightMode      @default Unknown
+                  -- the mode the aircraft reports it is flying in, by its own
+                  -- name; shown, never interpreted by the app
+    = Unknown     -- not reported yet, or a mode the app cannot name
+    | Named (Text)
+
+  GPSFix
+    = NoFix   -- position cannot be determined
+    | Fix2D   -- latitude and longitude only; altitude is not reliable
+    | Fix3D   -- latitude, longitude and altitude
+    | DGPS    -- improved accuracy from correction data
+    | RTKFix  -- very high precision from RTK corrections
+
+  MissionRun
+    = Mission                   -- the mission being flown. Its Mission is the
+                                -- working copy of the one in Missions with
+                                -- the same At: every transition that settles
+                                -- the run writes it back as Missions(Mission')
+    * MissionFlight
+
+  Mission
+    = MissionName
+    * At                        -- identifies the mission
+    * GroundMeasurements
+    * MissionState
+    * Plot                      -- the ground to cover, route settings included
+
+  MissionFlight
+    = Arming (RouteEntry)       @status loading
+                                -- uploading route and ReturnHeight, waiting
+                                -- for the aircraft
+    | Flying (FPhase)
+    | Failed (FailureReason * RouteEntry) @status error
+                                -- upload or takeoff rejected; offer retry. The
+                                -- RouteEntry stays, so a retry keeps the choice
+
+  TelemetryAge = Seconds        -- time since the last telemetry frame; runs while Live
+                                -- too, held only by Stale
+  LinkQuality = Percent         -- share of the aircraft's frames that reached the app
+                                -- over the last few seconds
+
+  Feed
+    = Live  (LinkQuality)
+    | Stale (TelemetryAge)      @status error
+                                -- telemetry gap; every Aircraft value and
+                                -- the camera image must be marked last-known,
+                                -- never current. The status covers the whole
+                                -- flight view, panel and canvas alike, though
+                                -- Feed is drawn only through Aircraft_.
+                                -- Recoverable: telemetryBackEvent
+                                -- returns to Live, and linkLossEvent is the point
+                                -- the app stops waiting
+
+  FPhase
+    = Approaching (RouteEntry)  -- flying out to the route, sprayer off; from
+                                -- Home after takeoff, or from where it held.
+                                -- Returning's outbound twin
+    | Spraying                  -- flying the planned route: wet along the
+                                -- swaths, dry on the turns between them
+    | Holding     (RouteEntry)  -- not spraying; the aircraft holds position,
+                                -- waiting on the operator to resume, leave it
+                                -- holding, or send it home
+    | PilotControl (RouteEntry) -- the pilot flies from the transmitter and the
+                                -- run waits; switching back to AUTO hands it
+                                -- back, Holding. See manualControlTakenEvent
+    | Returning                 -- flying home to the HomePoint at ReturnHeight.
+                                -- Never LinkLost: the app cannot see an aircraft
+                                -- it has lost
+                                -- the link to
+
+  FPhase.Returning
+    = Interrupted (StopReason(Commanded | BatteryLow) * RouteEntry)
+                                -- the run stopped early; the RouteEntry is
+                                -- where a later run resumes
+    | Finished                  -- the route is done; nothing left to resume
+
+  Sprayer = Unimplemented       -- the pump: on along each swath while Spraying,
+                                -- off on the turns between them and outside
+                                -- Spraying. None is fitted yet; the route is
+                                -- flown with nothing switched
+
+  RouteEntry                    -- where the aircraft joins the route
+    = FromStart                 -- the RouteStart: the route's first swath end,
+                                -- by the StartCorner
+    | FromBreakPoint (BreakPoint) -- where an earlier run stopped spraying
+
+  StopReason                    -- why spraying stopped
+    = Commanded                 -- stopMission
+    | BatteryLow  @status error -- batteryLowEvent
+    | LinkLost    @status error -- linkLossEvent; the figures are last-known
+    | ManualTakeover            -- manualControlTakenEvent
+    | GpsLost     @status error -- gpsLostEvent
+
+  HomePoint                     @default Unknown
+                                -- where the aircraft returns to; it reports
+                                -- one from its first GPS fix and again at
+                                -- each arming, see homeSetEvent
+    = Unknown
+    | Known (Point)
+
+  BreakPoint = Point            @region canvas
+                                -- where spraying stopped; a resumed run picks
+                                -- up the planned route from here, in flight by
+                                -- resumeMission, after landing too
+
+  GroundMeasurements        @view tiles
+    = Distance              -- Dist
+    * Area                  -- Area
+    * RouteProgress
+
+  Distance      = Meters    -- ground distance sprayed; neither ferry adds to
+                            -- it. Approaching out or Returning home, nor do
+                            -- the turns between swaths, so this and Area
+                            -- move only along swaths while FPhase.Spraying
+  Area          = Hectares  -- ground area sprayed so far
+  RouteProgress = Percent   -- how much of the planned route is flown, turns
+                            -- included
+
+  MissionName = Text        -- what the operator called this plot, given
+                            -- at savePlot or copyMission
+
+  At = Timestamp            -- when the mission was saved. Set once, at
+                            -- savePlot or copyMission, and never rewritten: a
+                            -- mission is edited in place, so an At that moved
+                            -- would move the mission's identity.
+
+  MissionState              @default NotStarted
+    = NotStarted            -- nothing sprayed yet: never flown, or stopped
+                            -- before reaching its RouteStart
+    | Completed             -- the route was finished
+    | Stopped (StopReason * BreakPoint)
+
+  FlownAway                 -- what a reconnected aircraft reports of the mission it was
+                            -- flying when the link was lost
+    = RouteDone             -- it passed the last waypoint
+    | ReachedTo (Point)     -- the furthest route waypoint it passed
+
+  BatteryLowThreshold = Percent @default 15
+                                -- where BatteryReserve turns Low; a product
+                                -- fact, not an operator setting
+
+  LogEntry                      -- one line of what the app saw: the link, the
+                                -- aircraft's answers, and what went wrong
+    = Timestamp
+    * LogLevel
+    * LogTag
+    * Text
+
+  LogLevel
+    = Info
+    | Warning
+    | Error
+
+  LogTag                        -- the part of the app that wrote the entry
+    = Link                      -- the link opening, failing, closing; the feed
+    | Mavlink                   -- the app's exchange with the aircraft: commands,
+                                -- acks, uploads, mode changes
+    | Vehicle                   -- the aircraft's own words: its status texts, PreArm
+                                -- included
+    | Storage                   -- saved missions and devices
+    | Basemap                   -- the basemap's tiles
+    | Crash                     -- the app stopped; written before it went
+
+  BatteryReserve  @default Enough
+                  -- computed by the app, never reported: Low once BatteryCharge
+                  -- is at or below BatteryLowThreshold. Sticky: it stays Low
+                  -- until the link is made again, which a battery swap forces
+    = Enough
+    | Low
+
+}
+
+ui {
+  App         @platform Android
+              @targets mobile
+              @orientation landscape
+              @theme light
+              @aspectRatio 20:9
+    = Page
+    * AircraftLink
+    * Devices
+    * LinkSession
+    * LastDevice
+    * Logs
+
+  Devices = [Device]            -- held by the App, so it outlives every page
+
+  Logs = [LogEntry]             -- held by the App, oldest first. Capped: the oldest
+                                -- go first. Remembered across launches, a crash
+                                -- included, so the field's story reaches home
+
+  Page        @view hierarchical_navigation
+              @default Home
+    = Home
+    | Plan
+    | Devices
+    | Logs
+
+  Page.Home           -- a glance before anything is planned: the link, and the
+                      -- connected aircraft's readiness. Its menu (goToLogs,
+                      -- exportLogs, showAbout) opens from a button_icon where
+                      -- other pages put back
+    = LinkStatus
+    * HomeAircraft    @when AircraftLink.Connected
+    * About
+
+  About               @default Closed
+    = Closed
+    | Open (AppVersion) @view dialog -- the app's name, version and build
+
+  AppVersion = Text   -- the build's version name and number, and its kind
+
+  Page.Logs           @view browsing
+    = LogLevelFilter
+    * LogTagFilter
+    * LogList
+
+  LogLevelFilter      @default All
+                      @control segmented
+    = All
+    | Warnings        -- Warning and Error
+    | Errors
+
+  LogTagFilter = [LogTag] @control multi_select -- empty: every tag
+
+  LogList             -- the App's Logs through both filters, newest last
+    = Empty                   @status empty
+                              -- nothing logged yet, or nothing the filters let through
+    | NonEmpty ([LogEntry])   @overflow scroll
+
+  HomeAircraft        @view tiles
+    = BatteryCharge   @view tile -- toned by BatteryReserve
+                      @from Battery
+    * BatteryReserve  @from Aircraft
+    * HomeIndicators
+
+  HomeIndicators      @from AircraftStatus
+    = GPSFix          @view status_tile
+    * Satellites      @view tile
+    * ArmState        @view status_tile
+
+  Page.Devices        @default Listing
+    = Listing         @view browsing
+    | Editing (DeviceForm)  @view form
+
+  Page.Devices.Listing
+    = DeviceList
+    * LinkStatus      @when LinkSession(Open | Failed)
+
+  DeviceList
+    = Empty                     @status empty
+                                -- no device saved yet; prompt to add one
+    | NonEmpty ([DeviceRow])    @overflow scroll
+
+  DeviceRow           @from Device
+                      @view row
+    = DeviceName * LinkSettings * LastSystemId
+                      -- the row LinkSession names is marked as the linked one
+
+  LinkStatus          @from App
+                      @view status
+    = LinkSession * AircraftLink
+                      -- Connected shows the live Aircraft's SystemId
+
+  DeviceForm          -- a draft; saveDevice writes it, cancelDevice drops it
+    = DeviceOrigin
+    * DeviceName      @control text_field
+    * LinkKind        @control segmented
+    * Host            @control text_field
+                      @when LinkKind.Tcp
+    * Port            @control text_field
+                      @when LinkKind(Udp | Tcp)
+    * Baud            @control text_field
+                      @when LinkKind.Serial
+
+  LinkKind            @default Udp -- DeviceForm's choice of LinkSettings variant
+    = Udp
+    | Tcp
+    | Serial
+
+  Host                @default Unset -- DeviceForm's draft of a HostName
+    = Unset
+    | Named (HostName)
+
+  DeviceOrigin        -- what saveDevice does with the result
+    = New             -- addDevice: append a device
+    | Existing (DeviceId)   -- editDevice: rewrite that device in place
+
+  Page.Plan
+    = Map
+    * PMode
+    * Missions
+
+  Missions = [Mission]  @region canvas
+                        @when PMode.ShowMission.List
+
+  Map                   @region canvas
+    = TileStatus
+    * Zoom
+    * DeviceLocation
+
+  TileStatus            @default Loading
+    = Loading           @status loading  -- tiles not yet drawn
+    | Ready
+    | Offline           @status error    -- no tiles for this area; cached view only
+
+  Zoom = Int            @default 16
+                        @range 3..20
+                        @control map_pinch
+
+  DeviceLocation        @default Unknown
+                        @region canvas  -- where the operator is standing, read from the
+                                        -- device's own receiver
+    = Unknown
+    | Locating          @status loading
+    | Denied            @status error   -- the operator refused the permission
+    | Failed            @status error   -- asked and never answered: no receiver,
+                                        -- or no fix in the open; offer retry
+    | Located (Point)
+
+  PMode                 @default JustMap
+    = JustMap           -- a plain map, for exploring; no mission is drawn on it
+    | Plot
+    | ShowMission
+    | MissionRun
+    | ManualAircraft
+
+  PMode.Plot            @view editing
+    = PlotOrigin
+    * Plot
+    * PointHistory
+    * PlotController
+    * ShapeSelection
+    * CornerPick
+    * EdgePick
+
+  PlotOrigin            -- what savePlot does with the result
+    = Draft             -- newPlot: append a new mission
+    | Editing           -- editSelectedMission: update the mission it came from
+
+  PlotController        @default Field
+                        @region panel
+                        @placement right
+                        @control segmented
+    = Field (PointType) @size (1/4)*screen
+    | Route             @size (1/3)*screen
+                        -- the form plans a path *within* the field, and there is
+                        -- no within until the edge closes
+
+  PointType             @default BoundaryPoint
+                        -- what the next pointAdd places. BoundaryPoint builds
+                        -- the one Boundary; the other five each build a Marking;
+                        -- all variants are Marking, except BoundaryPoint.
+                        -- It chooses what a *new* shape would be, so setting it
+                        -- releases whatever shape is selected. See setPointType.
+    = BoundaryPoint
+    | Obstacle
+    | RoundObstacle
+    | PowerLine
+    | NonSprayArea
+    | MarkPoint
+
+
+  PlotController.Route        @edits RouteSettings
+                              @view form
+                              @overflow scroll
+    = RouteSpacing            @control stepper
+                              @step 0.5
+    * SprayHeight             @control stepper
+                              @step 0.5
+    * ReturnHeight            @control stepper
+                              @step 1
+    * SpraySpeed              @control stepper
+                              @step 0.5
+    * DefaultEdgeMargin       @control stepper
+                              @step 0.5
+    * EdgeMargins             @control button -- edgeMarginPick; the map then
+                                              -- supplies the edge, see edgeSelect.
+                                              -- It counts the edges with their
+                                              -- own margin, since DefaultEdgeMargin
+                                              -- leaves those alone
+    * StartCorner             @control button -- startCornerPick; the map
+                                              -- then supplies it, see startCornerSet
+    * CoverageArea            @control segmented
+    * ObstacleBoundary        @control stepper
+                              @step 0.5
+    * SingleSideSpraying      @control toggle
+    * CourseAngle_
+
+  CourseAngle_              @default Auto
+                            @control segmented
+    = Auto   (CourseAngle)  -- base on least drone braking
+    | Manual (CourseAngle)  @control slider
+
+  PointHistory
+    = Undo
+    * Redo
+
+  Undo            @default Empty
+    = Ready
+    | Empty
+
+  Redo            @default Empty
+    = Ready
+    | Empty
+
+  ShapeSelection  @default Empty
+                  -- which shape pointAdd adds to. Selected, a Point joins that shape.
+                  -- Extending it while open, joining its nearest edge once Enclosed.
+                  -- Selected also marks that shape on the canvas: every edge labelled
+                  -- with its ground length in Meters, the edge the next pointAdd would
+                  -- make labelled too, and an Enclosed ring its area in Hectares. The
+                  -- operator measures the field by these, so only the marked shape has them
+    = Empty       -- A Point starts a new shape of the current PointType
+    | Selected (Shape * PointSelection)
+
+  PointSelection  @default Empty
+                  -- which placed Point pointDelete and pointMove act on. A tap
+                  -- selects; the map marks the selection with a drag handle,
+                  -- and the panel's Delete takes the point rather than the
+                  -- whole Marking (shapeDelete). Reachable only inside the
+                  -- selected shape: a point of an unselected shape is not armed
+    = Empty
+    | Selected (Point)
+
+  CornerPick      @default Idle
+                  -- whether a map tap on a Boundary point chooses the StartCorner.
+    = Idle
+    | Picking     -- Picking draws every Boundary point as a candidate and marks
+                  -- the current StartCorner among them
+
+  EdgePick        @default Idle
+                  -- whether a map tap on a Boundary edge chooses one to set
+                  -- its own margin
+    = Idle
+    | Picking     -- every Boundary edge is drawn as a tap target; one with an
+                  -- EdgeMargin carries its inset in place of its length
+    | Selected (Edge) -- the Route panel shows this edge's margin in a stepper,
+                  -- starting from DefaultEdgeMargin when it has none, and a reset
+
+  PMode.MissionRun      @view monitoring
+    = MissionRun        -- the run itself: state, drawn through MissionRun_
+    * MissionRun_
+    * AircraftCanvas
+
+  MissionRun_           @region panel
+                        @placement right
+                        @size (1/4)*screen
+                        @overflow scroll
+    = RouteProgress     @view progress_bar
+                        -- a line, stick at top of the panel with
+                        -- no margin, no title and value shows at the right
+                        @from GroundMeasurements
+    * MissionFlight     @from MissionRun
+    * Aircraft_
+    * Ground            @from MissionRun
+
+  Ground                @from GroundMeasurements
+    = Area              @view tile
+    * Distance          @view tile
+
+  PMode.ManualAircraft  @view monitoring
+                        -- the operator, or the aircraft's own failsafe,
+                        -- flies it; the app only watches
+    = AircraftCanvas
+    * Aircraft_         @region panel
+                        @placement right
+                        @size (1/4)*screen
+
+  Aircraft_
+    = AircraftIndicators
+    * Battery_          @view tile -- BATT
+    * AircraftGauges
+    * Feed              @from Aircraft
+
+  AircraftIndicators    @from AircraftStatus
+    = ArmState          @view status_tile
+    * FlightMode        @view status_tile
+    * GPSFix            @view status_tile
+
+  AircraftGauges        @from AircraftStatus
+    = Satellites        @view tile -- SAT
+    * SprayFlow         @view tile -- FLOW
+    * Altitude          @view tile -- ALT
+    * RangefinderAlt    @view tile -- RNG
+    * OffsetAlt         @view tile -- OFS
+    * Speed             @view tile -- SPD
+    * Heading           @view tile -- HDG
+
+  Battery_              @default Voltage    -- which figure the BATT tile shows
+                        @control tile_tap
+    = Voltage (BatteryVoltage)  @from Battery
+    | Charge  (BatteryCharge)   @from Battery
+
+  AircraftCanvas
+    = FCamera
+    * MapFollow
+    * AircraftPose
+    * HomeMarker
+
+  HomeMarker            @from Aircraft
+                        @region canvas
+                        @when HomePoint.Known
+    = HomePoint
+
+  MapFollow       @default Following
+    = Following   -- the map recentres on AircraftPose as it moves
+    | Free        -- released by a manual pan, so the operator can look
+                  -- elsewhere while the aircraft keeps flying
+
+  AircraftPose    @from AircraftStatus
+                  @region canvas
+                  @when GPSFix(Fix2D | Fix3D | DGPS | RTKFix)
+                  -- the aircraft drawn on the map
+    = Latitude
+    * Longitude
+    * Heading
+    * GPSFix
+
+  FCamera         @default Minimized
+                  @region canvas
+                  -- the aircraft's own camera, shown exactly as it arrives.
+    = Maximized   -- Maximized covers map
+    | Minimized   @view popup -- popup over map
+    | Hidden
+
+  PMode.ShowMission       @view browsing
+                          @region panel
+                          @size (1/4)*screen
+                          @placement right
+    = List
+    | Selected            -- the canvas draws only the selected Mission, its Boundary
+                          -- marked and measured as a Selected ShapeSelection is
+
+  PMode.ShowMission.Selected  @view summary
+                              -- read-only: the selected Mission, the one in Missions
+                              -- with this At; its name heads the panel
+    = MissionName
+    * MissionState
+    * At
+    * Ground          @from Mission
+    * RouteSummary
+
+  PMode.ShowMission.List
+    = Empty                       @status empty
+                                  -- no mission saved yet; prompt to create one
+    | NonEmpty ([MissionSummary]) @overflow scroll
+
+  MissionSummary        @from Mission
+                        @view row
+    = MissionName * At * SummaryMeasurements * MissionState
+
+  RouteSummary          @view summary
+                        @when Plot.Drawn
+                        -- read-only, worked out from the selected Mission's Plot: what
+                        -- its planned route comes to, then the RouteSettings it was
+                        -- saved with
+    = RouteLength * SprayLength * EstimatedTime * Passes * RouteSettings
+
+  RouteLength   = Meters   -- the whole planned route, ferry and turns included
+  SprayLength   = Meters   -- only the stretches flown Spraying
+  EstimatedTime = Seconds  -- RouteLength over SpraySpeed; turns and ferry not timed
+  Passes        = Int      -- the swath legs flown; the boundary loop is not one
+
+  SummaryMeasurements   @from GroundMeasurements
+                        -- the figures a row has room for: plain values,
+                        -- without GroundMeasurements' tiles and bar
+    = Area * Distance * RouteProgress
+}
+
+------------------------------------------------------------------------------------
+-- Transitions
+------------------------------------------------------------------------------------
+
+-- Transitions are the seam between the two blocks and sit outside
+-- both: one signature routinely names types from each.
+--
+-- A signature names the ui path only where it constrains or changes ui
+-- state. A change confined to the domain is written on the domain type
+-- alone — returnToHome, batteryLowEvent, retryArming, telemetryLostEvent —
+-- even when a control triggers it.
+--
+-- A transition named *Event is system-originated and carries no @control;
+-- every other transition carries one. A system-originated transition
+-- announces its arrival — the UI must not switch silently — and carries
+-- @announce to say so. The ones without it are @stream, which refreshes
+-- values in place, and those whose source leaves a @status loading state,
+-- where the operator is already waiting for the answer.
+
+------------------------------------------------------------------------------------
+-- App Page
+
+goToPlan    :: Page.Home -> Page.Plan      @control nav_entry
+goToDevices :: Page.Home -> Page.Devices   @control nav_entry
+goToAircraft :: Page.Home -> Page.Plan(PMode.ManualAircraft)
+  @unless App(AircraftLink.Disconnected)
+  @control nav_entry
+
+reconnect
+  :: App
+  => Page.Home
+   * LinkSession(Closed | Failed)
+   * AircraftLink
+  -> LinkSession.Open
+   * AircraftLink.Disconnected
+  @when LastDevice.Known
+  @control button
+  -- nothing is connected while Closed or Failed, so no ArmState guard is needed
+
+pagePlanBackToHome :: Page.Plan -> Page.Home
+  @unless Page.Plan(PMode.MissionRun)
+  @unless Page.Plan(PMode.Plot)
+  @unless ( Page.Plan(PMode.ManualAircraft)
+          * App(AircraftLink.Connected(Aircraft(AircraftStatus(ArmState.Armed))))
+          )
+  @control button_icon_f
+
+pageDevicesBackToHome :: Page.Devices -> Page.Home
+     @control button_icon
+
+goToLogs           :: Page.Home -> Page.Logs   @control menu_item
+pageLogsBackToHome :: Page.Logs -> Page.Home   @control button_icon
+
+exportLogs :: Page.Home -> Page.Home
+  @control menu_item
+
+exportLogs :: Page.Logs -> Page.Logs
+  @control button_icon
+
+showAbout  :: Page.Home => About.Closed -> About.Open
+  @control menu_item
+
+closeAbout :: Page.Home => About.Open -> About.Closed
+  @control button
+
+------------------------------------------------------------------------------------
+-- Page.Plan
+
+newPlot      :: Page.Plan
+             => PMode(JustMap | ShowMission.List)
+             -> PMode.Plot(PlotOrigin.Draft)
+    @control button_icon_f
+
+startMission :: Page.Plan
+             => PMode.ShowMission.Selected(MissionState(NotStarted | Stopped) * At)
+              * Missions(Mission(At))
+             -> PMode.MissionRun(MissionRun(Mission * MissionFlight.Arming(RouteEntry.FromStart)))
+    @unless Page.Plan(Map(TileStatus.Offline))
+    @unless App(AircraftLink.Disconnected)
+    @unless App(AircraftLink.Connected(Aircraft(Feed.Stale)))
+    @unless App(AircraftLink.Connected(Aircraft(AircraftStatus(ArmState.Armed))))
+    @unless App(AircraftLink.Connected(Aircraft(AircraftStatus(GPSFix(NoFix | Fix2D)))))
+    @unless App(AircraftLink.Connected(Aircraft(BatteryReserve.Low)))
+    @control button_icon_f
+    @requiresConfirmation
+
+showMission   :: Page.Plan => PMode.JustMap -> PMode.ShowMission.List
+    @control button_icon_f
+
+savePlot MissionName
+             :: Page.Plan
+             => PMode.Plot(PlotOrigin.Draft * Plot.Drawn(Boundary(Ring.Enclosed)))
+             -> PMode.ShowMission.Selected * Missions'
+    @control name_prompt  -- floats over the canvas
+                          -- The source names the Boundary's half. An unfinished Marking
+                          -- refuses it too, and that half spec cannot say
+
+savePlot MissionName
+             :: Page.Plan
+             => PMode.Plot(PlotOrigin.Editing * Plot.Drawn(Boundary(Ring.Enclosed)))
+             -> PMode.ShowMission.Selected * Missions(Mission')
+    @control name_prompt  -- same floating button as the Draft signature, and the same
+                          -- unfinished-Marking refusal
+
+cancelPlot   :: Page.Plan
+             => PMode.Plot(PlotOrigin.Draft)
+             -> PMode.JustMap
+    @control button_icon  -- inside panel
+    @requiresConfirmation
+
+cancelPlot   :: Page.Plan
+             => PMode.Plot(PlotOrigin.Editing)
+             -> PMode.ShowMission.Selected
+    @control button_icon  -- inside panel
+    @requiresConfirmation
+
+closeMissionList  :: Page.Plan => PMode.ShowMission.List -> PMode.JustMap
+    @control button_icon  -- inside panel
+
+missionCompletedEvent
+   :: App
+   => Page.Plan(PMode.MissionRun(MissionRun(MissionFlight.Flying(FPhase.Spraying))))
+    * AircraftLink.Connected(Aircraft(Feed.Live))
+   -> Page.Plan(PMode.MissionRun(MissionRun(
+         Mission' * MissionFlight.Flying(FPhase.Returning.Finished)))
+    * Missions(Mission'))
+    @announce
+    -- the Mission' is Completed. The route upload tells the aircraft to
+    -- return home when the route ends, so the run stays on screen until
+    -- homeReachedEvent
+
+------------------------------------------------------------------------------------
+-- Map
+
+retryMap       :: TileStatus.Offline -> TileStatus.Loading
+     @control button
+
+mapReadyEvent  :: TileStatus.Loading -> TileStatus.Ready
+mapFailedEvent :: TileStatus.Loading -> TileStatus.Offline
+
+locateMe       :: DeviceLocation(Unknown | Denied | Failed | Located)
+               -> DeviceLocation.Locating
+  @control button_icon_f
+
+locationFoundEvent  :: DeviceLocation.Locating -> DeviceLocation.Located
+locationDeniedEvent :: DeviceLocation.Locating -> DeviceLocation.Denied
+locationFailedEvent :: DeviceLocation.Locating -> DeviceLocation.Failed
+
+------------------------------------------------------------------------------------
+-- PMode.Plot
+
+pointAdd Point
+  :: PMode.Plot
+  => PlotController.Field(PointType.BoundaryPoint)
+   * Plot.Empty
+   * ShapeSelection.Empty
+  -> Plot.Drawn
+   * ShapeSelection.Selected(Shape(Boundary))
+   * PointHistory(Undo.Ready * Redo.Empty)
+  @control crosshair_add -- inside panel
+
+pointAdd Point
+  :: PMode.Plot
+  => PlotController.Field
+   * ShapeSelection.Selected
+  -> Plot.Drawn'
+   * PointHistory(Undo.Ready * Redo.Empty)
+  @control crosshair_add -- inside panel
+
+pointAdd Point
+  :: PMode.Plot
+  => PlotController.Field
+   * ShapeSelection.Empty
+   * Plot.Drawn(Boundary(Ring.Enclosed))
+  -> Plot.Drawn(Markings')
+   * ShapeSelection.Selected(Shape(Marking))
+   * PointHistory(Undo.Ready * Redo.Empty)
+  @unless PlotController.Field(PointType.BoundaryPoint)
+  @control crosshair_add -- inside panel
+
+pointSelect Point
+  :: PMode.Plot
+  => PlotController.Field * ShapeSelection.Selected
+  -> ShapeSelection.Selected(PointSelection.Selected(Point))
+  @control map_point_picker
+
+pointDeselect
+  :: PMode.Plot
+  => PlotController.Field * ShapeSelection.Selected(PointSelection.Selected)
+  -> ShapeSelection.Selected(PointSelection.Empty)
+  @control map_point_picker
+
+setPointType PointType
+  :: PMode.Plot
+  => PlotController.Field
+  -> PlotController.Field(PointType')
+   * ShapeSelection(Empty | Selected(Shape(Boundary)))
+  @unless Plot.Drawn(Boundary(Ring(Partial | Closeable)))  -- likewise an unfinished Marking
+  @control drop_down
+
+setPlotController
+  :: PMode.Plot
+  => PlotController.Field
+  -> PlotController.Route
+   * ShapeSelection.Selected(Shape(Boundary))
+  @control segmented
+  @unless Plot.Empty
+  @unless Plot.Drawn(Boundary(Ring(Partial | Closeable)))
+
+setPlotController
+  :: PMode.Plot
+  => PlotController.Route
+  -> PlotController.Field(PointType.BoundaryPoint)
+   * ShapeSelection.Selected(Shape(Boundary))
+   * CornerPick.Idle
+   * EdgePick.Idle
+  @control segmented
+  -- Route is unreachable from an unenclosed Boundary, so there is always one
+  -- to come back to, and the default point type names it
+
+startCornerPick
+  :: PMode.Plot
+  => PlotController.Route * CornerPick.Idle
+  -> CornerPick.Picking * EdgePick.Idle
+  @control button
+
+startCornerSet Point
+  :: PMode.Plot
+  => PlotController.Route * CornerPick.Picking * Plot.Drawn
+  -> Plot.Drawn(RouteSettings(StartCorner'))
+   * CornerPick.Idle
+  @control map_point_picker -- a Boundary point only; a Marking's is not offered
+
+startCornerCancel
+  :: PMode.Plot
+  => CornerPick.Picking
+  -> CornerPick.Idle
+  @control button
+
+edgeMarginPick
+  :: PMode.Plot
+  => PlotController.Route * EdgePick.Idle
+  -> CornerPick.Idle * EdgePick.Picking
+  @control button
+
+edgeSelect Edge
+  :: PMode.Plot
+  => PlotController.Route * EdgePick(Picking | Selected)
+  -> EdgePick.Selected(Edge)
+  @control map_edge_picker -- a Boundary edge only; a Marking's is not offered
+
+edgeMarginSet EdgeInset
+  :: PMode.Plot
+  => PlotController.Route * EdgePick.Selected * Plot.Drawn
+  -> Plot.Drawn(RouteSettings(EdgeMargins'))
+  @control stepper
+  @step 0.5
+
+edgeMarginReset
+  :: PMode.Plot
+  => PlotController.Route * EdgePick.Selected * Plot.Drawn
+  -> Plot.Drawn(RouteSettings(EdgeMargins'))
+  @control button -- disabled for an edge with no EdgeMargin; spec cannot say it
+
+edgeMarginDone
+  :: PMode.Plot
+  => EdgePick(Picking | Selected)
+  -> EdgePick.Idle
+  @control button
+
+shapeSelect Shape
+  :: PMode.Plot
+  => PlotController.Field * Plot.Drawn
+  -> ShapeSelection.Selected(Shape * PointSelection.Empty)
+   * PlotController.Field(PointType')
+  @unless Plot.Drawn(Boundary(Ring(Partial | Closeable)))  -- likewise an unfinished Marking
+  @control map_shape_picker
+
+shapeDeselect
+  :: PMode.Plot
+  => PlotController.Field * ShapeSelection.Selected
+  -> ShapeSelection.Empty
+  @unless Plot.Drawn(Boundary(Ring(Partial | Closeable)))  -- likewise an unfinished Marking
+  @unless PlotController.Field(PointType.BoundaryPoint)
+  @control map_point_picker
+  -- The panel's done button also triggers it, for a shape that has no
+  -- Enclosed to reach
+
+pointDelete
+  :: PMode.Plot
+  => PlotController.Field * ShapeSelection.Selected(PointSelection.Selected)
+  -> Plot'
+   * ShapeSelection.Selected(PointSelection.Empty)
+   * PointHistory(Undo.Ready * Redo.Empty)
+  @control button
+
+pointDelete
+  :: PMode.Plot
+  => PlotController.Field
+   * ShapeSelection.Selected(Shape(Marking) * PointSelection.Selected)
+  -> Plot.Drawn(Markings')
+   * ShapeSelection.Empty
+   * PointHistory(Undo.Ready * Redo.Empty)
+  @control button
+
+pointDelete
+  :: PMode.Plot
+  => PlotController.Field
+   * ShapeSelection.Selected(Shape(Boundary) * PointSelection.Selected)
+  -> Plot.Empty
+   * ShapeSelection.Empty
+   * PointHistory(Undo.Ready * Redo.Empty)
+  @control button
+
+shapeDelete
+  :: PMode.Plot
+  => PlotController.Field
+   * ShapeSelection.Selected(Shape(Marking) * PointSelection.Empty)
+  -> Plot.Drawn(Markings')
+   * ShapeSelection.Empty
+   * PointHistory(Undo.Ready * Redo.Empty)
+  @control button
+  -- pointDelete's own button: the PointSelection decides which one fires
+
+pointEnclose
+  :: PMode.Plot
+  => PlotController.Field * ShapeSelection.Selected(Shape(Boundary))
+  -> Plot.Drawn(Boundary')
+   * PointHistory(Undo.Ready * Redo.Empty)
+  @control button
+  -- A Point landing back on a Closeable Ring's own start also triggers it
+
+pointEnclose
+  :: PMode.Plot
+  => PlotController.Field * ShapeSelection.Selected(Shape(Marking))
+  -> Plot.Drawn(Markings')
+   * ShapeSelection.Empty
+   * PointHistory(Undo.Ready * Redo.Empty)
+  @control button
+  -- A Point landing back on a Closeable Ring's own start also triggers it
+
+pointUndo
+  :: PMode.Plot
+  => PlotController.Field
+   * PointHistory(Undo.Ready)
+  -> Plot'
+   * ShapeSelection'
+   * PlotController.Field(PointType')
+   * PointHistory(Undo(Ready | Empty) * Redo.Ready)
+  @control button
+
+pointRedo
+  :: PMode.Plot
+  => PlotController.Field
+   * PointHistory(Redo.Ready)
+  -> Plot'
+   * ShapeSelection'
+   * PlotController.Field(PointType')
+   * PointHistory(Undo.Ready * Redo(Ready | Empty))
+  @control button
+
+pointMove Point
+  :: PMode.Plot
+  => PlotController.Field * ShapeSelection.Selected(PointSelection.Selected)
+  -> Plot.Drawn' * PointHistory(Undo.Ready * Redo.Empty)
+  @control map_handle_drag
+
+------------------------------------------------------------------------------------
+-- PMode.MissionRun
+
+armedEvent
+  :: Page.Plan
+  => PMode.MissionRun(MissionRun(MissionFlight.Arming(RouteEntry.FromStart)))
+  -> PMode.MissionRun(MissionRun(
+        Mission'
+      * MissionFlight.Flying(FPhase.Approaching(RouteEntry.FromStart))))
+   * Missions(Mission')
+  @after ArmState Armed
+
+armedEvent
+  :: MissionFlight.Arming(RouteEntry.FromBreakPoint)
+  -> MissionFlight.Flying(FPhase.Approaching(RouteEntry.FromBreakPoint))
+  @after ArmState Armed
+
+armingFailedEvent FailureReason :: MissionFlight.Arming -> MissionFlight.Failed
+
+retryArming                     :: MissionFlight.Failed -> MissionFlight.Arming
+    @unless App(AircraftLink.Connected(Aircraft(AircraftStatus(ArmState.Armed))))
+    @unless App(AircraftLink.Connected(Aircraft(AircraftStatus(GPSFix(NoFix | Fix2D)))))
+    @unless App(AircraftLink.Connected(Aircraft(BatteryReserve.Low)))
+    @control button
+
+cancelArming        :: Page.Plan
+                    => PMode.MissionRun(MissionRun(MissionFlight.Arming))
+                    -> PMode.ShowMission.Selected
+    @control button
+    @requiresConfirmation
+
+cancelArming        :: Page.Plan
+                    => PMode.MissionRun(MissionRun(MissionFlight.Failed))
+                    -> PMode.ShowMission.Selected
+    @control button
+
+stopMission
+  :: Page.Plan
+  => PMode.MissionRun(MissionRun(MissionFlight.Flying(FPhase.Spraying)))
+  -> PMode.MissionRun(MissionRun(
+        Mission'
+      * MissionFlight.Flying(
+          FPhase.Holding(RouteEntry.FromBreakPoint(BreakPoint)))))
+   * Missions(Mission')
+  @control button_icon_f
+  @requiresConfirmation
+
+stopMission         :: MissionFlight.Flying
+                    => FPhase.Approaching
+                    -> FPhase.Holding(RouteEntry)
+  @control button_icon_f
+  @requiresConfirmation
+
+resumeMission
+  :: Page.Plan
+  => PMode.ShowMission.Selected(MissionState.Stopped * At) * Missions(Mission(At))
+  -> PMode.MissionRun(MissionRun(
+        Mission * MissionFlight.Arming(RouteEntry.FromBreakPoint(BreakPoint))))
+  @unless App(AircraftLink.Disconnected)
+  @unless App(AircraftLink.Connected(Aircraft(Feed.Stale)))
+  @unless App(AircraftLink.Connected(Aircraft(AircraftStatus(ArmState.Armed))))
+  @unless App(AircraftLink.Connected(Aircraft(AircraftStatus(GPSFix(NoFix | Fix2D)))))
+  @unless App(AircraftLink.Connected(Aircraft(BatteryReserve.Low)))
+  @control button_icon_f
+  @requiresConfirmation
+
+resumeMission       :: MissionFlight.Flying
+                    => FPhase.Holding
+                    -> FPhase.Approaching(RouteEntry)
+  @control button_icon_f
+
+routeReachedEvent   :: MissionFlight.Flying
+                    => FPhase.Approaching
+                    -> FPhase.Spraying
+  @announce
+
+returnToHome        :: MissionFlight.Flying
+                    => FPhase(Approaching | Holding)
+                    -> FPhase.Returning.Interrupted(StopReason.Commanded * RouteEntry)
+  @control button_icon_f
+
+manualControlTakenEvent
+  :: Page.Plan
+  => PMode.MissionRun(MissionRun(MissionFlight.Flying(FPhase.Spraying)))
+  -> PMode.MissionRun(MissionRun(
+        Mission'
+      * MissionFlight.Flying(
+          FPhase.PilotControl(RouteEntry.FromBreakPoint(BreakPoint)))))
+   * Missions(Mission')
+  @announce
+  -- the Mission' is Stopped(StopReason.ManualTakeover * BreakPoint)
+
+manualControlTakenEvent
+                    :: MissionFlight.Flying
+                    => FPhase(Approaching | Holding)
+                    -> FPhase.PilotControl(RouteEntry)
+  @announce
+
+manualControlTakenEvent
+  :: Page.Plan
+  => PMode.MissionRun(MissionRun(
+        MissionFlight(Arming | Failed | Flying(FPhase.Returning))))
+  -> PMode.ManualAircraft
+  @announce
+  -- Returning is not paused: a battery-low ferry home must not be resumed
+
+autoRestoredEvent   :: MissionFlight.Flying
+                    => FPhase.PilotControl(RouteEntry)
+                    -> FPhase.Holding(RouteEntry)
+  @announce
+
+landedEvent
+  :: Page.Plan
+  => PMode.MissionRun(MissionRun(MissionFlight.Flying(FPhase.PilotControl)))
+  -> PMode.ShowMission.Selected
+  @announce
+
+batteryLowEvent     :: Page.Plan
+                    => PMode.MissionRun(MissionRun
+                          ( MissionFlight.Flying(FPhase.Spraying))
+                        )
+                    -> PMode.MissionRun(MissionRun
+                          ( Mission'
+                          * MissionFlight.Flying
+                              ( FPhase.Returning.Interrupted
+                                  ( StopReason.BatteryLow
+                                  * RouteEntry.FromBreakPoint(BreakPoint)
+                                  )
+                              )
+                          )
+                        )
+                     * Missions(Mission')
+  @after BatteryReserve Low
+  @announce
+
+batteryLowEvent     :: MissionFlight.Flying
+                    => FPhase(Approaching | Holding | PilotControl)
+                    -> FPhase.Returning.Interrupted(StopReason.BatteryLow * RouteEntry)
+  @after BatteryReserve Low
+  @announce
+
+gpsLostEvent
+  :: Page.Plan
+  => PMode.MissionRun(MissionRun(MissionFlight.Flying(FPhase.Spraying)))
+  -> PMode.ManualAircraft
+   * Missions(Mission')
+  @after GPSFix (NoFix | Fix2D)
+  @announce
+  -- the Mission' is Stopped(StopReason.GpsLost * BreakPoint), the BreakPoint
+  -- being the last position known with a fix
+
+gpsLostEvent
+  :: Page.Plan
+  => PMode.MissionRun(MissionRun(
+        MissionFlight.Flying(FPhase(Approaching | Holding | Returning | PilotControl))))
+  -> PMode.ManualAircraft
+  @after GPSFix (NoFix | Fix2D)
+  @announce
+
+homeReachedEvent
+  :: Page.Plan
+  => PMode.MissionRun(MissionRun(MissionFlight.Flying(FPhase.Returning)))
+  -> PMode.ShowMission.Selected
+  @announce
+
+------------------------------------------------------------------------------------
+-- PMode.ManualAircraft
+
+watchAircraft :: Page.Plan => PMode.JustMap -> PMode.ManualAircraft
+  @unless App(AircraftLink.Disconnected)
+  @control button_icon_f
+
+armedEvent    :: Page.Plan => PMode.JustMap -> PMode.ManualAircraft
+  @after ArmState Armed
+  @announce
+
+leaveManualAircraft :: Page.Plan => PMode.ManualAircraft -> PMode.JustMap
+  @unless App(AircraftLink.Connected(Aircraft(AircraftStatus(ArmState.Armed))))
+  @control button_icon_f
+  -- ManualAircraft is the only view of an aircraft in the air, so leaving
+  -- waits until the aircraft disarms; watchAircraft reopens it from the map
+
+------------------------------------------------------------------------------------
+-- Page.Devices
+
+addDevice :: Page.Devices.Listing -> Page.Devices.Editing(DeviceForm(DeviceOrigin.New))
+  @control button_icon_f
+
+editDevice DeviceId
+  :: Page.Devices.Listing(DeviceList.NonEmpty)
+  -> Page.Devices.Editing(DeviceForm(DeviceOrigin.Existing))
+  @control button_icon  -- on the row; the form opens as a copy of that device
+
+saveDevice
+  :: App
+  => Page.Devices.Editing(DeviceForm(DeviceOrigin.New))
+   * Devices
+  -> Page.Devices.Listing(DeviceList.NonEmpty)
+   * Devices'
+  @unless Page.Devices(Editing(DeviceForm(LinkKind.Tcp * Host.Unset)))
+  @control button
+  -- appended, not linked: selecting the row links it
+
+saveDevice
+  :: App
+  => Page.Devices.Editing(DeviceForm(DeviceOrigin.Existing))
+   * Devices
+   * LinkSession
+   * AircraftLink
+  -> Page.Devices.Listing(DeviceList.NonEmpty)
+   * Devices'
+   * LinkSession'
+   * AircraftLink'
+  @unless Page.Devices(Editing(DeviceForm(LinkKind.Tcp * Host.Unset)))
+  @unless App(AircraftLink.Connected(Aircraft(AircraftStatus(ArmState.Armed))))
+  @control button
+  -- rewritten in place. If it is LinkSession's device, the link reopens on
+  -- the new settings: Open(DeviceId), AircraftLink.Disconnected. Otherwise
+  -- LinkSession and AircraftLink are untouched
+
+cancelDevice :: Page.Devices.Editing -> Page.Devices.Listing
+  @control button_icon
+
+removeDevice
+  :: App
+  => Page.Devices.Editing(DeviceForm(DeviceOrigin.Existing))
+   * Devices
+   * LinkSession
+   * AircraftLink
+  -> Page.Devices.Listing
+   * Devices'
+   * LinkSession'
+   * AircraftLink'
+  @unless App(AircraftLink.Connected(Aircraft(AircraftStatus(ArmState.Armed))))
+  @control button
+  @requiresConfirmation
+  -- removing LinkSession's device closes the link: Closed, Disconnected.
+  -- Otherwise LinkSession and AircraftLink are untouched
+
+selectDevice DeviceId
+  :: App
+  => Page.Devices.Listing(DeviceList.NonEmpty)
+   * LinkSession
+   * AircraftLink
+  -> LinkSession.Open
+   * AircraftLink.Disconnected
+  @unless App(AircraftLink.Connected(Aircraft(AircraftStatus(ArmState.Armed))))
+  @control list_row
+  -- the old link closes first, so a connected aircraft is dropped. On the
+  -- linked row it reconnects; on a Failed one it retries
+
+closeLink
+  :: App
+  => Page.Devices.Listing
+   * LinkSession(Open | Failed)
+   * AircraftLink
+  -> LinkSession.Closed
+   * AircraftLink.Disconnected
+  @unless App(AircraftLink.Connected(Aircraft(AircraftStatus(ArmState.Armed))))
+  @control button
+  -- frees the port for another ground station
+
+------------------------------------------------------------------------------------
+-- AircraftLink
+
+aircraftConnectedEvent Aircraft
+  :: App
+  => LinkSession.Open
+   * AircraftLink.Disconnected
+  -> AircraftLink.Connected
+   * Devices'
+  @announce
+  -- fires when the link to the aircraft comes up, on any page. LinkSession's
+  -- device records the Aircraft's SystemId as LastSystemId.Heard; the first
+  -- frame arrives with it, so Feed starts Live
+
+linkFailedEvent LinkFailure
+  :: App
+  => LinkSession.Open
+   * AircraftLink.Disconnected
+  -> LinkSession.Failed
+  @announce
+  -- the device refused to open the link; announced on any page, since the
+  -- reopen at launch happens before the operator looks for it
+
+homeSetEvent Point
+  :: AircraftLink.Connected
+  => Aircraft
+  => HomePoint
+  -> HomePoint.Known
+  @announce
+  -- assumed not to happen while a run is Flying: the aircraft sets home
+  -- at arming, before the run leaves MissionFlight.Arming
+
+Telemetry         @from Aircraft  -- one frame from the aircraft; the
+  = AircraftStatus                -- GroundMeasurements are computed from it
+
+telemetryFrameEvent Telemetry
+  :: AircraftLink.Connected
+  => Aircraft
+  => Feed.Live(LinkQuality') * AircraftStatus' * BatteryReserve'
+  <-
+  @stream
+
+telemetryLostEvent
+  :: AircraftLink.Connected => Aircraft => Feed.Live -> Feed.Stale
+  @after TelemetryAge 3
+  @announce
+
+telemetryBackEvent Telemetry
+  :: AircraftLink.Connected
+  => Aircraft
+  => Feed.Stale
+  -> Feed.Live(LinkQuality') * AircraftStatus' * BatteryReserve'
+  @announce
+
+groundMeasuredEvent
+  :: App
+  => Page.Plan
+  => PMode.MissionRun
+  => MissionRun
+  => Mission(GroundMeasurements') * MissionFlight.Flying(FPhase.Spraying)
+  <-
+  @stream
+
+linkLossEvent
+  :: App
+  => Page(Home | Devices | Logs)
+   * AircraftLink.Connected(Aircraft(Feed.Stale))
+  -> AircraftLink.Disconnected
+  @after TelemetryAge 60
+  @announce
+
+linkLossEvent
+  :: App
+  => Page.Plan(PMode(JustMap | Plot | ShowMission))
+   * AircraftLink.Connected(Aircraft(Feed.Stale))
+  -> AircraftLink.Disconnected
+  @after TelemetryAge 60
+  @announce
+
+linkLossEvent
+  :: App
+  => Page.Plan(PMode.MissionRun(MissionRun(MissionFlight.Flying(FPhase.Spraying))))
+   * AircraftLink.Connected(Aircraft(Feed.Stale))
+  -> Page.Plan(PMode.ShowMission.Selected * Missions(Mission'))
+   * AircraftLink.Disconnected
+  @after TelemetryAge 60
+  @announce
+
+linkLossEvent
+  :: App
+  => Page.Plan(PMode.MissionRun(MissionRun(
+        MissionFlight(Arming | Failed
+          | Flying(FPhase(Approaching | Holding | Returning | PilotControl))))))
+   * AircraftLink.Connected(Aircraft(Feed.Stale))
+  -> Page.Plan(PMode.ShowMission.Selected)
+   * AircraftLink.Disconnected
+  @after TelemetryAge 60
+  @announce
+
+linkLossEvent
+  :: App
+  => Page.Plan(PMode.ManualAircraft)
+   * AircraftLink.Connected(Aircraft(Feed.Stale))
+  -> Page.Plan(PMode.JustMap)
+   * AircraftLink.Disconnected
+  @after TelemetryAge 60
+  @announce
+
+flownAwayEvent FlownAway
+  :: Page.Plan
+  => Missions(Mission(MissionState(NotStarted | Stopped)))
+  -> Missions(Mission')
+  @announce
+  -- the Mission flown when the link was lost; never the one a MissionRun holds.
+  -- RouteDone settles it Completed. ReachedTo, where further along the route than
+  -- its BreakPoint, makes it Stopped(StopReason.LinkLost * BreakPoint) at that
+  -- waypoint; otherwise nothing changes. The figures stay last-known.
+
+------------------------------------------------------------------------------------
+-- AircraftCanvas
+
+maximizeCamera :: AircraftCanvas => FCamera.Minimized -> FCamera.Maximized
+  @control button_icon_f
+
+minimizeCamera :: AircraftCanvas => FCamera.Maximized -> FCamera.Minimized
+  @control button_icon_f
+
+hideCamera     :: AircraftCanvas => FCamera(Minimized | Maximized) -> FCamera.Hidden
+  @control button_icon_f
+
+unhideCamera   :: AircraftCanvas => FCamera.Hidden -> FCamera.Minimized
+  @control button_icon_f
+
+panMap         :: AircraftCanvas => MapFollow -> MapFollow.Free
+  @control map_pan
+
+recenterMap    :: AircraftCanvas => MapFollow.Free -> MapFollow.Following
+  @control button_icon_f
+
+
+------------------------------------------------------------------------------------
+-- PMode.ShowMission
+
+editSelectedMission
+  :: Page.Plan
+  => PMode.ShowMission.Selected(MissionState.NotStarted * At)
+   * Missions(Mission(At * Plot))
+  -> PMode.Plot(PlotOrigin.Editing * Plot')
+  @control button_icon_f
+
+copyMission MissionName
+  :: Page.Plan
+  => PMode.ShowMission.Selected
+  -> PMode.ShowMission.Selected(MissionState.NotStarted) * Missions'
+  @control name_prompt
+
+selectMission At
+  :: PMode.ShowMission.List.NonEmpty -> PMode.ShowMission.Selected(At)
+  @control list_row
+
+deleteMission
+  :: Page.Plan
+  => PMode.ShowMission.Selected
+  -> PMode.ShowMission.List * Missions'
+  @control button_icon_f
+  @requiresConfirmation
+
+backToList :: PMode.ShowMission.Selected -> PMode.ShowMission.List.NonEmpty
+  @control button_icon  -- inside panel

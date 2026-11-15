@@ -1,0 +1,35 @@
+-- The rules of a pattern's use: as many arguments as parameters,
+-- separated by commas; nothing after a dot, no element key; as a shared
+-- path, no parameters and a chain of paths; a name for an element key. An
+-- error inside a body is reported at each use, pointing into the body.
+__atomics { Name = __text  Id }
+__events { a b c d e f g h i j k }
+
+App = Page * Items * Link
+Page = Home | Editor (Doc * Mode)
+Doc = Title * Mode
+Title = Name
+Mode = Viewing | Editing
+Items = [Item by Id]
+Item = Done | Todo
+Link = Off | On
+
+__pattern W(x) = App(Page.Editor(x))
+__pattern Two = App(Page.Home * Link.Off)
+__pattern Picked(i) = App(Items[i](Item.Done))
+__pattern Bad = App(Link.Of)
+__pattern Loop = App(Loop)
+
+__init :: App(Page.Home * Link.Off)
+
+a :: W -> App(Link.Off)
+b :: W(Mode.Viewing, Mode.Editing) -> App(Link.Off)
+c :: App(Link.Off, Link.On) -> App(Link.On)
+d :: W => Mode.Viewing -> Mode.Editing
+e :: Two => Link.Off -> Link.On
+f :: Two.Home -> App(Link.On)
+g Id#n :: Picked(Item.Done) -> App(Link.On)
+h :: Bad -> App(Link.On)
+k :: App(Page.Home) // Bad -> App(Link.On)
+i :: Loop -> App(Link.On)
+j :: Page.{Editor | W(Mode.Viewing, Mode.Editing)} -> Page.Home

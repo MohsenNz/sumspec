@@ -46,6 +46,8 @@ data Kind
     KValue
   | -- | A qualifier in @__imports@, and in the names it qualifies.
     KQualifier
+  | -- | A named pattern (@__pattern@).
+    KPattern
   deriving stock (Eq, Show)
 
 -- | A name as written in the spec.
@@ -100,6 +102,9 @@ definition env = \case
         ConstLiteral _ _ -> []
         ConstVariant v -> fst (segments env (typeBodyOf env t) [v])
   DefInit _ p -> pattern env [] p
+  -- The parameters are the values of the body.
+  DefPattern (PatternDef n params body) ->
+    define KPattern n : map (define KValue) params <> pattern env params body
   DefEvent (Event n input transitions) ->
     event
       : maybe [] (pattern env []) input
@@ -207,6 +212,7 @@ pattern env scope = \case
   PatternBound x -> [define KValue x]
   PatternAlts p alts ->
     let (os, here) = path env p in os <> concatMap (alternative env scope here) alts
+  PatternApply p groups -> fst (path env p) <> concatMap (concatMap self) groups
   PatternPrimed _ p -> self p
   PatternExpr e -> expr env scope e
   where
@@ -253,6 +259,7 @@ refOcc unknown (n, ref) = case ref of
   RefType d -> use KType n (Just d)
   RefVariant v -> use KVariant n (Just (variantName (variantInfo v)))
   RefConst c -> use KConst n (Just (constName c))
+  RefPattern d -> use KPattern n (Just (patternDefName d))
   RefUnknown -> use unknown n Nothing
 
 -- | The outline: every atomic and definition, in source order. A sum
@@ -282,6 +289,8 @@ symbols source spec =
       DefConst c -> symbol SymbolKind_Constant (constName c) (full (constName c) next) Nothing
       DefEvent e -> symbol SymbolKind_Event (eventName e) (full (eventName e) next) Nothing
       DefInit n _ -> symbol SymbolKind_Constructor n (full n next) Nothing
+      DefPattern p ->
+        symbol SymbolKind_Function (patternDefName p) (full (patternDefName p) next) Nothing
     typeKind = \case
       TypeSum _ -> SymbolKind_Enum
       TypeProduct _ -> SymbolKind_Struct
@@ -331,3 +340,4 @@ defName = \case
   DefConst c -> constName c
   DefEvent e -> eventName e
   DefInit n _ -> n
+  DefPattern d -> patternDefName d

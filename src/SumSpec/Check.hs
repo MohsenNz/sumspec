@@ -28,6 +28,7 @@ import Data.Set (Set)
 import Data.Set qualified as Set
 import Data.Text (Text)
 import Data.Text qualified as T
+import SumSpec.Expand (Expansion (..), Origin (..), expandSpec, patternOrigin)
 import SumSpec.Model
   ( Base (..)
   , BaseInfo (..)
@@ -110,38 +111,63 @@ importFailed i = case importedResult i of
 -- header blocks are checked: the rest would be checked against a base that
 -- isn't there.
 checkSpecWith :: [Imported] -> FilePath -> Text -> Spec -> [CheckError]
-checkSpecWith imports file source spec
+checkSpecWith imports file source raw
   | any importFailed imports =
-      sortOn (position . errorPos) (checkImports imports <> checkHeaders spec)
+      sortOn (position . errorPos) (checkImports imports <> checkHeaders raw)
   | otherwise =
-      sortOn (position . errorPos) . nubOrdOn key $
-        concat
-          [ checkImports imports
-          , checkLayer env inits rawEvents events
-          , checkHeaders spec
-          , checkAnnotations spec
-          , concatMap
-              (checkBoundHeads env)
-              (map snd rawInits <> concatMap eventPatterns rawEvents)
-          , checkAlternatives (map snd rawInits) rawEvents
-          , checkInit file env inits
-          , checkTypeDefs env typeDefs
-          , checkConsts env consts
-          , checkEvents env spec events
-          , concatMap checkWrittenKeys events
-          , checkTransitions env transitions
-          , checkGuards env transitions
-          , checkListPlaces typeDefs (map snd inits) transitions
-          , warnListElements env root transitions
-          , warnReachability env (map snd (take 1 inits)) transitions
-          , warnOverlaps env transitions
-          , warnSuffixSpaces
-              source
-              ( mapMaybe eventInput rawEvents
-                  <> concat [[from, to] | Flat _ _ from to _ _ <- concatMap flatten rawEvents]
-              )
-          ]
+      sortOn (position . errorPos) . nubOrdOn key . map fromBody $
+        [errorAtPos pos message | (pos, message) <- expansionErrors expansion]
+          <> filter ((`notElem` failed) . errorPos) checked
   where
+    -- Every check reads the spec with its named patterns expanded. An
+    -- error in a copy of a body is reported at the use, pointing into the
+    -- body; a use that couldn't be expanded is reported once, by the
+    -- expansion.
+    expansion = expandSpec raw
+    spec = expansionSpec expansion
+    failed = map fst (expansionErrors expansion)
+    fromBody e = case patternOrigin expansion (errorPos e) of
+      Just (Origin use name body) ->
+        e
+          { errorPos = use
+          , errorMessage =
+              errorMessage e
+                <> " (in pattern "
+                <> name
+                <> ", at "
+                <> T.pack (show (unPos (sourceLine body)))
+                <> ":"
+                <> T.pack (show (unPos (sourceColumn body)))
+                <> ")"
+          }
+      Nothing -> e
+    checked =
+      concat
+        [ checkImports imports
+        , checkLayer env inits rawEvents events
+        , checkHeaders spec
+        , checkAnnotations spec
+        , concatMap
+            (checkBoundHeads env)
+            (map snd rawInits <> concatMap eventPatterns rawEvents)
+        , checkAlternatives (map snd rawInits) rawEvents
+        , checkInit file env inits
+        , checkTypeDefs env typeDefs
+        , checkConsts env consts
+        , checkEvents env spec events
+        , concatMap checkWrittenKeys events
+        , checkTransitions env transitions
+        , checkGuards env transitions
+        , checkListPlaces typeDefs (map snd inits) transitions
+        , warnListElements env root transitions
+        , warnReachability env (map snd (take 1 inits)) transitions
+        , warnOverlaps env transitions
+        , warnSuffixSpaces
+            source
+            ( mapMaybe eventInput rawEvents
+                <> concat [[from, to] | Flat _ _ from to _ _ <- concatMap flatten rawEvents]
+            )
+        ]
     position pos = (unPos (sourceLine pos), unPos (sourceColumn pos))
     -- A shared path is part of both sides, so a problem in it is found
     -- twice; it is reported once.
@@ -330,6 +356,8 @@ checkLayer env inits rawEvents events =
 -- | The heads of a pattern and of every pattern inside it.
 patternHeads :: Pattern -> [Name]
 patternHeads = \case
+  -- Expanded before checking (see "SumSpec.Expand").
+  PatternApply ns gs -> patternHeads (PatternPath ns (concat gs))
   PatternPath (h :| _) args -> h : concatMap patternHeads args
   PatternElement (h :| _) _ args -> h : concatMap patternHeads args
   PatternAlts (h :| _) alts -> h : concatMap patternHeads alts
@@ -633,6 +661,8 @@ checkInit file env inits = case inits of
       PatternExpr e | not (null (exprNames e)) -> []
       q -> checkPattern env Map.empty (withoutValues q)
     initValues = \case
+      -- Expanded before checking (see "SumSpec.Expand").
+      PatternApply ns gs -> initValues (PatternPath ns (concat gs))
       PatternAlts {} -> [] -- expanded before this check (see 'expandAlts')
       PatternPrimed pos inner ->
         errorAtPos
@@ -1101,6 +1131,8 @@ warnSuffixSpaces source patterns =
   where
     sourceLines = T.lines source
     suffixes = \case
+      -- Expanded before checking (see "SumSpec.Expand").
+      PatternApply ns gs -> suffixes (PatternPath ns (concat gs))
       PatternAlts _ alts -> concatMap suffixes alts
       PatternPrimed pos inner -> (pos, primeMessage inner) : suffixes inner
       PatternNamed inner n -> (hashPos n, namingMessage inner n) : suffixes inner
@@ -1163,6 +1195,8 @@ checkNewStatePrimes from to
     fixed = fixedVariants from
     -- @new@ is the enclosing new state, as written (@Page.Plan@).
     go at new = \case
+      -- Expanded before checking (see "SumSpec.Expand").
+      PatternApply ns gs -> go at new (PatternPath ns (concat gs))
       PatternAlts {} -> [] -- expanded before this check (see 'expandAlts')
       PatternPrimed pos (PatternPath (n :| []) []) ->
         [ errorAtPos pos $
@@ -1197,6 +1231,8 @@ fixedVariants :: Pattern -> Set Position
 fixedVariants = go []
   where
     go at = \case
+      -- Expanded before checking (see "SumSpec.Expand").
+      PatternApply ns gs -> go at (PatternPath ns (concat gs))
       PatternAlts {} -> Set.empty -- expanded before this check (see 'expandAlts')
       PatternPath (h :| path) args ->
         let steps = variantSteps at h path
@@ -1267,6 +1303,8 @@ checkListPlaces defs inits transitions =
               <> "such as L = [T]"
         ]
     patternLists = \case
+      -- Expanded before checking (see "SumSpec.Expand").
+      PatternApply ns gs -> patternLists (PatternPath ns (concat gs))
       PatternAlts _ alts -> concatMap patternLists alts
       PatternList t key ->
         [ report (TermList t key) $
@@ -1302,6 +1340,8 @@ keyNamings env p =
 -- as the list type and the key.
 manyKeys :: Pattern -> [(Name, ElementKey)]
 manyKeys = \case
+  -- Expanded before checking (see "SumSpec.Expand").
+  PatternApply ns gs -> manyKeys (PatternPath ns (concat gs))
   PatternAlts _ alts -> concatMap manyKeys alts
   PatternElement (h :| _) k args ->
     [(h, k) | many k] <> concatMap manyKeys args
@@ -1322,6 +1362,8 @@ manyKeys = \case
 -- error, so it gives no type here.
 namings :: Pattern -> [(Name, Text)]
 namings = \case
+  -- Expanded before checking (see "SumSpec.Expand").
+  PatternApply ns gs -> namings (PatternPath ns (concat gs))
   PatternAlts _ alts -> concatMap namings alts
   PatternNamed (PatternName _) _ -> []
   PatternNamed (PatternExpr _) _ -> []
@@ -1339,6 +1381,8 @@ namings = \case
 -- | The keys of the element paths in a pattern (@id@ in @Todos[id]@).
 elementKeys :: Pattern -> [Name]
 elementKeys = \case
+  -- Expanded before checking (see "SumSpec.Expand").
+  PatternApply ns gs -> elementKeys (PatternPath ns (concat gs))
   PatternAlts _ alts -> concatMap elementKeys alts
   PatternElement _ k args -> keyName k : concatMap elementKeys args
   PatternPath _ args -> concatMap elementKeys args
@@ -1352,6 +1396,8 @@ elementKeys = \case
 -- | The element paths in a pattern, as the list type and the key.
 elementPaths :: Pattern -> [(Text, Name)]
 elementPaths = \case
+  -- Expanded before checking (see "SumSpec.Expand").
+  PatternApply ns gs -> elementPaths (PatternPath ns (concat gs))
   PatternAlts _ alts -> concatMap elementPaths alts
   PatternElement (h :| _) k args -> (nameText h, keyName k) : concatMap elementPaths args
   PatternPath _ args -> concatMap elementPaths args
@@ -1388,6 +1434,8 @@ checkNamings env input from to =
 -- | Every @P#x@ in a pattern, as @P@ and @x@.
 named :: Pattern -> [(Pattern, Name)]
 named = \case
+  -- Expanded before checking (see "SumSpec.Expand").
+  PatternApply ns gs -> named (PatternPath ns (concat gs))
   PatternAlts _ alts -> concatMap named alts
   PatternNamed p n -> (p, n) : named p
   PatternPath _ args -> concatMap named args
@@ -1407,6 +1455,8 @@ data Side = Source | Target
 -- would say nothing new: the written variant already gives the value.
 checkPrimes :: Side -> Pattern -> [CheckError]
 checkPrimes side = \case
+  -- Expanded before checking (see "SumSpec.Expand").
+  PatternApply ns gs -> checkPrimes side (PatternPath ns (concat gs))
   PatternAlts _ alts -> concatMap (checkPrimes side) alts
   PatternPrimed pos inner ->
     [ errorAtPos pos "a prime (') marks a new value, so it can only be on the target side"
@@ -1686,6 +1736,8 @@ type Names = Map Text Text
 -- checked like the pattern inside.
 checkPattern :: Model -> Names -> Pattern -> [CheckError]
 checkPattern env names = \case
+  -- Expanded before checking (see "SumSpec.Expand").
+  PatternApply ns gs -> checkPattern env names (PatternPath ns (concat gs))
   PatternAlts {} -> [] -- expanded before this check (see 'expandAlts')
   PatternPrimed _ inner -> checkPattern env names inner
   PatternNamed inner _ -> checkPattern env names inner
@@ -1990,6 +2042,8 @@ misplacedExprs p =
 -- | Every expression in a pattern.
 patternExprs :: Pattern -> [Expr]
 patternExprs = \case
+  -- Expanded before checking (see "SumSpec.Expand").
+  PatternApply ns gs -> patternExprs (PatternPath ns (concat gs))
   PatternExpr e -> [e]
   PatternPath _ args -> concatMap patternExprs args
   PatternElement _ _ args -> concatMap patternExprs args
@@ -2214,6 +2268,8 @@ keyUses = \case
 -- | The names a pattern uses (@x@), not the ones it gives (@#x@).
 nameUses :: Pattern -> [Name]
 nameUses = \case
+  -- Expanded before checking (see "SumSpec.Expand").
+  PatternApply ns gs -> nameUses (PatternPath ns (concat gs))
   PatternAlts _ alts -> concatMap nameUses alts
   PatternName n -> [n]
   PatternNamed p _ -> nameUses p
@@ -2279,6 +2335,8 @@ reach
 reach env names fixed = goPattern []
   where
     goPattern at fill = \case
+      -- Expanded before checking (see "SumSpec.Expand").
+      PatternApply ns gs -> goPattern at fill (PatternPath ns (concat gs))
       PatternAlts {} -> mempty -- expanded before this check (see 'expandAlts')
       PatternPrimed _ p -> anyOf (patternKey p)
       PatternNamed p _ -> goPattern at fill p
@@ -3069,6 +3127,8 @@ termKey = \case
 
 patternHead :: Pattern -> Name
 patternHead = \case
+  -- Expanded before checking (see "SumSpec.Expand").
+  PatternApply ns gs -> patternHead (PatternPath ns (concat gs))
   PatternAlts (h :| _) _ -> h
   PatternPath (h :| _) _ -> h
   PatternElement (h :| _) _ _ -> h
@@ -3084,6 +3144,8 @@ patternHead = \case
 -- @A@. For a name (@x@) it is the name itself; see 'argKey' for its type.
 patternKey :: Pattern -> Text
 patternKey = \case
+  -- Expanded before checking (see "SumSpec.Expand").
+  PatternApply ns gs -> patternKey (PatternPath ns (concat gs))
   PatternAlts (h :| _) _ -> nameText h
   PatternPath (h :| _) _ -> nameText h
   PatternElement (h :| _) _ _ -> nameText h

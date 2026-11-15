@@ -217,11 +217,13 @@ eventsBlock = symbol "__events" *> braces (many lowerName)
 annotationsBlock :: Parser [Name]
 annotationsBlock = symbol "__annotations" *> braces (many annotationDecl)
 
--- definition = init_state | type_def | event_def ;
+-- definition = init_state | pattern_def | type_def | const_def
+--            | event_def ;
 definition :: Parser Definition
 definition =
   choice
     [ uncurry DefInit <$> initState
+    , DefPattern <$> patternDef
     , DefEvent <$> eventDef
     , DefConst <$> constDef
     , DefType <$> typeDef
@@ -234,6 +236,17 @@ initState = do
   keyword "__init"
   _ <- symbol "::"
   (,) (Name pos "__init") <$> pattern
+
+-- pattern_def = "__pattern" , UPPER ,
+--               [ "(" , LOWER , { "," , LOWER } , ")" ] , "=" ,
+--               type_pattern ;
+patternDef :: Parser PatternDef
+patternDef = do
+  keyword "__pattern"
+  name <- upperName
+  params <- option [] (parens (sepBy1 (valueName <?> "parameter name") (symbol ",")))
+  equals
+  PatternDef name params <$> typePattern
 
 -- const_def = UPPER , "=" , type_name , ( "(" , literal , ")" | "." , UPPER ) ;
 --
@@ -565,7 +578,7 @@ joinOps = foldl (\left ((pos, op), right) -> ExprBin op pos left right)
 
 -- type_pattern = path , "." , "{" , alternatives , "}"
 --              | path , [ element_key ] ,
---                [ "(" , ( NAMING | arguments ) , ")" ]
+--                [ "(" , ( NAMING | arguments , { "," , arguments } ) , ")" ]
 --              | "[" , type_term , "]" ;
 typePattern :: Parser Pattern
 typePattern =
@@ -577,16 +590,26 @@ typePattern =
           [ PatternAlts names <$> (symbol "." *> braces alternatives)
           , do
               key <- optional elementKey
-              args <- option [] argumentList
-              pure (maybe (PatternPath names args) (\k -> PatternElement names k args) key)
+              offset <- getOffset
+              groups <- option ([] :| []) argumentGroups
+              case (key, groups) of
+                (Nothing, args :| []) -> pure (PatternPath names args)
+                (Just k, args :| []) -> pure (PatternElement names k args)
+                (Nothing, _) -> pure (PatternApply names groups)
+                (Just _, _) ->
+                  failAt offset $
+                    "an element takes its arguments joined by \"*\"; "
+                      <> "a comma separates the arguments of a named pattern"
           ]
     ]
 
--- "(" , ( NAMING | arguments ) , ")"
-argumentList :: Parser [Pattern]
-argumentList = parens (bound <|> NE.toList <$> arguments)
+-- "(" , ( NAMING | arguments , { "," , arguments } ) , ")"
+--
+-- The groups of arguments, separated by commas: one without a comma.
+argumentGroups :: Parser (NonEmpty [Pattern])
+argumentGroups = parens (bound <|> NE.fromList <$> sepBy1 (NE.toList <$> arguments) (symbol ","))
   where
-    bound = pure . PatternBound <$> naming
+    bound = pure . pure . PatternBound <$> naming
 
 -- alternatives = alternative , "|" , alternative , { "|" , alternative } ;
 alternatives :: Parser (NonEmpty Pattern)
@@ -596,13 +619,18 @@ alternatives = do
   (first :|) <$> sepBy1 alternative (symbol "|")
 
 -- alternative = path , [ "." , "{" , alternatives , "}"
---                      | "(" , ( NAMING | arguments ) , ")" ] ;
+--                      | "(" , ( NAMING | arguments ,
+--                                { "," , arguments } ) , ")" ] ;
 alternative :: Parser Pattern
 alternative = do
   names <- path
   choice
     [ PatternAlts names <$> (symbol "." *> braces alternatives)
-    , PatternPath names <$> option [] argumentList
+    , do
+        groups <- option ([] :| []) argumentGroups
+        pure $ case groups of
+          args :| [] -> PatternPath names args
+          _ -> PatternApply names groups
     ]
 
 -- element_key = "[" , ( LOWER | "each" , [ NAMING ] , [ "in" , LOWER ] ) , "]" ;

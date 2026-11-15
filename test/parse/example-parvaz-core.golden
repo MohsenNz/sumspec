@@ -1,0 +1,217 @@
+__version 1.0
+
+__atomics {
+  Int = __int
+  Meters = __float
+  Hectares = __float
+  LitersPerMin = __float
+  MetersPerSec = __float
+  Degrees = __float
+  Latitude = __float
+  Longitude = __float
+  Seconds = __float
+  Percent = __float
+  Volts = __float
+  Text = __text
+  FailureReason = __text
+  Timestamp
+  Unimplemented
+}
+
+__events {
+  addMission
+  updatePlot
+  copyMission
+  deleteMission
+  startMission
+  resumeMission
+  stopMission
+  returnToHome
+  retryArming
+  cancelArming
+  armedEvent
+  armingFailedEvent
+  routeReachedEvent
+  groundMeasuredEvent
+  missionCompletedEvent
+  manualControlTakenEvent
+  autoRestoredEvent
+  landedEvent
+  batteryLowEvent
+  gpsLostEvent
+  homeReachedEvent
+  linkLossEvent
+  flownAwayDoneEvent
+  flownAwayToEvent
+  saveDevice
+  removeDevice
+  selectDevice
+  closeLink
+  aircraftConnectedEvent
+  linkFailedEvent
+  homeSetEvent
+  telemetryFrameEvent
+  telemetryLostEvent
+  telemetryBackEvent
+  logged
+}
+
+__annotations {
+  @default
+  @range
+  @after
+  @stream
+  @status
+  @view
+  @region
+}
+
+__init :: Core(Run.Idle * AircraftLink.Disconnected * LinkSession.Closed * LastDevice.None)
+Core = Missions * Run * AircraftLink * Devices * LinkSession * LastDevice * Logs
+Point = Latitude * Longitude
+Points = [Point]
+Plot @default Empty = Empty | Drawn PlotDrawn @region canvas
+PlotDrawn = Boundary * Markings * RouteSettings
+Boundary = Ring
+Markings = [Marking]
+Marking = Obstacle Ring | RoundObstacle Spot | PowerLine Path | NonSprayArea Ring | MarkPoint Spot
+Ring = Partial Points | Closeable Points | Enclosed Points
+Path = Partial Point | Total Points
+Spot = Point
+RouteSettings = RouteSpacing * SprayHeight * ReturnHeight * SpraySpeed * DefaultEdgeMargin * EdgeMargins * StartCorner * CoverageArea * ObstacleBoundary * SingleSideSpraying * Course
+RouteSpacing @default 8 @range 2..12 = Meters
+SprayHeight @default 3 @range 1..10 = Meters
+ReturnHeight @default 15 @range 12..50 = Meters
+SpraySpeed @default 5 @range 1..10 = MetersPerSec
+DefaultEdgeMargin @default 1.5 @range 0..10 = Meters
+EdgeMargins = [EdgeMargin]
+EdgeMargin = Edge * EdgeInset
+Edge = Point
+EdgeInset @range 0..10 = Meters
+StartCorner @default first_added_point = Point
+CoverageArea @default RouteOnly = RouteOnly | RouteAndBoundary | BoundaryOnly
+ObstacleBoundary @default 1.5 @range 0.5..10 = Meters
+SingleSideSpraying @default Off = Off | On
+Course @default Auto = Auto CourseAngle | Manual CourseAngle
+CourseAngle @range 0..180 = Degrees
+Missions = [Mission by At]
+Mission = MissionName * GroundMeasurements * MissionState * Plot
+MissionName = Text
+At = Timestamp
+MissionState @default NotStarted = NotStarted | Completed | Stopped (StopReason * BreakPoint)
+StopReason = Commanded | BatteryLow @status error | LinkLost @status error | ManualTakeover | GpsLost @status error
+BreakPoint @region canvas = Point
+GroundMeasurements @view tiles = Distance * Area * RouteProgress
+Distance = Meters
+Area = Hectares
+RouteProgress = Percent
+NewMission = At * MissionName * Plot
+PlotUpdate = At * MissionName * Plot
+MissionCopy = CopyOf * At * MissionName
+CopyOf = At
+Run = Idle | Active MissionRun
+MissionRun = At * MissionFlight
+MissionFlight = Arming RouteEntry @status loading | Flying FPhase | Failed (FailureReason * RouteEntry) @status error
+FPhase = Approaching RouteEntry | Spraying | Holding RouteEntry | PilotControl RouteEntry | Returning (Interrupted (StopReason * RouteEntry) | Finished)
+RouteEntry = FromStart | FromBreakPoint BreakPoint
+FlownTo = At * Point
+Sprayer = Unimplemented
+AircraftLink @default Disconnected = Disconnected | Connected Aircraft
+Aircraft = AircraftStatus * Feed * HomePoint * BatteryReserve * SystemId
+AircraftStatus = ArmState * FlightMode * GPSFix * Satellites * Battery * SprayFlow * Altitude * RangefinderAlt * OffsetAlt * Speed * Heading * Latitude * Longitude
+ArmState @default Disarmed = Disarmed | Armed
+FlightMode @default Unknown = Unknown | Named Text
+GPSFix = NoFix | Fix2D | Fix3D | DGPS | RTKFix
+Satellites = Int
+SprayFlow = LitersPerMin
+Altitude = Meters
+Speed = MetersPerSec
+Heading = Degrees
+BatteryVoltage = Volts
+BatteryCharge = Percent
+Battery = BatteryVoltage * BatteryCharge
+RangefinderAlt @default NoSensor = NoSensor | NoReading | Reading Meters
+OffsetAlt @default NoSensor = NoSensor | NoReading | Reading Meters
+TelemetryAge = Seconds
+LinkQuality = Percent
+Feed = Live LinkQuality | Stale TelemetryAge @status error
+HomePoint @default Unknown = Unknown | Known Point
+BatteryReserve @default Enough = Enough | Low
+BatteryLowThreshold = Percent(15)
+Devices = [Device by DeviceId]
+Device = DeviceName * LinkSettings * LastSystemId
+DeviceId = Timestamp
+DeviceName = Text
+LinkSettings @default Udp = Udp Port | Tcp (HostName * Port) | Serial Baud
+HostName = Text
+Port @default 14550 @range 1..65535 = Int
+Baud @default 57600 @range 1200..921600 = Int
+SystemId @range 1..255 = Int
+LastSystemId @default Unheard = Unheard | Heard SystemId
+LinkSession @default Closed = Closed | Open DeviceId | Failed (DeviceId * LinkFailure) @status error
+LinkFailure = Text
+LastDevice @default None = None | Known DeviceId
+SavedDevice = DeviceId * DeviceName * LinkSettings
+Logs = [LogEntry]
+LogEntry = Timestamp * LogLevel * LogTag * Text
+LogLevel = Info | Warning | Error
+LogTag = Link | Mavlink | Vehicle | Storage | Basemap | Crash
+addMission NewMission :: Missions -> Missions'
+updatePlot PlotUpdate(At#at * MissionName#n * Plot#p) :: Core => Run.Idle * Missions[at](MissionState.NotStarted) -> Missions[at](n * p)
+copyMission MissionCopy(CopyOf(#from) * At * MissionName) :: Missions[from] -> Missions'
+deleteMission At#at :: Core => Run.Idle * Missions[at] -> Missions'
+__pattern ReadyToFly = AircraftLink.Connected(Feed.Live * AircraftStatus(ArmState.Disarmed * GPSFix.{Fix3D | DGPS | RTKFix}) * BatteryReserve.Enough)
+__pattern InFlight(phase) = Run.Active(MissionFlight.Flying(phase))
+__pattern SprayingRun(at) = Run.Active(at * MissionFlight.Flying(FPhase.Spraying))
+startMission At#at :: Core => Run.Idle * Missions[at](MissionState.{NotStarted | Stopped}) * ReadyToFly -> Run.Active(at * MissionFlight.Arming(RouteEntry.FromStart))
+resumeMission At#at :: Core => Run.Idle * Missions[at](MissionState.Stopped(BreakPoint#b)) * ReadyToFly -> Run.Active(at * MissionFlight.Arming(RouteEntry.FromBreakPoint(b)))
+                    :: Run.Active => at * MissionFlight.Flying(FPhase.Holding(RouteEntry#e)) -> MissionFlight.Flying(FPhase.Approaching(e))
+armedEvent :: Core => Run.Active(At#at * MissionFlight.Arming(RouteEntry.FromStart)) * Missions[at] -> InFlight(FPhase.Approaching(RouteEntry.FromStart)) * Missions[at](MissionState.NotStarted * GroundMeasurements(Distance(0) * Area(0) * RouteProgress(0)))
+           :: MissionFlight.Arming(RouteEntry.FromBreakPoint#bp) -> MissionFlight.Flying(FPhase.Approaching(bp))
+           :: Core(Run.Idle) -> Core @after ArmState Armed
+armingFailedEvent FailureReason#r :: MissionFlight.Arming(RouteEntry#e) -> MissionFlight.Failed(r * e)
+retryArming :: Core => Run.Active(MissionFlight.Failed(RouteEntry#e)) * ReadyToFly -> Run.Active(MissionFlight.Arming(e))
+cancelArming :: Run.Active(MissionFlight.{Arming | Failed}) -> Run.Idle
+stopMission :: Core => SprayingRun(At#at) * Missions[at] -> InFlight(FPhase.Holding(RouteEntry.FromBreakPoint)) * Missions[at](MissionState.Stopped(StopReason.Commanded))
+            :: MissionFlight.Flying => FPhase.Approaching(RouteEntry#e) -> FPhase.Holding(e)
+routeReachedEvent :: MissionFlight.Flying => FPhase.Approaching -> FPhase.Spraying
+returnToHome :: MissionFlight.Flying
+             => FPhase.Approaching(RouteEntry#e) -> FPhase.Returning.Interrupted(StopReason.Commanded * e)
+             => FPhase.Holding(RouteEntry#e) -> FPhase.Returning.Interrupted(StopReason.Commanded * e)
+groundMeasuredEvent :: Core => SprayingRun(At#at) * Missions[at] -> Missions[at](GroundMeasurements') @stream
+missionCompletedEvent :: Core => SprayingRun(At#at) * Missions[at] * AircraftLink.Connected(Feed.Live) -> InFlight(FPhase.Returning.Finished) * Missions[at](MissionState.Completed)
+manualControlTakenEvent :: Core => SprayingRun(At#at) * Missions[at] -> InFlight(FPhase.PilotControl(RouteEntry.FromBreakPoint)) * Missions[at](MissionState.Stopped(StopReason.ManualTakeover))
+                        :: MissionFlight.Flying
+                        => FPhase.Approaching(RouteEntry#e) -> FPhase.PilotControl(e)
+                        => FPhase.Holding(RouteEntry#e) -> FPhase.PilotControl(e)
+                        :: Run.Active(MissionFlight.{Arming | Failed | Flying(FPhase.Returning)}) -> Run.Idle
+autoRestoredEvent :: MissionFlight.Flying => FPhase.PilotControl(RouteEntry#e) -> FPhase.Holding(e)
+landedEvent :: InFlight(FPhase.PilotControl) -> Run.Idle
+batteryLowEvent :: Core => SprayingRun(At#at) * Missions[at] -> InFlight(FPhase.Returning.Interrupted(StopReason.BatteryLow * RouteEntry.FromBreakPoint)) * Missions[at](MissionState.Stopped(StopReason.BatteryLow))
+                :: MissionFlight.Flying
+                => FPhase.Approaching(RouteEntry#e) -> FPhase.Returning.Interrupted(StopReason.BatteryLow * e)
+                => FPhase.Holding(RouteEntry#e) -> FPhase.Returning.Interrupted(StopReason.BatteryLow * e)
+                => FPhase.PilotControl(RouteEntry#e) -> FPhase.Returning.Interrupted(StopReason.BatteryLow * e) @after BatteryReserve Low
+gpsLostEvent :: Core => SprayingRun(At#at) * Missions[at] -> Run.Idle * Missions[at](MissionState.Stopped(StopReason.GpsLost))
+             :: InFlight(FPhase.{Approaching | Holding | Returning | PilotControl}) -> Run.Idle @after GPSFix (NoFix | Fix2D)
+homeReachedEvent :: InFlight(FPhase.Returning) -> Run.Idle
+linkLossEvent :: Core
+              => SprayingRun(At#at) * Missions[at] * AircraftLink.Connected(Feed.Stale) -> Run.Idle * Missions[at](MissionState.Stopped(StopReason.LinkLost)) * AircraftLink.Disconnected
+              => Run.Active(MissionFlight.{Arming | Failed | Flying(FPhase.{Approaching | Holding | Returning | PilotControl})}) * AircraftLink.Connected(Feed.Stale) -> Run.Idle * AircraftLink.Disconnected
+              => Run.Idle * AircraftLink.Connected(Feed.Stale) -> AircraftLink.Disconnected @after TelemetryAge 60
+flownAwayDoneEvent At#at :: Missions[at] => MissionState.{NotStarted | Stopped} -> MissionState.Completed
+flownAwayToEvent FlownTo(At#at * Point) :: Missions[at] => MissionState.{NotStarted | Stopped} -> MissionState'
+saveDevice SavedDevice(DeviceId#id * DeviceName#n * LinkSettings#s) :: Core
+                                                                    => Devices // not Devices[id] -> Devices'
+                                                                    => Devices // Devices[id] and LinkSession.Open(id) and not AircraftLink.Connected(AircraftStatus(ArmState.Armed)) -> Devices[id](n * s) * AircraftLink.Disconnected
+                                                                    => Devices // Devices[id] and not LinkSession.Open(id) -> Devices[id](n * s)
+removeDevice DeviceId#id :: Core => Devices * LinkSession * AircraftLink * LastDevice // Devices[id] and not AircraftLink.Connected(AircraftStatus(ArmState.Armed)) -> Devices' * LinkSession' * AircraftLink' * LastDevice'
+selectDevice DeviceId#id :: Core => Devices[id] * LinkSession * AircraftLink * LastDevice // not AircraftLink.Connected(AircraftStatus(ArmState.Armed)) -> LinkSession.Open(id) * AircraftLink.Disconnected * LastDevice.Known(id)
+closeLink :: Core => LinkSession.{Open | Failed} * AircraftLink // not AircraftLink.Connected(AircraftStatus(ArmState.Armed)) -> LinkSession.Closed * AircraftLink.Disconnected
+aircraftConnectedEvent Aircraft#a :: Core => LinkSession.Open(DeviceId#id) * AircraftLink.Disconnected * Devices[id] -> AircraftLink.Connected(a) * Devices[id](LastSystemId.Heard)
+linkFailedEvent LinkFailure#f :: Core => LinkSession.Open(DeviceId#id) * AircraftLink.Disconnected -> LinkSession.Failed(id * f)
+homeSetEvent Point#p :: AircraftLink.Connected => HomePoint -> HomePoint.Known(p)
+telemetryFrameEvent AircraftStatus#s :: AircraftLink.Connected => Feed.Live -> Feed.Live(LinkQuality') * s * BatteryReserve' @stream
+telemetryLostEvent :: AircraftLink.Connected => Feed.Live -> Feed.Stale @after TelemetryAge 3
+telemetryBackEvent AircraftStatus#s :: AircraftLink.Connected => Feed.Stale -> Feed.Live * s * BatteryReserve'
+logged LogEntry :: Logs -> Logs'

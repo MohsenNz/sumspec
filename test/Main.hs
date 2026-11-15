@@ -62,6 +62,7 @@ examples =
   , "example/git.sumspec"
   , "example/todo-core.sumspec"
   , "example/todo-ui.sumspec"
+  , "parvaz/parvaz-core.sumspec"
   ]
 
 golden :: (FilePath -> Text -> Text) -> (FilePath, FilePath) -> TestTree
@@ -148,11 +149,13 @@ disagreement m p@(h :| rest) =
 
 -- | Every path written in a spec, with the alternatives of @S.{A | B}@
 -- each a path from @S@.
+-- Named patterns are expanded, so every use is read in its body.
 specPaths :: Spec -> [NonEmpty Name]
-specPaths spec = concatMap definition (specDefinitions spec)
+specPaths spec = concatMap definition (specDefinitions (expansionSpec (expandSpec spec)))
   where
     definition = \case
       DefType _ -> []
+      DefPattern _ -> []
       DefConst (ConstDef _ ty value) -> case value of
         ConstVariant v -> [ty :| [v]]
         ConstLiteral _ _ -> []

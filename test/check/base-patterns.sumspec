@@ -1,0 +1,16 @@
+-- A base spec whose events use a named pattern, for
+-- error-pattern-base.sumspec. It is a case of its own too.
+__atomics { }
+__events { stop start drop }
+
+__init :: Core(Link.Up * Mode.On)
+
+Core = Link * Mode
+Link = Up | Down
+Mode = On | Off
+
+__pattern Ready = Core(Link.Up * Mode.On)
+
+stop :: Ready -> Core(Mode.Off)
+start :: Core(Mode.Off) -> Core(Mode.On)
+drop :: Core => Link.Up -> Link.Down
