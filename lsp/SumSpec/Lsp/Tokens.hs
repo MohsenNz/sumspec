@@ -188,6 +188,7 @@ classify occ word = case occ of
       KValue -> SemanticTokenTypes_Variable
       KQualifier -> SemanticTokenTypes_Namespace
       KPattern -> SemanticTokenTypes_Macro
+      KPath -> SemanticTokenTypes_Macro
     extra = \case
       KConst -> [SemanticTokenModifiers_Readonly]
       _ -> []

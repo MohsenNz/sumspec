@@ -1,0 +1,24 @@
+-- Named shared paths (__path): a path alone before =>, one that uses
+-- another, and one in a chain with other shared paths.
+__atomics { Name = __text }
+__events { open close edit view lock connect }
+
+App = Page * Link
+Page = Home | Editor (Doc * Mode)
+Doc = Title * Mode
+Title = Name
+Mode = Viewing | Editing
+Link = Off | On
+
+__path Root = App
+__path Ed = Root / Page.Editor
+__path InDoc = Ed / Doc
+
+__init :: App(Page.Home * Link.Off)
+
+open :: Root => Page.Home -> Page.Editor(Mode.Viewing)
+close :: Root => Page.Editor -> Page.Home
+edit :: Ed => Mode.Viewing -> Mode.Editing
+view :: InDoc => Mode.Editing -> Mode.Viewing
+lock :: Ed / Doc => Mode.Viewing -> Mode.Editing
+connect :: Root => Link.Off -> Link.On

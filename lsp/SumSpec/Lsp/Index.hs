@@ -48,6 +48,8 @@ data Kind
     KQualifier
   | -- | A named pattern (@__pattern@).
     KPattern
+  | -- | A named shared path (@__path@).
+    KPath
   deriving stock (Eq, Show)
 
 -- | A name as written in the spec.
@@ -95,7 +97,7 @@ definition :: Model -> Definition -> [Occurrence]
 definition env = \case
   DefType (TypeDef n annotations body from) ->
     define KType n
-      : foldMap (pattern env []) from
+      : map (typeUse env) (foldMap toList from)
         <> map (annotation env) annotations
         <> typeExpr env body
   DefConst (ConstDef n t constant) ->
@@ -106,6 +108,8 @@ definition env = \case
         ConstVariant v -> fst (segments env (typeBodyOf env t) [v])
   DefInit _ p -> pattern env [] p
   -- The parameters are the values of the body.
+  DefPath (PathDef n body) ->
+    define KPath n : concat [fst (path env segment) | segment <- toList body]
   DefPattern (PatternDef n params body) ->
     define KPattern n : map (define KValue) params <> pattern env params body
   DefEvent (Event n input transitions) ->
@@ -263,6 +267,7 @@ refOcc unknown (n, ref) = case ref of
   RefVariant v -> use KVariant n (Just (variantName (variantInfo v)))
   RefConst c -> use KConst n (Just (constName c))
   RefPattern d -> use KPattern n (Just (patternDefName d))
+  RefPath d -> use KPath n (Just (pathDefName d))
   RefUnknown -> use unknown n Nothing
 
 -- | The outline: every atomic and definition, in source order. A sum
@@ -294,6 +299,8 @@ symbols source spec =
       DefInit n _ -> symbol SymbolKind_Constructor n (full n next) Nothing
       DefPattern p ->
         symbol SymbolKind_Function (patternDefName p) (full (patternDefName p) next) Nothing
+      DefPath p ->
+        symbol SymbolKind_Function (pathDefName p) (full (pathDefName p) next) Nothing
     typeKind = \case
       TypeSum _ -> SymbolKind_Enum
       TypeProduct _ -> SymbolKind_Struct
@@ -344,3 +351,4 @@ defName = \case
   DefEvent e -> eventName e
   DefInit n _ -> n
   DefPattern d -> patternDefName d
+  DefPath d -> pathDefName d

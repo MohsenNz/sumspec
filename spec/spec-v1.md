@@ -496,6 +496,30 @@ add Path#p
 
 The canonical form puts one branch on the line of its shared paths, and several one per line, each `=>` under the `::`.
 
+#### Named paths (__path)
+
+A shared path written again and again gets a name with `__path`. Its body is written as it is used, segments joined by `/`:
+
+```
+__path Editor = App / Page.Plan / PlanPage.Plot
+
+-- The same as: :: App / Page.Plan / PlanPage.Plot => PlotController.Field * ... -> ...
+pointSelect core.Point#pt
+  :: Editor
+  => PlotController.Field * ShapeSelection.Selected
+  -> ShapeSelection.Selected(PointSelection.Selected(pt))
+```
+
+A path's name stands, among a transition's shared paths, for its segments, in place: `Editor => ...`, `X / Editor => ...`, `Editor / PlotController.Route => ...`. It is expanded before checking, as shared paths and named patterns are.
+
+- The name is uppercase and new to the spec: no type, atomic, constant, pattern or other path has it.
+- Each segment is a path (`Page.Plan` may continue into variants); a segment may be another named path, but not in a cycle.
+- A segment has no element key: in `Files[p] =>` the key names a value of the transition, which a path doesn't define.
+- A path goes only among shared paths, before `=>`, and nowhere a pattern goes.
+- A path is local to its spec, as a named pattern is.
+
+An error found in a path's segments is reported at the use, with the place in the path: `Elsewhere is not a variant of Page (in path Bad, at 17:25)`.
+
 
 ### Named patterns (__pattern)
 
@@ -522,7 +546,7 @@ setRouteSpacing core.RouteSpacing#v
 
 A pattern can be used wherever a pattern goes: in a source, a target, a guard, an input, a dispatch's arguments and `__init`. What it may hold there is what its expansion may hold: alternatives in its body are fine in a source or a guard, not in a target.
 
-A pattern without parameters whose body is a chain of paths, each holding at most the next one, is also a shared path: with `__pattern Ed = App(Page.Editor)`, `Ed => Mode.Viewing -> Mode.Editing` means `App(Page.Editor(Mode.Viewing)) -> App(Page.Editor(Mode.Editing))`. A pattern with parameters isn't one, since a shared path takes no arguments.
+A pattern goes where a pattern goes, never among a transition's shared paths before `=>`: a shared path with a name is a `__path` (see "Named paths").
 
 Rules:
 
@@ -1024,12 +1048,12 @@ LinkStatus          __from core.Core
   = core.LinkSession
   * core.AircraftLink
 
-HomeAircraft        __from core.Core(core.AircraftLink)
+HomeAircraft        __from core.Core / core.AircraftLink
                     @view tiles
   = Disconnected
   | Connected (core.BatteryReserve * Battery * HomeIndicators)
 
-Battery             __from core.AircraftStatus(core.Battery)
+Battery             __from core.AircraftStatus / core.Battery
   = core.BatteryCharge
 
 HomeIndicators      __from core.AircraftStatus
@@ -1038,10 +1062,10 @@ HomeIndicators      __from core.AircraftStatus
 
 A projection is part of the layer's state like any other type, and it carries its own annotations, so presentation lives in the layer, not on the base's types. Its value is always the base part's, seen through its structure: no transition writes it.
 
-**The path** is a chain of the base's types, each holding the next: `core.Core(core.AircraftLink)`. It has no variant, element key, name, prime or alternative. Where it starts:
+**The path** is a chain of the base's types, joined by `/`, each holding the next: `core.Core / core.AircraftLink`. It has no variant or element key. Where it starts:
 
 - A projection outside any other reads from the base's root: its path starts with it (`core.Core`).
-- A projection inside another reads from where its parent reads. Its path starts with the type of the parent's source part there, or with one of that type's factors. Inside `HomeAircraft.Connected`, the source is the connected `core.Aircraft`, so `HomeIndicators` reads `core.AircraftStatus`, one of its factors. For a list's element, the path starts with the element's type: `DeviceRow __from core.Device` inside `DeviceRows __from core.Core(core.Devices) = [DeviceRow by core.DeviceId]`.
+- A projection inside another reads from where its parent reads. Its path starts with the type of the parent's source part there, or with one of that type's factors. Inside `HomeAircraft.Connected`, the source is the connected `core.Aircraft`, so `HomeIndicators` reads `core.AircraftStatus`, one of its factors. For a list's element, the path starts with the element's type: `DeviceRow __from core.Device` inside `DeviceRows __from core.Core / core.Devices = [DeviceRow by core.DeviceId]`.
 - Each type after the first is a factor of the type before it. The type at the end is the projection's **source**.
 
 **The body fits the source**, through newtypes:
@@ -1057,7 +1081,7 @@ A projection selects parts of the base's state; it doesn't compute. A value work
 
 The checker reports:
 
-- a path that isn't a chain, or names a type that isn't a base's;
+- a path that names a type that isn't a base's;
 - a path that starts elsewhere than it should, or a step that isn't a factor of the type before it;
 - a factor, a variant, a key or an element that doesn't fit the source, or a missing variant;
 - a target or an `__init` that names a projection;
@@ -1074,6 +1098,7 @@ The checker reports:
 :: starts a transition
 -> state transition
 => a path both sides of a transition share
+/  joins shared paths, the segments of a __path, and the types of a __from path
 ,  separates the arguments of a named pattern (__pattern)
 @  an annotation: metadata for the target
 >> fires an event of a base spec (see "Layered specs")

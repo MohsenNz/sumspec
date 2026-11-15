@@ -15,6 +15,7 @@ module SumSpec.Pretty
   , renderValue
   , renderKey
   , renderKeyBody
+  , renderTypePath
   ) where
 
 import Data.List.NonEmpty (NonEmpty (..))
@@ -54,7 +55,7 @@ renderDefinition :: Definition -> Text
 renderDefinition = \case
   DefType (TypeDef name notes body from) ->
     nameText name
-      <> maybe "" ((" __from " <>) . renderPattern) from
+      <> maybe "" ((" __from " <>) . renderTypePath) from
       <> renderAnnotations notes
       <> " = "
       <> renderTypeExpr body
@@ -97,12 +98,23 @@ renderDefinition = \case
         T.intercalate "." (map nameText (NE.toList names))
           <> maybe "" renderKey key
   DefInit _ p -> "__init :: " <> renderPattern p
+  DefPath (PathDef name body) ->
+    "__path "
+      <> nameText name
+      <> " = "
+      <> T.intercalate " / " (map renderPath (NE.toList body))
+    where
+      renderPath = T.intercalate "." . map nameText . NE.toList
   DefPattern (PatternDef name params body) ->
     "__pattern "
       <> nameText name
       <> (if null params then "" else "(" <> T.intercalate ", " (map nameText params) <> ")")
       <> " = "
       <> renderPattern body
+
+-- | A path of types, @core.Core / core.AircraftLink@.
+renderTypePath :: NonEmpty Name -> Text
+renderTypePath = T.intercalate " / " . map nameText . NE.toList
 
 -- | The brackets of an element path: @[x]@, @[each]@, @[each #x]@,
 -- @[each in xs]@ or @[each #x in xs]@.

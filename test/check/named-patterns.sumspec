@@ -1,5 +1,5 @@
 -- Named patterns, expanded before checking: in a source, a target, a
--- guard, a shared path and __init; a parameter as an element key; a
+-- guard and __init; a path (__path) before =>; a parameter as an element key; a
 -- pattern used in another's body; several factors in one argument.
 __atomics { Name = __text  Id }
 __events { rename open close pick reset connect }
@@ -15,7 +15,7 @@ Item = Done | Todo
 Link = Off | On
 
 __pattern Start = App(Page.Home * Link.Off)
-__pattern Ed = App(Page.Editor)
+__path Ed = App / Page.Editor
 __pattern InEditor(x) = App(Page.Editor(x))
 __pattern Edit(d, m) = InEditor(d * m)
 __pattern Picked(i, s) = App(Items[i](s))

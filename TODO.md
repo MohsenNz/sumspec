@@ -108,25 +108,13 @@ update before any code:
 - [x] `__from`: projections, a layer's types that read a part of a base's
       state and are never written (see "Projections" in
       `spec/spec-v1.md`). Presentation goes on them, in the layer.
-- [ ] `__from` takes its own rule, `type_path = type_name , [ "(" ,
-      type_path , ")" ]`, instead of a `type_pattern` the checker then
-      narrows down. A path with `*`, a variant step, a name, a key, a prime
-      or alternatives becomes a syntax error. Steps:
-      - `grammar.ebnf`: the rule, used in `type_def`; drop the "chain"
-        clause from the checker notes.
-      - `Syntax.hs`: `typeDefFrom :: Maybe (NonEmpty Name)`, outermost
-        first. `Parser.hs`: `typePath`.
-      - `Pretty.hs`: `renderTypePath` (`a(b(c))`), also used by
-        `renderModel`. `qualifySpec` qualifies each name.
-      - `Check.hs`: drop `chain` and its three messages; the base-type,
-        start and factor checks stay.
-      - LSP `Index.hs`: each name in the path is a type use.
-      - `spec-v1.md`: the path is a chain of types, anything else a syntax
-        error; adjust the checker's list.
-      - Tests: move the `Chain` and `Variant` cases from
-        `test/check/error-projections.sumspec` to
-        `test/parse/error-from-chain.sumspec` (`core.Core(core.Todos * core.Link)`)
-        and `test/parse/error-from-variant.sumspec` (`core.Core(core.Link.Up)`).
+- [x] `__from` takes its own rule, `type_path = type_name , { "/" ,
+      type_name }`, instead of a `type_pattern` the checker narrowed down.
+- [x] `__path`: named shared paths, `__path Editor = App / Page.Plan /
+      PlanPage.Plot`; a pattern is no longer a shared path.
+- [ ] Element keys in a `__path`, through parameters
+      (`__path Sel(at) = core.Core / core.Missions[at]`, used as
+      `Sel(at) =>`).
 - [ ] Move Parvaz's presentation annotations (`@status`, `@view`,
       `@region`) from the core's types to the UI's projections.
 - [ ] Computed projections (`:=`, Part B in `spec/efsm-gaps.md`): a value

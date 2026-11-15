@@ -157,6 +157,7 @@ specPaths spec = concatMap definition (specDefinitions (expansionSpec (expandSpe
     definition = \case
       DefType _ -> []
       DefPattern _ -> []
+      DefPath _ -> []
       DefConst (ConstDef _ ty value) -> case value of
         ConstVariant v -> [ty :| [v]]
         ConstLiteral _ _ -> []

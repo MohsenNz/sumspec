@@ -122,6 +122,9 @@ describe source spec m kind occName' target = case kind of
         <> [ "Expands to:\n\n" <> code (renderPattern (expandPatternIn spec p))
            | Just p <- [patternUse spec occName']
            ]
+  KPath -> do
+    d <- M.lookup (nameText target) (modelPaths m)
+    pure [code (renderDefinition (DefPath d)), "Named shared path."]
   KAnnotation -> pure [code ("@" <> nameText target)]
   KQualifier -> do
     b <- M.lookup (nameText target) (modelImports m)

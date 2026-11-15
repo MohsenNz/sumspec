@@ -1,4 +1,4 @@
--- The rules of projections (__from): a path that is a chain of a base's
+-- The rules of projections (__from): a path of a base's
 -- types, read from the base's root or from where the enclosing
 -- projection reads; a body that fits its source; never written.
 __imports {
@@ -16,24 +16,22 @@ Page
   = Home (Status * Rows * Wrong)
   | Other
 
-Extra = Chain * Variant * Local * NotRoot * Missing * Extra2 * Keyed * Element
+Extra = Local * NotRoot * Missing * Extra2 * Keyed * Element
 
-Status __from core.Core(core.Link)
+Status __from core.Core / core.Link
   = Up
   | Sideways
 
-Rows __from core.Core(core.Todos) = [Row by core.TodoId]
+Rows __from core.Core / core.Todos = [Row by core.TodoId]
 Row __from core.Todo = core.Title * core.Link
 Wrong __from core.Core = core.Title
 
-Chain __from core.Core(core.Todos * core.Link) = core.Link
-Variant __from core.Core(core.Link.Up) = core.Link
 Local __from Page = Page
 NotRoot __from core.Todo = core.Title
-Missing __from core.Core(core.Title) = core.Title
-Extra2 __from core.Core(core.Link) = Up | Down | Left
-Keyed __from core.Core(core.Todos) = [Row by core.Title]
-Element __from core.Core(core.Todos) = [core.Title by core.TodoId]
+Missing __from core.Core / core.Title = core.Title
+Extra2 __from core.Core / core.Link = Up | Down | Left
+Keyed __from core.Core / core.Todos = [Row by core.Title]
+Element __from core.Core / core.Todos = [core.Title by core.TodoId]
 
 set :: App(Page.Other) -> App(Page.Home(Status.Up))
 reset :: Page.Home => Rows -> Rows'

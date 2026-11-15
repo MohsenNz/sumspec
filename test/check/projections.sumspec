@@ -18,12 +18,12 @@ Page
   | Detail
 
 -- The link, with the same two variants.
-Status __from core.Core(core.Link)
+Status __from core.Core / core.Link
   = Up
   | Down
 
 -- Every todo, by its key: its title only.
-Rows __from core.Core(core.Todos) = [Row by core.TodoId]
+Rows __from core.Core / core.Todos = [Row by core.TodoId]
 Row __from core.Todo = core.Title * Done
 
 -- Nested: read inside the todo its row reads.

@@ -1,0 +1,6 @@
+-- A __from path joins its types with "/", not with parentheses.
+__atomics { }
+__events { }
+
+App = A | B
+View __from core.Core(core.Link) = A | B

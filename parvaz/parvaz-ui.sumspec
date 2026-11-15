@@ -256,12 +256,12 @@ LinkStatus            __from core.Core
   * core.AircraftLink
 
 -- The connected aircraft's readiness; nothing while none is connected.
-HomeAircraft          __from core.Core(core.AircraftLink)
+HomeAircraft          __from core.Core / core.AircraftLink
                       @view tiles
   = Disconnected
   | Connected (core.BatteryReserve * Battery * HomeIndicators)
 
-Battery               __from core.AircraftStatus(core.Battery)
+Battery               __from core.AircraftStatus / core.Battery
                       @view tile    -- toned by BatteryReserve
   = core.BatteryCharge
 
@@ -288,7 +288,7 @@ LogTagFilter = [core.LogTag]  -- empty: every tag
 -- The log, newest last, through both filters: an entry shows when its
 -- level and tag pass them. Empty, nothing logged yet or nothing the
 -- filters let through: @status empty.
-LogList               __from core.Core(core.Logs)
+LogList               __from core.Core / core.Logs
                       @overflow scroll
   = [core.LogEntry]
 
@@ -305,7 +305,7 @@ DeviceListing
 
 -- One row per saved device. The row LinkSession names is marked as the
 -- linked one. No device yet: @status empty, prompting to add one.
-DeviceRows          __from core.Core(core.Devices)
+DeviceRows          __from core.Core / core.Devices
                     @overflow scroll
   = [DeviceRow by core.DeviceId]
 
@@ -487,7 +487,7 @@ MissionPanel            @view browsing
 
 -- One row per mission. No mission yet: @status empty, prompting to create
 -- one.
-MissionRows             __from core.Core(core.Missions)
+MissionRows             __from core.Core / core.Missions
                         @overflow scroll
   = [MissionRow by core.At]
 
@@ -509,7 +509,7 @@ RunView
 -- The run: its flight, and the figures of the mission it flies (that
 -- mission's row of MissionRows, its RouteProgress a progress bar along the
 -- panel's top edge, its Area and Distance as tiles).
-RunPanel            __from core.Core(core.Run)
+RunPanel            __from core.Core / core.Run
                     @region panel
                     @placement right
                     @size (1/4*screen)
@@ -525,7 +525,7 @@ AircraftView
   * BatteryFigure
 
 -- The connected aircraft, as it reports itself.
-AircraftPanel       __from core.Core(core.AircraftLink)
+AircraftPanel       __from core.Core / core.AircraftLink
   = Disconnected
   | Connected
       ( AircraftIndicators
@@ -590,9 +590,8 @@ FCamera             @default Minimized
 -- The plan page in a mode.
 __pattern InPlan(m) = App(Page.Plan(m))
 
--- TODO: it be a path : App / Page.Plan / PlanPage.Plot
--- The plot editor, as a shared path.
-__pattern Editor = App(Page.Plan(PlanPage.Plot))
+-- The plot editor: the plot transitions' shared path.
+__path Editor = App / Page.Plan / PlanPage.Plot
 
 -- The Route form, and a field of the draft's RouteSettings.
 __pattern RouteForm = PlanPage.Plot(PlotController.Route * core.Plot.Drawn)
@@ -617,7 +616,7 @@ __pattern Selected(at) = App(Page.Plan(PlanPage.ShowMission(MissionPanel.Selecte
 
 -- The device form, with these factors, and as a shared path; the list.
 __pattern Form(x) = App(Page.Devices(DevicesPage.Editing(x)))
-__pattern DeviceEditor = App(Page.Devices(DevicesPage.Editing))
+__path DeviceEditor = App / Page.Devices / DevicesPage.Editing
 __pattern DeviceList = App(Page.Devices(DevicesPage.Listing))
 
 -- The inputs that name something new: the time now, which is its key,
@@ -933,7 +932,7 @@ leaveManualAircraft
   -> InPlan(PlanPage.JustMap)
   @control button_icon_f
 
-__pattern AcCan = AircraftCanvas
+__path AcCan = AircraftCanvas
 
 maximizeCamera  :: AcCan => FCamera.Minimized -> FCamera.Maximized    @control button_icon_f
 minimizeCamera  :: AcCan => FCamera.Maximized -> FCamera.Minimized    @control button_icon_f

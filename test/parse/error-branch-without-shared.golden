@@ -3,4 +3,4 @@ test/parse/error-branch-without-shared.sumspec:9:17:
 9 | t :: A.B -> A.C => A.C -> A.D
   |                 ^
 unexpected '='
-expecting "::", ">>", "__init", "__pattern", '#', ''', '(', '.', '@', '[', end of input, event name, or type or variant name
+expecting "::", ">>", "__init", "__path", "__pattern", '#', ''', '(', '.', '@', '[', end of input, event name, or type or variant name

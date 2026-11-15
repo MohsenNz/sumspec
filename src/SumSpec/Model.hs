@@ -51,8 +51,8 @@ import Data.Maybe (fromMaybe, listToMaybe)
 import Data.Set qualified as S
 import Data.Text (Text)
 import Data.Text qualified as T
-import SumSpec.Expand (Expansion (..), expandSpec, patternDefs)
-import SumSpec.Pretty (renderPattern)
+import SumSpec.Expand (Expansion (..), expandSpec, pathDefs, patternDefs)
+import SumSpec.Pretty (renderTypePath)
 import SumSpec.Syntax
 
 data Model = Model
@@ -67,6 +67,8 @@ data Model = Model
   -- ^ Every variant by its name, inline payloads included, in source
   -- order. A name may belong to several sums.
   , modelConsts :: Map Text ConstDef
+  , modelPaths :: Map Text PathDef
+  -- ^ The named shared paths (@__path@) of this spec.
   , modelPatterns :: Map Text PatternDef
   -- ^ The named patterns (@__pattern@) of this spec; a base's aren't
   -- visible.
@@ -144,6 +146,7 @@ data Ref
   | RefVariant VariantInfo
   | RefConst ConstDef
   | RefPattern PatternDef
+  | RefPath PathDef
   | RefUnknown
 
 -- | The type a path is at: the body of a named type, or an inline
@@ -203,6 +206,7 @@ ownModel spec =
           ]
     , modelConsts = firsts constName [c | DefConst c <- defs]
     , modelPatterns = patternDefs spec
+    , modelPaths = pathDefs spec
     , modelEvents =
         firsts
           (eventName . eventInfo)
@@ -273,14 +277,16 @@ qualifySpec q raw =
     spec = expansionSpec (expandSpec raw)
     isPattern = \case
       DefPattern _ -> True
+      DefPath _ -> True
       _ -> False
     qn (Name pos t) = Name pos (q <> "." <> t)
     definition = \case
       DefType (TypeDef n notes body from) ->
-        DefType (TypeDef (qn n) notes (typeExpr body) (pat <$> from))
+        DefType (TypeDef (qn n) notes (typeExpr body) (fmap qn <$> from))
       DefConst (ConstDef n ty v) -> DefConst (ConstDef (qn n) (qn ty) v)
       DefInit k p -> DefInit k (pat p)
       DefPattern d -> DefPattern d
+      DefPath d -> DefPath d
       DefEvent (Event n input ts) -> DefEvent (Event (qn n) (pat <$> input) (fmap transition ts))
     typeExpr = \case
       TypeSum vs -> TypeSum [v {variantPayload = typeExpr <$> variantPayload v} | v <- vs]
@@ -425,6 +431,7 @@ resolvePath m (h :| rest) = ((h, ref) : refs, here')
         Just c -> (RefConst c, Nothing)
         Nothing
           | Just d <- M.lookup (nameText h) (modelPatterns m) -> (RefPattern d, Nothing)
+          | Just d <- M.lookup (nameText h) (modelPaths m) -> (RefPath d, Nothing)
         Nothing -> case uniqueVariant m h of
           Just v -> (RefVariant v, variantPayload (variantInfo v))
           Nothing -> (RefUnknown, Nothing)
@@ -500,6 +507,14 @@ renderModel m =
                     | (name, d) <- M.toList (modelPatterns m)
                     ]
          )
+      <> ( if M.null (modelPaths m)
+             then []
+             else
+               ["paths"]
+                 <> [ "  " <> name <> " : " <> T.intercalate " / " (map segment (toList (pathDefBody d)))
+                    | (name, d) <- M.toList (modelPaths m)
+                    ]
+         )
       <> ["events"]
       <> [ "  "
              <> name
@@ -545,8 +560,9 @@ renderModel m =
     count k = T.pack (show k) <> if k == 1 then " transition" else " transitions"
     -- A projection's path.
     from name = case M.lookup name (modelTypeDefs m) >>= typeDefFrom of
-      Just p -> ", from " <> renderPattern p
+      Just p -> ", from " <> renderTypePath p
       Nothing -> ""
+    segment = T.intercalate "." . map nameText . toList
     params [] = ""
     params ps = "(" <> T.intercalate ", " (map nameText ps) <> ")"
     -- A body is a type pattern, so it has a head.

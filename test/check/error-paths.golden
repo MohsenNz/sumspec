@@ -1,0 +1,48 @@
+test/check/error-paths.sumspec:12:8:
+   |
+12 | __path Link = App / Link
+   |        ^
+path Link has the name of a type; a path's name is new to the spec
+
+test/check/error-paths.sumspec:13:8:
+   |
+13 | __path P = App
+   |        ^
+path P has the name of a pattern; a path's name is new to the spec
+
+test/check/error-paths.sumspec:15:8:
+   |
+15 | __path Q = App
+   |        ^
+path Q is defined twice (first on line 14)
+
+test/check/error-paths.sumspec:16:8:
+   |
+16 | __path Loop = Loop
+   |        ^
+path Loop uses itself; a path may use another, but not in a cycle
+
+test/check/error-paths.sumspec:21:6:
+   |
+21 | a :: Q -> App(Link.On)
+   |      ^
+Q is a path, which goes before =>, not where a pattern goes
+
+test/check/error-paths.sumspec:22:6:
+   |
+22 | b :: P => Link.Off -> Link.On
+   |      ^
+P is a pattern, which goes where a pattern goes; a shared path is written with paths or a __path
+
+test/check/error-paths.sumspec:23:6:
+   |
+23 | c :: Bad => Link.Off -> Link.On
+   |      ^
+Elsewhere is not a variant of Page (in path Bad, at 17:25)
+
+test/check/error-paths.sumspec:24:6:
+   |
+24 | d :: Loop => Link.Off -> Link.On
+   |      ^
+path Loop uses itself, so it can't be expanded
+

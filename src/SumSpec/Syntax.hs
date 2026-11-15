@@ -14,6 +14,7 @@ module SumSpec.Syntax
   , ConstDef (..)
   , ConstValue (..)
   , PatternDef (..)
+  , PathDef (..)
   , TypeExpr (..)
   , Atomic (..)
   , Primitive (..)
@@ -94,6 +95,8 @@ data Definition
     DefConst ConstDef
   | -- | @__pattern P(a, b) = body@: a named state pattern.
     DefPattern PatternDef
+  | -- | @__path P = A / B.C@: a named shared path.
+    DefPath PathDef
   deriving stock (Eq, Show)
 
 -- | @T = expr@
@@ -103,10 +106,10 @@ data TypeDef = TypeDef
   -- ^ The annotations of the type: after its name (@T \@a = ...@), or
   -- after the body of a newtype or a list (@T = A \@a@).
   , typeDefBody :: TypeExpr
-  , typeDefFrom :: Maybe Pattern
-  -- ^ @T __from path = ...@: the base part a projection reads, a chain of
-  -- type names (@core.Core(core.AircraftLink)@). A projection is read from
-  -- the base's state and never written.
+  , typeDefFrom :: Maybe (NonEmpty Name)
+  -- ^ @T __from A / B = ...@: the base part a projection reads, a path of
+  -- type names, outermost first (@core.Core / core.AircraftLink@). A
+  -- projection is read from the base's state and never written.
   }
   deriving stock (Eq, Show)
 
@@ -128,6 +131,16 @@ data PatternDef = PatternDef
   , patternDefParams :: [Name]
   -- ^ The parameters, in order; none without parentheses.
   , patternDefBody :: Pattern
+  }
+  deriving stock (Eq, Show)
+
+-- | @__path P = A / B.C@: a named shared path, the segments a transition's
+-- shared paths stand for where it is written (@P => a -> b@). It is
+-- expanded before checking (see "SumSpec.Expand").
+data PathDef = PathDef
+  { pathDefName :: Name
+  , pathDefBody :: NonEmpty (NonEmpty Name)
+  -- ^ The segments, outermost first, each a path (@Page.Plan@).
   }
   deriving stock (Eq, Show)
 

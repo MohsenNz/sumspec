@@ -1,10 +1,12 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 
--- | Named patterns (@__pattern P(a, b) = body@): their rules, and their
--- expansion. Every use of a pattern is replaced by its body, each
--- parameter by its argument, before the spec is checked, as shared paths
--- are; the checker then sees only ordinary patterns.
+-- | Named patterns (@__pattern P(a, b) = body@) and named shared paths
+-- (@__path P = A / B.C@): their rules, and their expansion. Every use of a
+-- pattern is replaced by its body, each parameter by its argument, and
+-- every use of a path, in a transition's shared paths, by its segments,
+-- before the spec is checked; the checker then sees only ordinary
+-- patterns and paths.
 --
 -- A name copied from a body keeps its line and column there, and its
 -- position's file name is replaced by a tag for the use it was copied
@@ -15,6 +17,7 @@ module SumSpec.Expand
   , Origin (..)
   , expandSpec
   , expandPatternIn
+  , pathDefs
   , patternDefs
   , patternOrigin
   ) where
@@ -46,10 +49,11 @@ data Expansion = Expansion
   }
 
 -- | Where a position copied from a body comes from: the use it was copied
--- for, the pattern whose body holds it, and its place in that body.
+-- for, the pattern or path whose body holds it (@pattern P@, @path P@),
+-- and its place in that body.
 data Origin = Origin
   { originUse :: SourcePos
-  , originPattern :: Text
+  , originDefinition :: Text
   , originBody :: SourcePos
   }
 
@@ -67,16 +71,24 @@ patternDefs spec =
     (\_ old -> old)
     [(nameText (patternDefName d), d) | DefPattern d <- specDefinitions spec]
 
+-- | The paths a spec defines, the first of each name.
+pathDefs :: Spec -> Map Text PathDef
+pathDefs spec =
+  M.fromListWith
+    (\_ old -> old)
+    [(nameText (pathDefName d), d) | DefPath d <- specDefinitions spec]
+
 -- ---------- Tags ----------
 
--- | The file name of a position copied from the body of the pattern named
--- for the use numbered. It starts with a character no path holds.
+-- | The file name of a position copied from the body of a definition
+-- (@pattern P@, @path P@) for the use numbered. It starts with a
+-- character no file path holds.
 tag :: Int -> Text -> FilePath
-tag i name = "\0pattern " <> show i <> " " <> T.unpack name
+tag i label = "\0use " <> show i <> " " <> T.unpack label
 
 parseTag :: FilePath -> Maybe (Int, Text)
-parseTag file = case words <$> stripPrefix "\0pattern " file of
-  Just [i, name] -> (,T.pack name) <$> readMaybe i
+parseTag file = case words <$> stripPrefix "\0use " file of
+  Just (i : label@(_ : _)) -> (,T.pack (unwords label)) <$> readMaybe i
   _ -> Nothing
   where
     stripPrefix prefix s
@@ -85,9 +97,9 @@ parseTag file = case words <$> stripPrefix "\0pattern " file of
 
 -- ---------- Expansion ----------
 
--- | What a use can expand to: the patterns that can be used, and whether
--- each is in a cycle.
-data Env = Env (Map Text (PatternDef, Bool))
+-- | What a use can expand to: the patterns and the paths that can be used,
+-- each with whether it is in a cycle.
+data Env = Env (Map Text (PatternDef, Bool)) (Map Text (PathDef, Bool))
 
 data St = St
   { stNext :: Int
@@ -122,7 +134,7 @@ expandPatternIn spec p = fst (runState (pat env p) (St 0 M.empty []))
 -- pattern with the name of a type or a constant isn't one: the name is
 -- the type's.
 prepare :: Spec -> (Env, [(SourcePos, Text)])
-prepare spec = (Env usable, errors)
+prepare spec = (Env usable usablePaths, errors <> pathErrors)
   where
     defs = [d | DefPattern d <- specDefinitions spec]
     taken =
@@ -131,8 +143,42 @@ prepare spec = (Env usable, errors)
           <> [(nameText (typeDefName t), "a type") | DefType t <- specDefinitions spec]
           <> [(nameText (constName c), "a constant") | DefConst c <- specDefinitions spec]
     known = M.filterWithKey (\k _ -> M.notMember k taken) (patternDefs spec)
-    cyclic = cycles known
+    cyclic = cycles (uses . patternDefBody) known
     usable = M.mapWithKey (\k d -> (d, k `S.member` cyclic)) known
+    -- Paths: a name new to the spec, patterns included.
+    pathList = [d | DefPath d <- specDefinitions spec]
+    pathTaken = taken <> M.map (const "a pattern") (patternDefs spec)
+    knownPaths = M.filterWithKey (\k _ -> M.notMember k pathTaken) (pathDefs spec)
+    cyclicPaths = cycles pathUses knownPaths
+    usablePaths = M.mapWithKey (\k d -> (d, k `S.member` cyclicPaths)) knownPaths
+    pathErrors =
+      [ ( namePos n
+        , "path " <> nameText n <> " is defined twice (first on line " <> lineOf first <> ")"
+        )
+      | (i, d) <- zip [0 :: Int ..] pathList
+      , let n = pathDefName d
+      , first : _ <-
+          [[pathDefName f | f <- take i pathList, nameText (pathDefName f) == nameText n]]
+      ]
+        <> [ ( namePos n
+             , "path "
+                 <> nameText n
+                 <> " has the name of "
+                 <> what
+                 <> "; a path's name is new to the spec"
+             )
+           | d <- pathList
+           , let n = pathDefName d
+           , Just what <- [M.lookup (nameText n) pathTaken]
+           ]
+        <> [ ( namePos n
+             , "path " <> nameText n <> " uses itself; a path may use another, but not in a cycle"
+             )
+           | d <- M.elems knownPaths
+           , let n = pathDefName d
+           , nameText n `S.member` cyclicPaths
+           ]
+    lineOf n = T.pack (show (unPos (sourceLine (namePos n))))
     errors =
       concat
         [ [ ( namePos n
@@ -184,21 +230,25 @@ prepare spec = (Env usable, errors)
       [] -> ""
       us -> ", through " <> T.intercalate ", " us
 
--- | The names of the patterns in a cycle.
-cycles :: Map Text PatternDef -> Set Text
-cycles known =
+-- | The names of the definitions in a cycle, given the names each uses.
+cycles :: (d -> [Text]) -> Map Text d -> Set Text
+cycles usesOf known =
   S.fromList . concat $
     [ case scc of
         CyclicSCC ns -> ns
         AcyclicSCC n
-          | n `elem` uses (patternDefBody (known M.! n)) -> [n]
+          | n `elem` usesOf (known M.! n) -> [n]
           | otherwise -> []
     | scc <-
         stronglyConnComp
-          [ (k, k, filter (`M.member` known) (uses (patternDefBody d)))
+          [ (k, k, filter (`M.member` known) (usesOf d))
           | (k, d) <- M.toList known
           ]
     ]
+
+-- | The segments of a path that may be paths: those of one name.
+pathUses :: PathDef -> [Text]
+pathUses d = [nameText n | n :| [] <- NE.toList (pathDefBody d)]
 
 -- | The names at the head of a pattern and of its arguments: the patterns
 -- it may use. The paths of alternatives are variants.
@@ -345,55 +395,49 @@ guard env = \case
   GuardOr gs -> GuardOr <$> traverse (guard env) gs
   g -> pure g
 
--- | A shared path that is a pattern stands for the chain of paths in its
--- body, the branches going inside the innermost.
+-- | A shared path that is a named path stands for its segments, the first
+-- one standing where the name is. A pattern isn't a shared path.
 shared :: Env -> Shared -> M [Shared]
-shared env@(Env defs) s@(Shared (h :| rest) key) = case M.lookup (nameText h) defs of
-  Nothing -> pure [s]
-  Just (d, isCyclic)
-    | not (null rest) -> [s] <$ report h (afterDot h)
-    | Just _ <- key -> [s] <$ report h (keyed h)
-    | isCyclic -> [s] <$ report h (cannotExpand h)
-    | not (null (patternDefParams d)) ->
-        [s]
-          <$ report
-            h
-            ( "pattern "
-                <> nameText h
-                <> " has parameters, so it isn't a shared path, which takes no arguments; "
-                <> "write it in each side"
-            )
-    | otherwise -> do
-        body <- copyBody h d
-        expanded <- pat env body
-        case chain expanded of
-          Just (Shared ns k : paths) -> pure (Shared (atUse h ns) k : paths)
-          Just [] -> pure []
-          Nothing ->
-            [s]
-              <$ report
-                h
-                ( "pattern "
-                    <> nameText h
-                    <> " isn't a chain of paths, so it isn't a shared path: "
-                    <> "each path in its body may hold only the next one"
-                )
-  where
-    chain = \case
-      PatternPath ns [] -> Just [Shared ns Nothing]
-      PatternPath ns [inner] -> (Shared ns Nothing :) <$> chain inner
-      PatternElement ns k [] -> Just [Shared ns (Just k)]
-      PatternElement ns k [inner] -> (Shared ns (Just k) :) <$> chain inner
-      _ -> Nothing
+shared env@(Env pats paths) s@(Shared (h :| rest) key) =
+  case M.lookup (nameText h) paths of
+    Just (d, isCyclic)
+      | not (null rest) -> [s] <$ report h (afterDot "path" h)
+      | Just _ <- key -> [s] <$ report h ("path " <> nameText h <> " takes no element key")
+      | isCyclic -> [s] <$ report h (cannotExpand "path" h)
+      | otherwise -> do
+          i <- useTag h
+          let
+            label = "path " <> nameText (pathDefName d)
+            copy = fmap (\(Name pos t) -> Name pos {sourceName = tag i label} t)
+            segments = [Shared (copy seg) Nothing | seg <- NE.toList (pathDefBody d)]
+          expanded <- concat <$> mapM (shared env) segments
+          pure $ case expanded of
+            Shared ns k : more -> Shared (atUse h ns) k : more
+            [] -> []
+    Nothing
+      | M.member (nameText h) pats ->
+          [s]
+            <$ report
+              h
+              ( nameText h
+                  <> " is a pattern, which goes where a pattern goes; "
+                  <> "a shared path is written with paths or a __path"
+              )
+      | otherwise -> pure [s]
 
 -- | A pattern with every use in it expanded.
 pat :: Env -> Pattern -> M Pattern
-pat env@(Env defs) = \case
+pat env@(Env defs paths) = \case
+  p
+    | h : _ <- headNames p
+    , M.member (nameText h) paths -> do
+        report h (nameText h <> " is a path, which goes before =>, not where a pattern goes")
+        pure p
   PatternPath ns@(h :| rest) args
     | Just found <- M.lookup (nameText h) defs ->
         if null rest
           then useOf env h found (if null args then [] else [args])
-          else PatternPath ns <$> mapM (pat env) args <* report h (afterDot h)
+          else PatternPath ns <$> mapM (pat env) args <* report h (afterDot "pattern" h)
     | otherwise -> PatternPath ns <$> mapM (pat env) args
   PatternApply ns@(h :| rest) groups
     | Just found <- M.lookup (nameText h) defs
@@ -413,7 +457,7 @@ pat env@(Env defs) = \case
     PatternElement ns key <$> mapM (pat env) args
   PatternAlts ns@(h :| _) alts -> do
     case M.lookup (nameText h) defs of
-      Just _ -> report h (afterDot h)
+      Just _ -> report h (afterDot "pattern" h)
       Nothing -> pure ()
     PatternAlts ns <$> traverse alt alts
   PatternNamed p n -> (`PatternNamed` n) <$> pat env p
@@ -429,6 +473,15 @@ pat env@(Env defs) = \case
       PatternAlts ns alts -> PatternAlts ns <$> traverse alt alts
       p -> pat env p
 
+-- | The head of a pattern that may name a pattern or a path.
+headNames :: Pattern -> [Name]
+headNames = \case
+  PatternPath (h :| _) _ -> [h]
+  PatternApply (h :| _) _ -> [h]
+  PatternElement (h :| _) _ _ -> [h]
+  PatternAlts (h :| _) _ -> [h]
+  _ -> []
+
 -- | A use of a pattern, with its groups of arguments: the body, each
 -- parameter replaced by its group, and the uses in it expanded.
 useOf :: Env -> Name -> (PatternDef, Bool) -> [[Pattern]] -> M Pattern
@@ -439,7 +492,7 @@ useOf env h (d, isCyclic) groups = do
     params = patternDefParams d
   case () of
     _
-      | isCyclic -> asWritten <$ report h (cannotExpand h)
+      | isCyclic -> asWritten <$ report h (cannotExpand "pattern" h)
       | length groups' /= length params -> do
           report h (arity (length params) (length groups'))
           pure asWritten
@@ -479,14 +532,19 @@ withHead f = \case
 -- for.
 copyBody :: Name -> PatternDef -> M Pattern
 copyBody h d = do
-  i <- case parseTag (sourceName (namePos h)) of
-    Just (i, _) -> pure i
-    Nothing -> do
-      i <- gets stNext
-      modify' (\s -> s {stNext = i + 1, stUses = M.insert i (namePos h) (stUses s)})
-      pure i
-  let file = tag i (nameText (patternDefName d))
+  i <- useTag h
+  let file = tag i ("pattern " <> nameText (patternDefName d))
   pure (mapPositions (\p -> p {sourceName = file}) (patternDefBody d))
+
+-- | The number of the use at this name: a new use, or, for a use inside a
+-- body, the use it was copied for.
+useTag :: Name -> M Int
+useTag h = case parseTag (sourceName (namePos h)) of
+  Just (i, _) -> pure i
+  Nothing -> do
+    i <- gets stNext
+    modify' (\s -> s {stNext = i + 1, stUses = M.insert i (namePos h) (stUses s)})
+    pure i
 
 -- | The body with each parameter replaced by its group of arguments: as an
 -- argument, the group is spliced in; as the key of an element path, it is
@@ -567,14 +625,17 @@ mapPositions f = go
       ExprConst c -> ExprConst (nm c)
       ExprBin op pos a b -> ExprBin op (f pos) (expr a) (expr b)
 
-afterDot :: Name -> Text
-afterDot h =
-  "pattern "
+afterDot :: Text -> Name -> Text
+afterDot kind h =
+  kind
+    <> " "
     <> nameText h
-    <> " is a whole pattern: nothing follows it after a dot"
+    <> " is a whole "
+    <> kind
+    <> ": nothing follows it after a dot"
 
 keyed :: Name -> Text
 keyed h = "pattern " <> nameText h <> " is a whole pattern, so it takes no element key"
 
-cannotExpand :: Name -> Text
-cannotExpand h = "pattern " <> nameText h <> " uses itself, so it can't be expanded"
+cannotExpand :: Text -> Name -> Text
+cannotExpand kind h = kind <> " " <> nameText h <> " uses itself, so it can't be expanded"

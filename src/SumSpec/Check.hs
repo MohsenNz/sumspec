@@ -128,13 +128,13 @@ checkSpecWith imports file source raw
     spec = expansionSpec expansion
     failed = map fst (expansionErrors expansion)
     fromBody e = case patternOrigin expansion (errorPos e) of
-      Just (Origin use name body) ->
+      Just (Origin use label body) ->
         e
           { errorPos = use
           , errorMessage =
               errorMessage e
-                <> " (in pattern "
-                <> name
+                <> " (in "
+                <> label
                 <> ", at "
                 <> T.pack (show (unPos (sourceLine body)))
                 <> ":"
@@ -619,18 +619,17 @@ checkProjectionTypes :: Model -> [Pattern] -> [Pattern] -> [CheckError]
 checkProjectionTypes env inits targets
   | Map.null projections = []
   | Map.null (modelImports env) =
-      [ errorAt (patternHead path) $
+      [ errorAt (NE.head path) $
           "a projection reads a base spec's state, and this spec imports none; "
             <> "list the base in __imports"
       | TypeDef _ _ _ (Just path) <- Map.elems projections
       ]
   | otherwise =
       concat
-        [ case chain path of
-            Left e -> [e]
-            Right names
+        [ case path of
+            names
               | Left e <- traverse baseType names -> [e]
-            Right names@(h :| _)
+            names@(h :| _)
               | isRoot h -> case resolveFrom Nothing names of
                   Left e -> [e]
                   Right src -> project (Set.singleton (nameText d)) d body (sourceOf src)
@@ -701,21 +700,6 @@ checkProjectionTypes env inits targets
     termTypes = \case
       TermName n -> [nameText n]
       TermList t _ -> termTypes t
-    -- The path's names, outermost first, or why it isn't a chain.
-    chain = \case
-      PatternPath (n :| []) [] -> Right (n :| [])
-      PatternPath (n :| []) [inner] -> (n NE.<|) <$> chain inner
-      PatternPath (_ :| v : _) _ ->
-        Left $
-          errorAt v "a __from path names types only, each holding the next; not a variant"
-      PatternPath _ (_ : extra : _) ->
-        Left $
-          errorAt (patternHead extra) "each type in a __from path holds one, the next type"
-      q ->
-        Left $
-          errorAt
-            (patternHead q)
-            "a __from path is a chain of a base's types, such as core.Core(core.Link)"
     -- The type at the end of a path, read from the base's root (no parent)
     -- or from the parent's source part.
     resolveFrom parent (h :| rest) = do
@@ -837,7 +821,7 @@ checkProjectionTypes env inits targets
           case Map.lookup (nameText n) projections of
             Just (TypeDef d _ body (Just path))
               | Set.member (nameText d) seen -> []
-              | otherwise -> case chain path >>= resolveFrom (Just src) of
+              | otherwise -> case resolveFrom (Just src) path of
                   Left e -> [e]
                   Right t -> project (Set.insert (nameText d) seen) d body (sourceOf t)
             _ -> []

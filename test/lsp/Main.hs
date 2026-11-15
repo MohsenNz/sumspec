@@ -432,7 +432,7 @@ completionTests =
         ==> ["go"]
   , testCase "at the start of a line, keywords and events not yet defined" $
       completeAt "__atomics { }\n__events { go }\nApp = A | B\ng" (Position 3 1)
-        ==> ["__annotations", "__imports", "__init", "__pattern", "go"]
+        ==> ["__annotations", "__imports", "__init", "__path", "__pattern", "go"]
   , testCase "nothing in a comment" $ typing "-- App." ==> []
   ]
   where

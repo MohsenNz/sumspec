@@ -6,7 +6,7 @@ projection Status is read from the base's state, so __init doesn't set it; leave
 
 test/check/error-projections.sumspec:21:1:
    |
-21 | Status __from core.Core(core.Link)
+21 | Status __from core.Core / core.Link
    | ^
 projection Status has no variant Down; it has every variant of core.Link
 
@@ -28,63 +28,51 @@ test/check/error-projections.sumspec:27:26:
    |                          ^
 core.Title is not a part of core.Core; a projection shows its source's parts, or projections of them
 
-test/check/error-projections.sumspec:29:37:
+test/check/error-projections.sumspec:29:14:
    |
-29 | Chain __from core.Core(core.Todos * core.Link) = core.Link
-   |                                     ^
-each type in a __from path holds one, the next type
-
-test/check/error-projections.sumspec:30:36:
-   |
-30 | Variant __from core.Core(core.Link.Up) = core.Link
-   |                                    ^
-a __from path names types only, each holding the next; not a variant
-
-test/check/error-projections.sumspec:31:14:
-   |
-31 | Local __from Page = Page
+29 | Local __from Page = Page
    |              ^
 Page is not a type of a base spec; a projection reads a base's state
 
-test/check/error-projections.sumspec:32:16:
+test/check/error-projections.sumspec:30:16:
    |
-32 | NotRoot __from core.Todo = core.Title
+30 | NotRoot __from core.Todo = core.Title
    |                ^
 projection NotRoot isn't inside another projection, so it reads from the base's root; start its path with core.Core
 
-test/check/error-projections.sumspec:33:26:
+test/check/error-projections.sumspec:31:28:
    |
-33 | Missing __from core.Core(core.Title) = core.Title
-   |                          ^
+31 | Missing __from core.Core / core.Title = core.Title
+   |                            ^
 core.Title is not a factor of core.Core
 
-test/check/error-projections.sumspec:34:50:
+test/check/error-projections.sumspec:32:51:
    |
-34 | Extra2 __from core.Core(core.Link) = Up | Down | Left
-   |                                                  ^
+32 | Extra2 __from core.Core / core.Link = Up | Down | Left
+   |                                                   ^
 Left is not a variant of core.Link
 
-test/check/error-projections.sumspec:35:1:
+test/check/error-projections.sumspec:33:1:
    |
-35 | Keyed __from core.Core(core.Todos) = [Row by core.Title]
+33 | Keyed __from core.Core / core.Todos = [Row by core.Title]
    | ^
 projection Keyed is keyed by core.Title, but core.Todos is keyed by core.TodoId
 
-test/check/error-projections.sumspec:36:41:
+test/check/error-projections.sumspec:34:42:
    |
-36 | Element __from core.Core(core.Todos) = [core.Title by core.TodoId]
-   |                                         ^
+34 | Element __from core.Core / core.Todos = [core.Title by core.TodoId]
+   |                                          ^
 core.Title is not core.Todo; a projection shows its source's parts, or projections of them
 
-test/check/error-projections.sumspec:38:41:
+test/check/error-projections.sumspec:36:41:
    |
-38 | set :: App(Page.Other) -> App(Page.Home(Status.Up))
+36 | set :: App(Page.Other) -> App(Page.Home(Status.Up))
    |                                         ^
 projection Status is read from the base's state, so a target doesn't set it; leave it out
 
-test/check/error-projections.sumspec:39:31:
+test/check/error-projections.sumspec:37:31:
    |
-39 | reset :: Page.Home => Rows -> Rows'
+37 | reset :: Page.Home => Rows -> Rows'
    |                               ^
 projection Rows is read from the base's state, so a target doesn't set it; leave it out
 

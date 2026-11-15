@@ -1,0 +1,25 @@
+-- The rules of named paths (__path): a new name, defined once, no cycle;
+-- only before =>, where a pattern doesn't go. An error inside a path is
+-- reported at its use, pointing into the path.
+__atomics { }
+__events { a b c d go }
+
+App = Page * Link
+Page = Home | Other
+Link = Off | On
+
+__pattern P = App(Page.Home)
+__path Link = App / Link
+__path P = App
+__path Q = App
+__path Q = App
+__path Loop = Loop
+__path Bad = App / Page.Elsewhere
+
+__init :: App(Page.Home * Link.Off)
+
+a :: Q -> App(Link.On)
+b :: P => Link.Off -> Link.On
+c :: Bad => Link.Off -> Link.On
+d :: Loop => Link.Off -> Link.On
+go :: App => Page.Home * Link.Off -> Page.Other * Link.On

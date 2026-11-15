@@ -12,7 +12,7 @@ Mode = Viewing | Editing
 Items = [Item by Id]
 Item = Done | Todo
 
-__pattern Ed = App(Page.Editor)
+__path Ed = App / Page.Editor
 __pattern InEditor(x) = App(Page.Editor(x))
 __pattern Edit(d, m) = App(Page.Editor(d * m))
 __pattern Picked(i, s) = App(Items[i](s))

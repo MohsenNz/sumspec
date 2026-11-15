@@ -38,13 +38,13 @@ test/check/error-pattern-uses.sumspec:28:6:
    |
 28 | d :: W => Mode.Viewing -> Mode.Editing
    |      ^
-pattern W has parameters, so it isn't a shared path, which takes no arguments; write it in each side
+W is a pattern, which goes where a pattern goes; a shared path is written with paths or a __path
 
 test/check/error-pattern-uses.sumspec:29:6:
    |
 29 | e :: Two => Link.Off -> Link.On
    |      ^
-pattern Two isn't a chain of paths, so it isn't a shared path: each path in its body may hold only the next one
+Two is a pattern, which goes where a pattern goes; a shared path is written with paths or a __path
 
 test/check/error-pattern-uses.sumspec:30:6:
    |

@@ -10,6 +10,19 @@ release" in `VERSIONING.md`).
 
 ### Language
 
+- Named paths: `__path Editor = App / Page.Plan / PlanPage.Plot` names a
+  shared path, written as it is used; `Editor => a -> b` stands for its
+  segments, and a path may use another. A path goes only before `=>`,
+  and a named pattern never does: the shared-path use of a pattern
+  without parameters is gone, so `__pattern Ed = App(Page.Editor)` used
+  as `Ed =>` becomes `__path Ed = App / Page.Editor`. The checker
+  reports a name that isn't new, a path defined twice, a cycle, a path
+  where a pattern goes and a pattern before `=>`; an error in a path is
+  reported at the use, pointing into it.
+- A projection's path joins its types with `/`:
+  `__from core.Core / core.AircraftLink`, instead of
+  `__from core.Core(core.AircraftLink)`. A path with a variant, a key or
+  anything but types is a syntax error.
 - Projections: `HomeAircraft __from core.Core(core.AircraftLink) = Disconnected | Connected (core.BatteryReserve * Battery)`
   makes a layer's type read a part of a base's state instead of holding
   its own value. The path is a chain of the base's types, from the base's
@@ -216,6 +229,9 @@ release" in `VERSIONING.md`).
 
 ### Tool
 
+- Named paths: `DefPath`/`PathDef`, `pathDefs`, the model's `modelPaths`;
+  the language server indexes and hovers paths, and completes `__path`.
+  `typeDefFrom` is a list of names.
 - The language server renames a type, variant, constant, event, annotation,
   value or named pattern in the document (`textDocument/rename`, with
   `prepareRename`). A name defined in a base spec, a qualified name and a

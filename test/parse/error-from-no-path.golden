@@ -3,4 +3,4 @@ test/parse/error-from-no-path.sumspec:6:13:
 6 | View __from = A | B
   |             ^
 unexpected '='
-expecting '[' or type or variant name
+expecting type or variant name

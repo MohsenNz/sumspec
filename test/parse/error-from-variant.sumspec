@@ -1,0 +1,6 @@
+-- A __from path names types only, not a variant.
+__atomics { }
+__events { }
+
+App = A | B
+View __from core.Core / core.Link.Up = A | B

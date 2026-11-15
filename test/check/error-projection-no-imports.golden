@@ -1,6 +1,6 @@
 test/check/error-projection-no-imports.sumspec:10:13:
    |
-10 | View __from App(Mode) = On | Off
+10 | View __from App / Mode = On | Off
    |             ^
 a projection reads a base spec's state, and this spec imports none; list the base in __imports
 

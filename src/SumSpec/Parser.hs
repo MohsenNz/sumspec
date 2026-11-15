@@ -217,13 +217,14 @@ eventsBlock = symbol "__events" *> braces (many lowerName)
 annotationsBlock :: Parser [Name]
 annotationsBlock = symbol "__annotations" *> braces (many annotationDecl)
 
--- definition = init_state | pattern_def | type_def | const_def
---            | event_def ;
+-- definition = init_state | pattern_def | path_def | type_def
+--            | const_def | event_def ;
 definition :: Parser Definition
 definition =
   choice
     [ uncurry DefInit <$> initState
     , DefPattern <$> patternDef
+    , DefPath <$> pathDef
     , DefEvent <$> eventDef
     , DefConst <$> constDef
     , DefType <$> typeDef
@@ -248,6 +249,18 @@ patternDef = do
   equals
   PatternDef name params <$> typePattern
 
+-- path_def = "__path" , UPPER , "=" , path , { "/" , path } ;
+pathDef :: Parser PathDef
+pathDef = do
+  keyword "__path"
+  name <- upperName
+  equals
+  PathDef name <$> ((:|) <$> path <*> many (slash *> path))
+
+-- type_path = type_name , { "/" , type_name } ;
+typePath :: Parser (NonEmpty Name)
+typePath = (:|) <$> typeName <*> many (slash *> typeName)
+
 -- const_def = UPPER , "=" , type_name , ( "(" , literal , ")" | "." , UPPER ) ;
 --
 -- A constant starts like a type definition. A "." after the second name,
@@ -271,7 +284,7 @@ constDef = do
         , ConstVariant <$> (symbol "." *> upperName)
         ]
 
--- type_def = UPPER , [ "__from" , type_pattern ] , { annotation } , "=" ,
+-- type_def = UPPER , [ "__from" , type_path ] , { annotation } , "=" ,
 --            type_expr ;
 --
 -- The annotations of a newtype or a list may also follow its body; they
@@ -279,7 +292,7 @@ constDef = do
 typeDef :: Parser TypeDef
 typeDef = do
   name <- upperName
-  from <- optional (keyword "__from" *> typePattern)
+  from <- optional (keyword "__from" *> typePath)
   before <- many annotation
   equals
   (body, after) <- typeExpr

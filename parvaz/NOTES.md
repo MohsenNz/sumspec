@@ -97,10 +97,11 @@ follows its occurrences with reactions.
 | `pointDelete` ×3 | one transition writing `core.Plot'` and `ShapeSelection'`; the three outcomes in its comment, since the spec can't tell a shape's last point |
 | `(1/4)*screen` in `@size` | `(1/4*screen)`: an annotation's arguments end at a `*` outside brackets |
 
-Patterns (`__pattern`) in the UI: `InPlan(m)`, `Editor` (the plot
-transitions' shared path), `RouteForm`, `Setting(v)`, `Connected(x)`,
-`Armed`, `ReadyToFly` (the core's isn't visible to a layer), `Running(x)`,
-`Selected(at)`, `Form(x)`, `DeviceEditor`, `DeviceList`.
+Patterns (`__pattern`) in the UI: `InPlan(m)`, `RouteForm`, `Setting(v)`,
+`Connected(x)`, `Armed`, `ReadyToFly` (the core's isn't visible to a
+layer), `Running(x)`, `Selected(at)`, `Form(x)`, `DeviceList`. Shared
+paths (`__path`): `Editor` (the plot transitions'), `DeviceEditor`,
+`AcCan`.
 
 ## Open points
 

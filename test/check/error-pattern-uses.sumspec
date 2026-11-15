@@ -1,6 +1,6 @@
 -- The rules of a pattern's use: as many arguments as parameters,
--- separated by commas; nothing after a dot, no element key; as a shared
--- path, no parameters and a chain of paths; a name for an element key. An
+-- separated by commas; nothing after a dot, no element key; never before
+-- => (that is a __path); a name for an element key. An
 -- error inside a body is reported at each use, pointing into the body.
 __atomics { Name = __text  Id }
 __events { a b c d e f g h i j k }
