@@ -597,16 +597,11 @@ __path Editor = App / Page.Plan / PlanPage.Plot
 __pattern RouteForm = PlanPage.Plot(PlotController.Route * core.Plot.Drawn)
 __pattern Setting(v) = PlanPage.Plot(core.Plot.Drawn(core.RouteSettings(v)))
 
--- The connected aircraft.
+-- The connected aircraft, and the aircraft armed, as the core says it
+-- (core.Armed). The aircraft a run can start or resume with is the
+-- core's own condition, core.ReadyToFly.
 __pattern Connected(x) = App(core.Core(core.AircraftLink.Connected(x)))
-__pattern Armed = Connected(core.AircraftStatus(core.ArmState.Armed))
-
--- The aircraft a run can start or resume with (the core's own condition).
-__pattern ReadyToFly
-  = core.AircraftLink.Connected(
-      core.Feed.Live
-    * core.AircraftStatus(core.ArmState.Disarmed * core.GPSFix.{Fix3D | DGPS | RTKFix})
-    * core.BatteryReserve.Enough)
+__pattern Armed = App(core.Core(core.Armed))
 
 -- The run view, with the core's run in this state.
 __pattern Running(x) = App(Page.Plan(PlanPage.MissionRun) * core.Core(core.Run.Active(x)))
@@ -802,7 +797,7 @@ startMission
    * core.Core (
         core.Run.Idle
       * core.Missions[at](core.MissionState.{NotStarted | Stopped})
-      * ReadyToFly)
+      * core.ReadyToFly)
   -> Page.Plan(PlanPage.MissionRun)
   >> core.startMission(at)
   @control button_icon_f
@@ -817,7 +812,7 @@ resumeMission
    * core.Core(
         core.Run.Idle
       * core.Missions[at](core.MissionState.Stopped)
-      * ReadyToFly)
+      * core.ReadyToFly)
   -> Page.Plan(PlanPage.MissionRun)
   >> core.resumeMission(at)
   @control button_icon_f
@@ -828,7 +823,7 @@ resumeMission
 
 retryArming
   :: Running(core.MissionFlight.Failed)
-  // App(core.Core(ReadyToFly))
+  // App(core.Core(core.ReadyToFly))
   -> App
   >> core.retryArming
   @control button

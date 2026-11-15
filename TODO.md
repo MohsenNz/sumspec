@@ -134,8 +134,8 @@ update before any code:
       before checking: `__pattern Setting(v) = App(PlotEditor(core.Plot.Drawn(core.RouteSettings(v))))`,
       used as `Setting(v)`, the arguments separated by commas (see "Named
       patterns" in `spec/spec-v1.md`). The Parvaz core uses it.
-- [ ] A layer uses a base's patterns (`core.ReadyToFly`), their bodies
-      qualified as the base's events are.
+- [x] A layer uses a base's patterns (`core.ReadyToFly`), their bodies
+      qualified as the base's events are. Its paths stay local.
 - [ ] Warn about a `__pattern` that is never used; its body is checked
       only through its uses.
 - [ ] Dependent types and generic types.

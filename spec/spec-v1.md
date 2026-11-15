@@ -517,7 +517,7 @@ A path's name stands, among a transition's shared paths, for its segments, in pl
 - Each segment is a path (`Page.Plan` may continue into variants); a segment may be another named path, but not in a cycle.
 - A segment has no element key: in `Files[p] =>` the key names a value of the transition, which a path doesn't define.
 - A path goes only among shared paths, before `=>`, and nowhere a pattern goes.
-- A path is local to its spec, as a named pattern is.
+- A path is local to its spec: a layer doesn't see a base's paths. A path goes before `=>`, on a type of the base, which a layer can't write.
 
 An error found in a path's segments is reported at the use, with the place in the path: `Elsewhere is not a variant of Page (in path Bad, at 17:25)`.
 
@@ -556,7 +556,7 @@ Rules:
 - The body is a type pattern. It names nothing (no `#x`, `Head(#x)` or `[each #x]`): a value is named at the use, in an argument (`Setting(core.RouteSpacing#v)`). Every lowercase name in it is a parameter, standing for a whole argument (spliced into the arguments where it is), or for the key of an element path (`Missions[at]`), whose argument is then one name. A parameter is never a path segment, a primed or named pattern, or a value inside a computed one.
 - A use gives exactly one argument per parameter. A comma goes only between a pattern's arguments; a type's arguments are joined by `*`. Nothing follows a pattern after a dot (`P.X`), and it takes no element key (`P[x]`).
 - A pattern may use another, but not in a cycle.
-- A pattern is local to its spec: a layer doesn't see a base's patterns. The base's events are read with them expanded.
+- A layer uses its bases' patterns under qualified names, as it uses their types: `core.ReadyToFly`, `core.Linked(m)`. The body is the base's, its names qualified too, so `__pattern Ready = Core(Link.Up)` in the base stands for `core.Core(core.Link.Up)`. It goes where the layer's own patterns go, and a layer's pattern may use it. The base's events are read with its patterns expanded.
 
 An error found in an expansion is reported at the use, with the place in the body it comes from: `Of is not a variant of Link (in pattern Bad, at 20:26)`. A pattern that is never used is checked only against the rules above. The canonical form keeps patterns and their uses as written.
 
@@ -968,7 +968,9 @@ qualifier: the layer writes
 everything the base declares with it, `core.Todos`, `core.toggleTodo`, as
 one token, with no space around the `.`. Only the first name of a path is
 qualified: `core.Completion.Active`. The variants of a base type are
-reached through it; a bare `Active` is never a base variant.
+reached through it; a bare `Active` is never a base variant. The base's
+named patterns are used the same way (`core.ReadyToFly`, see "Named
+patterns"); its named paths aren't visible.
 
 The base is checked on its own first. The layer reports one error on its
 entry in `__imports` when the file is missing, doesn't parse, or has errors. An

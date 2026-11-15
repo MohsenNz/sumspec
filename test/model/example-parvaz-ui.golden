@@ -231,16 +231,19 @@ variants
 constants
   core.BatteryLowThreshold : core.Percent
 patterns
-  Armed : Connected
+  Armed : App
   Connected(x) : App
   DeviceList : App
   Form(x) : App
   InPlan(m) : App
-  ReadyToFly : core.AircraftLink
   RouteForm : PlanPage
   Running(x) : App
   Selected(at) : App
   Setting(v) : PlanPage
+  core.Armed : core.AircraftLink
+  core.InFlight(phase) : core.Run
+  core.ReadyToFly : core.AircraftLink
+  core.SprayingRun(at) : core.Run
 paths
   AcCan : AircraftCanvas
   DeviceEditor : App / Page.Devices / DevicesPage.Editing

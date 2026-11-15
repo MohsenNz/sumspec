@@ -201,13 +201,14 @@ linkLossEvent :: Core
               => Run.Idle * AircraftLink.Connected(Feed.Stale) -> AircraftLink.Disconnected @after TelemetryAge 60
 flownAwayDoneEvent At#at :: Missions[at] => MissionState.{NotStarted | Stopped} -> MissionState.Completed
 flownAwayToEvent FlownTo(At#at * Point) :: Missions[at] => MissionState.{NotStarted | Stopped} -> MissionState'
+__pattern Armed = AircraftLink.Connected(AircraftStatus(ArmState.Armed))
 saveDevice SavedDevice(DeviceId#id * DeviceName#n * LinkSettings#s) :: Core
                                                                     => Devices // not Devices[id] -> Devices'
-                                                                    => Devices // Devices[id] and LinkSession.Open(id) and not AircraftLink.Connected(AircraftStatus(ArmState.Armed)) -> Devices[id](n * s) * AircraftLink.Disconnected
+                                                                    => Devices // Devices[id] and LinkSession.Open(id) and not Armed -> Devices[id](n * s) * AircraftLink.Disconnected
                                                                     => Devices // Devices[id] and not LinkSession.Open(id) -> Devices[id](n * s)
-removeDevice DeviceId#id :: Core => Devices * LinkSession * AircraftLink * LastDevice // Devices[id] and not AircraftLink.Connected(AircraftStatus(ArmState.Armed)) -> Devices' * LinkSession' * AircraftLink' * LastDevice'
-selectDevice DeviceId#id :: Core => Devices[id] * LinkSession * AircraftLink * LastDevice // not AircraftLink.Connected(AircraftStatus(ArmState.Armed)) -> LinkSession.Open(id) * AircraftLink.Disconnected * LastDevice.Known(id)
-closeLink :: Core => LinkSession.{Open | Failed} * AircraftLink // not AircraftLink.Connected(AircraftStatus(ArmState.Armed)) -> LinkSession.Closed * AircraftLink.Disconnected
+removeDevice DeviceId#id :: Core => Devices * LinkSession * AircraftLink * LastDevice // Devices[id] and not Armed -> Devices' * LinkSession' * AircraftLink' * LastDevice'
+selectDevice DeviceId#id :: Core => Devices[id] * LinkSession * AircraftLink * LastDevice // not Armed -> LinkSession.Open(id) * AircraftLink.Disconnected * LastDevice.Known(id)
+closeLink :: Core => LinkSession.{Open | Failed} * AircraftLink // not Armed -> LinkSession.Closed * AircraftLink.Disconnected
 aircraftConnectedEvent Aircraft#a :: Core => LinkSession.Open(DeviceId#id) * AircraftLink.Disconnected * Devices[id] -> AircraftLink.Connected(a) * Devices[id](LastSystemId.Heard)
 linkFailedEvent LinkFailure#f :: Core => LinkSession.Open(DeviceId#id) * AircraftLink.Disconnected -> LinkSession.Failed(id * f)
 homeSetEvent Point#p :: AircraftLink.Connected => HomePoint -> HomePoint.Known(p)

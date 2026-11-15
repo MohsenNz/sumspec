@@ -1,12 +1,30 @@
-test/check/error-pattern-base.sumspec:17:73:
+test/check/error-pattern-base.sumspec:19:73:
    |
-17 | halted :: App => core.Core(core.Link.Down) * View.Busy -> View.Idle  >> core.stop
+19 | halted :: App => core.Core(core.Link.Down) * View.Busy -> View.Idle  >> core.stop
    |                                                                         ^
 core.stop can't happen in any state this source matches: each of its sources picks other variants; fire it from a state where it can happen
 
-test/check/error-pattern-base.sumspec:18:16:
+test/check/error-pattern-base.sumspec:20:16:
    |
-18 | stopClicked :: core.Ready => View.Busy -> View.Idle
+20 | stopClicked :: core.Ready => View.Busy -> View.Idle
    |                ^
-test/check/base-patterns.sumspec declares no type Ready
+core.Ready is a pattern, which goes where a pattern goes; a shared path is written with paths or a __path
+
+test/check/error-pattern-base.sumspec:22:27:
+   |
+22 | linked :: App(View.Busy * core.Linked) -> App(View.Idle)
+   |                           ^
+pattern core.Linked takes 1 argument, but none is given
+
+test/check/error-pattern-base.sumspec:23:41:
+   |
+23 | wrongArg :: App(View.Busy * core.Linked(View.Idle)) -> App(View.Idle)
+   |                                         ^
+View is not a factor of core.Core (core.Link * core.Mode)
+
+test/check/error-pattern-base.sumspec:24:11:
+   |
+24 | inCore :: core.InCore => core.Link.Up -> core.Link.Down
+   |           ^
+test/check/base-patterns.sumspec declares no type InCore
 

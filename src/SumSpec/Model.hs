@@ -26,6 +26,7 @@ module SumSpec.Model
   , Here
   , model
   , modelWith
+  , basePatterns
   , qualifySpec
   , typeShape
   , typeBodyOf
@@ -51,7 +52,13 @@ import Data.Maybe (fromMaybe, listToMaybe)
 import Data.Set qualified as S
 import Data.Text (Text)
 import Data.Text qualified as T
-import SumSpec.Expand (Expansion (..), expandSpec, pathDefs, patternDefs)
+import SumSpec.Expand
+  ( Expansion (..)
+  , expandSpec
+  , expandSpecWith
+  , pathDefs
+  , patternDefs
+  )
 import SumSpec.Pretty (renderTypePath)
 import SumSpec.Syntax
 
@@ -169,6 +176,7 @@ modelWith bases spec =
     , modelTypeDefs = M.union (modelTypeDefs own) (M.unions (map modelTypeDefs baseModels))
     , modelTypes = M.union (modelTypes own) (M.unions (map modelTypes baseModels))
     , modelConsts = M.union (modelConsts own) (M.unions (map modelConsts baseModels))
+    , modelPatterns = M.union (modelPatterns own) (basePatterns bases)
     , modelImports =
         M.fromListWith
           (\_ old -> old)
@@ -182,10 +190,27 @@ modelWith bases spec =
     }
   where
     own = ownModel spec
-    baseModels = map ownModel (concatMap (flattenBase "") bases)
-    flattenBase prefix (Base name _ _ sp subs) =
-      qualifySpec (prefix <> name) sp
-        : concatMap (flattenBase (prefix <> name <> ".")) subs
+    -- A base reads the patterns of its own bases, so each is expanded
+    -- with every base's patterns.
+    baseModels =
+      [ ownModel (expansionSpec (expandSpecWith (basePatterns bases) b))
+      | b <- concatMap (flattenBase "") bases
+      ]
+
+-- | Each base, and each base of a base, as the spec importing them sees
+-- it: qualified with the names on the way (@core@, @core.lib@).
+flattenBase :: Text -> Base -> [Spec]
+flattenBase prefix (Base name _ _ sp subs) =
+  qualifySpec (prefix <> name) sp
+    : concatMap (flattenBase (prefix <> name <> ".")) subs
+
+-- | The named patterns of a spec's bases, as the spec sees them: under
+-- qualified names (@core.Ready@), their bodies qualified too. The
+-- patterns of a base's own bases are there as well (@core.lib.P@), so
+-- the bodies that use them expand, but no name a spec can write reaches
+-- them.
+basePatterns :: [Base] -> Map Text PatternDef
+basePatterns bases = M.unions (map patternDefs (concatMap (flattenBase "") bases))
 
 -- | The names a spec defines, as 'Model' holds them, without its bases.
 ownModel :: Spec -> Model
@@ -263,20 +288,21 @@ ownModel spec =
 -- type, constant and event it declares, and every use of one, is written
 -- with the qualifier (@Todos@ becomes @core.Todos@, @lib.T@ becomes
 -- @core.lib.T@). Variants and value names stay as they are: a variant is
--- reached through its type. The base's named patterns are expanded first:
--- they aren't visible to the spec importing it.
+-- reached through its type. The base's own named patterns and paths are
+-- expanded first. Its patterns are kept, qualified (@core.Ready@), for the
+-- spec importing it to use; its paths are not: a path goes before @=>@, on
+-- a type of the base, which the importing spec can't write.
 qualifySpec :: Text -> Spec -> Spec
 qualifySpec q raw =
   spec
     { specImports = []
     , specAtomics = [a {atomicName = qn (atomicName a)} | a <- specAtomics spec]
     , specEvents = map qn (specEvents spec)
-    , specDefinitions = [definition d | d <- specDefinitions spec, not (isPattern d)]
+    , specDefinitions = [definition d | d <- specDefinitions spec, not (isPath d)]
     }
   where
     spec = expansionSpec (expandSpec raw)
-    isPattern = \case
-      DefPattern _ -> True
+    isPath = \case
       DefPath _ -> True
       _ -> False
     qn (Name pos t) = Name pos (q <> "." <> t)
@@ -285,7 +311,7 @@ qualifySpec q raw =
         DefType (TypeDef (qn n) notes (typeExpr body) (fmap qn <$> from))
       DefConst (ConstDef n ty v) -> DefConst (ConstDef (qn n) (qn ty) v)
       DefInit k p -> DefInit k (pat p)
-      DefPattern d -> DefPattern d
+      DefPattern (PatternDef n params body) -> DefPattern (PatternDef (qn n) params (pat body))
       DefPath d -> DefPath d
       DefEvent (Event n input ts) -> DefEvent (Event (qn n) (pat <$> input) (fmap transition ts))
     typeExpr = \case

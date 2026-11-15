@@ -1,12 +1,14 @@
 -- A layer over base-patterns.sumspec. The base's events are read with
 -- its patterns expanded, so a dispatch from where stop can't happen is
--- found; the base's patterns aren't visible to the layer.
+-- found. The base's patterns follow the rules of the layer's own: not
+-- before =>, and one argument per parameter. Its paths aren't visible: a
+-- path goes before =>, on a type of the base, which a layer can't write.
 __imports {
   core "base-patterns.sumspec"
 }
 
 __atomics { }
-__events { halted stopClicked busy }
+__events { halted stopClicked busy linked wrongArg inCore }
 
 __init :: App(View.Idle)
 
@@ -17,3 +19,6 @@ View = Idle | Busy
 halted :: App => core.Core(core.Link.Down) * View.Busy -> View.Idle  >> core.stop
 stopClicked :: core.Ready => View.Busy -> View.Idle
 busy :: App => View.Idle -> View.Busy
+linked :: App(View.Busy * core.Linked) -> App(View.Idle)
+wrongArg :: App(View.Busy * core.Linked(View.Idle)) -> App(View.Idle)
+inCore :: core.InCore => core.Link.Up -> core.Link.Down

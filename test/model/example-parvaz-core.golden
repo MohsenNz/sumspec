@@ -189,6 +189,7 @@ variants
 constants
   BatteryLowThreshold : Percent
 patterns
+  Armed : AircraftLink
   InFlight(phase) : Run
   ReadyToFly : AircraftLink
   SprayingRun(at) : Run

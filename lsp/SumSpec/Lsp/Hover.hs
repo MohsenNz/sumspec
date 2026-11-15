@@ -119,7 +119,7 @@ describe source spec m kind occName' target = case kind of
           <> "."
       ]
         -- At a use, what it stands for.
-        <> [ "Expands to:\n\n" <> code (renderPattern (expandPatternIn spec p))
+        <> [ "Expands to:\n\n" <> code (renderPattern (expandPatternIn (modelPatterns m) spec p))
            | Just p <- [patternUse spec occName']
            ]
   KPath -> do

@@ -106,6 +106,9 @@ completions source sourceAt spec m (Position line character) =
             <> [ (name, CompletionItemKind_Event, Just "event", eventName (eventInfo e))
                | (name, e) <- M.toList (modelBaseEvents m)
                ]
+            <> [ (name, CompletionItemKind_Function, Just "pattern", patternDefName d)
+               | (name, d) <- M.toList (modelPatterns m)
+               ]
       , Just local <- [T.stripPrefix (q <> ".") name]
       , not (T.any (== '.') local)
       ]

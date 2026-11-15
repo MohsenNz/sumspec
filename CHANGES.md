@@ -10,6 +10,14 @@ release" in `VERSIONING.md`).
 
 ### Language
 
+- A layer uses its bases' named patterns, qualified like their types:
+  `core.ReadyToFly` stands for the base's `ReadyToFly`, its body's
+  names qualified too (`core.AircraftLink.Connected(...)`). It goes
+  where a pattern goes, takes its arguments as the base's does, and a
+  layer's own pattern may use it. A base's named paths stay local: a
+  path goes before `=>`, on a type of the base, which a layer can't
+  write. `parvaz-ui` uses the core's `ReadyToFly` and `Armed` instead of
+  copies of them.
 - A dispatching transition's source and guard imply a source of the
   event it fires: `>> core.stop`, with `stop :: Link.Up -> Link.Down`,
   needs `core.Link.Up` in the source or a guard. Read by variants, as
@@ -59,8 +67,8 @@ release" in `VERSIONING.md`).
   that isn't a parameter, a cycle, a use with the wrong number of
   arguments, a comma after a head that isn't a pattern, and a pattern
   that can't be a shared path. An error in an expansion is reported at
-  the use, pointing into the body. A base's patterns aren't visible to
-  a layer. `parvaz/parvaz-core.sumspec` uses them.
+  the use, pointing into the body. A layer uses its bases' patterns
+  under qualified names. `parvaz/parvaz-core.sumspec` uses them.
 - Arguments through a named product: a variant carrying one named product
   (`| Drawn PlotDrawn`), or a newtype of one (`B = D`, `D = G * H`), takes
   the product's factors directly, one level deep: `Plot.Drawn(Boundary)`

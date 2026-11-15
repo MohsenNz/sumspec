@@ -16,6 +16,7 @@ module SumSpec.Expand
   ( Expansion (..)
   , Origin (..)
   , expandSpec
+  , expandSpecWith
   , expandPatternIn
   , pathDefs
   , patternDefs
@@ -114,27 +115,34 @@ type M = State St
 -- @__init@. A use that can't be expanded is reported and left as
 -- written. The definitions stay in the spec, as written.
 expandSpec :: Spec -> Expansion
-expandSpec spec =
+expandSpec = expandSpecWith M.empty
+
+-- | 'expandSpec' for a layer: the patterns of its bases can be used too,
+-- under their qualified names (@core.Ready@). They were checked with
+-- their bases, so they are taken to be free of errors and cycles.
+expandSpecWith :: Map Text PatternDef -> Spec -> Expansion
+expandSpecWith bases spec =
   Expansion
     spec {specDefinitions = defs'}
     (defErrors <> reverse (stErrors st))
     (stUses st)
   where
     (defs', st) = runState (mapM (definition env) (specDefinitions spec)) (St 0 M.empty [])
-    (env, defErrors) = prepare spec
+    (env, defErrors) = prepare bases spec
 
--- | A pattern with every use of the spec's patterns in it expanded, for
--- the language server; errors are dropped.
-expandPatternIn :: Spec -> Pattern -> Pattern
-expandPatternIn spec p = fst (runState (pat env p) (St 0 M.empty []))
+-- | A pattern with every use of the spec's patterns, and of these patterns
+-- of its bases, in it expanded, for the language server; errors are
+-- dropped.
+expandPatternIn :: Map Text PatternDef -> Spec -> Pattern -> Pattern
+expandPatternIn bases spec p = fst (runState (pat env p) (St 0 M.empty []))
   where
-    env = fst (prepare spec)
+    env = fst (prepare bases spec)
 
 -- | The patterns that can be used, and the errors in their definitions. A
 -- pattern with the name of a type or a constant isn't one: the name is
 -- the type's.
-prepare :: Spec -> (Env, [(SourcePos, Text)])
-prepare spec = (Env usable usablePaths, errors <> pathErrors)
+prepare :: Map Text PatternDef -> Spec -> (Env, [(SourcePos, Text)])
+prepare bases spec = (Env (M.union usable (M.map (,False) bases)) usablePaths, errors <> pathErrors)
   where
     defs = [d | DefPattern d <- specDefinitions spec]
     taken =

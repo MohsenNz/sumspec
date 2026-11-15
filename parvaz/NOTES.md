@@ -87,7 +87,7 @@ follows its occurrences with reactions.
 | `@when` on a view of a sum (HomeAircraft while connected) | a sum projection: its `Disconnected` variant draws nothing |
 | `@edits RouteSettings` on `PlotController.Route` | one setter per field (`setRouteSpacing`, ..., `setCourse`), `RouteForm -> Setting(v)`; `@view form`, `@overflow scroll` on `Route` |
 | `@control` on a type (`Zoom`, `LogLevelFilter`, `LinkKind`, `Battery_`, the form fields) | a transition carrying the control (`zoomMap`, `setLogLevel`, `setLinkKind`, `switchBatteryFigure`, `setDeviceName`, ...) |
-| `@unless` | guards, mostly through the patterns `Armed`, `Connected(x)`, `ReadyToFly` |
+| `@unless` | guards, mostly through the patterns `Armed`, `Connected(x)` and the core's `core.ReadyToFly` |
 | `PMode.Plot = PlotOrigin * Plot * ...` | `PlotEditor = PlotOrigin * core.Plot * ...`, the draft beside its origin; `Editing` holds the mission's `At` |
 | `PMode.ShowMission.Selected = MissionName * ... * RouteSummary` | `MissionPanel.Selected(core.At)`: the selection only; what it shows is that mission's row |
 | `PMode.MissionRun = MissionRun * MissionRun_ * ...` | `RunView = RunPanel * AircraftPanel * AircraftCanvas * BatteryFigure`; the run is the core's |
@@ -98,10 +98,10 @@ follows its occurrences with reactions.
 | `(1/4)*screen` in `@size` | `(1/4*screen)`: an annotation's arguments end at a `*` outside brackets |
 
 Patterns (`__pattern`) in the UI: `InPlan(m)`, `RouteForm`, `Setting(v)`,
-`Connected(x)`, `Armed`, `ReadyToFly` (the core's isn't visible to a
-layer), `Running(x)`, `Selected(at)`, `Form(x)`, `DeviceList`. Shared
-paths (`__path`): `Editor` (the plot transitions'), `DeviceEditor`,
-`AcCan`.
+`Connected(x)`, `Armed` (from the core's `core.Armed`), `Running(x)`,
+`Selected(at)`, `Form(x)`, `DeviceList`; it uses the core's
+`core.ReadyToFly` as it is. Shared paths (`__path`): `Editor` (the plot
+transitions'), `DeviceEditor`, `AcCan`.
 
 ## Open points
 

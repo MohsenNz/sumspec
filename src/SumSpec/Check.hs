@@ -29,7 +29,7 @@ import Data.Set (Set)
 import Data.Set qualified as Set
 import Data.Text (Text)
 import Data.Text qualified as T
-import SumSpec.Expand (Expansion (..), Origin (..), expandSpec, patternOrigin)
+import SumSpec.Expand (Expansion (..), Origin (..), expandSpecWith, patternOrigin)
 import SumSpec.Model
   ( Base (..)
   , BaseInfo (..)
@@ -39,6 +39,7 @@ import SumSpec.Model
   , TypeInfo (..)
   , TypeShape (..)
   , VariantInfo (..)
+  , basePatterns
   , isType
   , modelWith
   , step
@@ -120,11 +121,11 @@ checkSpecWith imports file source raw
         [errorAtPos pos message | (pos, message) <- expansionErrors expansion]
           <> filter ((`notElem` failed) . errorPos) checked
   where
-    -- Every check reads the spec with its named patterns expanded. An
-    -- error in a copy of a body is reported at the use, pointing into the
-    -- body; a use that couldn't be expanded is reported once, by the
-    -- expansion.
-    expansion = expandSpec raw
+    -- Every check reads the spec with its named patterns, and its bases',
+    -- expanded. An error in a copy of a body is reported at the use,
+    -- pointing into the body; a use that couldn't be expanded is reported
+    -- once, by the expansion.
+    expansion = expandSpecWith (basePatterns bases) raw
     spec = expansionSpec expansion
     failed = map fst (expansionErrors expansion)
     fromBody e = case patternOrigin expansion (errorPos e) of
@@ -189,7 +190,8 @@ checkSpecWith imports file source raw
     root = case inits of
       (_, p) : _ | isType env (patternKey p) -> Just (patternKey p)
       _ -> Nothing
-    env = modelWith [b | Imported _ (ImportLoaded b _ _) <- imports] spec
+    bases = [b | Imported _ (ImportLoaded b _ _) <- imports]
+    env = modelWith bases spec
 
 -- | Renders errors like parse errors: position, source line, caret and
 -- message, with a blank line between errors.

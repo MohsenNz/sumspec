@@ -179,8 +179,7 @@ __path Editor = App / Page.Plan / PlanPage.Plot
 __pattern RouteForm = PlanPage.Plot(PlotController.Route * core.Plot.Drawn)
 __pattern Setting(v) = PlanPage.Plot(core.Plot.Drawn(core.RouteSettings(v)))
 __pattern Connected(x) = App(core.Core(core.AircraftLink.Connected(x)))
-__pattern Armed = Connected(core.AircraftStatus(core.ArmState.Armed))
-__pattern ReadyToFly = core.AircraftLink.Connected(core.Feed.Live * core.AircraftStatus(core.ArmState.Disarmed * core.GPSFix.{Fix3D | DGPS | RTKFix}) * core.BatteryReserve.Enough)
+__pattern Armed = App(core.Core(core.Armed))
 __pattern Running(x) = App(Page.Plan(PlanPage.MissionRun) * core.Core(core.Run.Active(x)))
 __pattern Selected(at) = App(Page.Plan(PlanPage.ShowMission(MissionPanel.Selected(at))))
 __pattern Form(x) = App(Page.Devices(DevicesPage.Editing(x)))
@@ -220,10 +219,10 @@ backToList :: InPlan(PlanPage.ShowMission(MissionPanel.Selected)) -> InPlan(Plan
 editSelectedMission :: App(Page.Plan(PlanPage.ShowMission(MissionPanel.Selected(core.At#at))) * core.Core(core.Missions[at](core.MissionState.NotStarted * core.Plot#p))) -> InPlan(PlanPage.Plot(PlotOrigin.Editing(at) * p)) @control button_icon_f
 copyMission NewName(core.At#new * core.MissionName#n) :: Selected(core.At#at) -> Selected(new) >> core.copyMission(core.CopyOf(at) * new * n) @control name_prompt
 deleteMission :: App(Page.Plan(PlanPage.ShowMission(MissionPanel.Selected(core.At#at))) * core.Core(core.Run.Idle)) -> InPlan(PlanPage.ShowMission(MissionPanel.List)) >> core.deleteMission(at) @control button_icon_f @requiresConfirmation
-startMission :: App => Page.Plan(PlanPage.ShowMission(MissionPanel.Selected(core.At#at))) * Map(TileStatus.{Loading | Ready}) * core.Core(core.Run.Idle * core.Missions[at](core.MissionState.{NotStarted | Stopped}) * ReadyToFly) -> Page.Plan(PlanPage.MissionRun) >> core.startMission(at) @control button_icon_f @requiresConfirmation
-resumeMission :: App => Page.Plan(PlanPage.ShowMission(MissionPanel.Selected(core.At#at))) * Map(TileStatus.{Loading | Ready}) * core.Core(core.Run.Idle * core.Missions[at](core.MissionState.Stopped) * ReadyToFly) -> Page.Plan(PlanPage.MissionRun) >> core.resumeMission(at) @control button_icon_f @requiresConfirmation
+startMission :: App => Page.Plan(PlanPage.ShowMission(MissionPanel.Selected(core.At#at))) * Map(TileStatus.{Loading | Ready}) * core.Core(core.Run.Idle * core.Missions[at](core.MissionState.{NotStarted | Stopped}) * core.ReadyToFly) -> Page.Plan(PlanPage.MissionRun) >> core.startMission(at) @control button_icon_f @requiresConfirmation
+resumeMission :: App => Page.Plan(PlanPage.ShowMission(MissionPanel.Selected(core.At#at))) * Map(TileStatus.{Loading | Ready}) * core.Core(core.Run.Idle * core.Missions[at](core.MissionState.Stopped) * core.ReadyToFly) -> Page.Plan(PlanPage.MissionRun) >> core.resumeMission(at) @control button_icon_f @requiresConfirmation
               :: Running(core.At#at * core.MissionFlight.Flying(core.FPhase.Holding)) -> App >> core.resumeMission(at) @control button_icon_f
-retryArming :: Running(core.MissionFlight.Failed) // App(core.Core(ReadyToFly)) -> App >> core.retryArming @control button
+retryArming :: Running(core.MissionFlight.Failed) // App(core.Core(core.ReadyToFly)) -> App >> core.retryArming @control button
 cancelArming :: Running(core.At#at * core.MissionFlight.Arming) -> Selected(at) >> core.cancelArming @control button @requiresConfirmation
              :: Running(core.At#at * core.MissionFlight.Failed) -> Selected(at) >> core.cancelArming @control button
 stopMission :: Running(core.MissionFlight.Flying(core.FPhase.{Spraying | Approaching})) -> App >> core.stopMission @control button_icon_f @requiresConfirmation

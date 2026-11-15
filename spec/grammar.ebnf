@@ -458,7 +458,8 @@ character     = ? any Unicode character ? ;
      stands for the body with each
      parameter replaced by its argument (spliced into the arguments
      where it is); an error in it is reported at the use, pointing into
-     the body. A base's patterns aren't visible to a layer;
+     the body. A layer uses its bases' patterns under qualified names
+     (core.P), their bodies qualified too;
    - alternatives (S.{A | B}) go only in a source or a pattern in a
      guard, each written once in its group, and bind no value. A source
      with alternatives is checked as one transition per alternative (per

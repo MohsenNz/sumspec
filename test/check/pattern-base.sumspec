@@ -1,0 +1,28 @@
+-- A layer using the named patterns of its base, under qualified names:
+-- core.Ready stands for the base's Core(Link.Up * Mode.On), with its
+-- types qualified. They go where the layer's own go, and a layer's
+-- pattern may use them.
+__imports {
+  core "base-patterns.sumspec"
+}
+
+__atomics { }
+__events { stopClicked startClicked busy }
+
+__init :: App(View.Idle)
+
+App = View * core.Core
+View = Idle | Busy
+
+-- The layer's own pattern, using one of the base's with an argument.
+__pattern Working(m) = App(View.Busy * core.Linked(m))
+
+-- In a source: core.Ready is a Core, so a factor of App. stop's source is
+-- core.Ready too, so the dispatch is from where it happens.
+stopClicked :: App(View.Busy * core.Ready) -> App(View.Idle)  >> core.stop
+
+-- Through the layer's pattern: start needs core.Linked(core.Mode.Off).
+startClicked :: Working(core.Mode.Off) -> App(View.Idle)  >> core.start
+
+-- In a guard.
+busy :: App(View.Idle) // App(core.Ready) -> App(View.Busy)

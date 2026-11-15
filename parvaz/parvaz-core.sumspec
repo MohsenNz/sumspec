@@ -757,6 +757,9 @@ flownAwayToEvent FlownTo(At#at * Point)
 -- While the aircraft is armed, the link isn't touched: no device is saved
 -- over the linked one, removed, selected, or closed.
 
+-- The connected aircraft is armed.
+__pattern Armed = AircraftLink.Connected(AircraftStatus(ArmState.Armed))
+
 -- A new device is appended, unlinked: selecting it links it. An existing
 -- one is rewritten in place; if it is the linked device, the link reopens
 -- on the new settings.
@@ -768,7 +771,7 @@ saveDevice SavedDevice(DeviceId#id * DeviceName#n * LinkSettings#s)
   => Devices
   // Devices[id]
      and LinkSession.Open(id)
-     and not AircraftLink.Connected(AircraftStatus(ArmState.Armed))
+     and not Armed
   -> Devices[id](n * s) * AircraftLink.Disconnected
   => Devices
   // Devices[id] and not LinkSession.Open(id)
@@ -779,7 +782,7 @@ saveDevice SavedDevice(DeviceId#id * DeviceName#n * LinkSettings#s)
 removeDevice DeviceId#id
   :: Core
   => Devices * LinkSession * AircraftLink * LastDevice
-  // Devices[id] and not AircraftLink.Connected(AircraftStatus(ArmState.Armed))
+  // Devices[id] and not Armed
   -> Devices' * LinkSession' * AircraftLink' * LastDevice'
 
 -- Links the device, closing the old link first, so a connected aircraft is
@@ -788,14 +791,14 @@ removeDevice DeviceId#id
 selectDevice DeviceId#id
   :: Core
   => Devices[id] * LinkSession * AircraftLink * LastDevice
-  // not AircraftLink.Connected(AircraftStatus(ArmState.Armed))
+  // not Armed
   -> LinkSession.Open(id) * AircraftLink.Disconnected * LastDevice.Known(id)
 
 -- Frees the port for another ground station.
 closeLink
   :: Core
   => LinkSession.{Open | Failed} * AircraftLink
-  // not AircraftLink.Connected(AircraftStatus(ArmState.Armed))
+  // not Armed
   -> LinkSession.Closed * AircraftLink.Disconnected
 
 -- The link to the aircraft comes up. The device records the aircraft's

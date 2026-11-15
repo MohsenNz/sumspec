@@ -359,6 +359,31 @@ layerTests =
           assertBool "in todo-core.sumspec" ("todo-core.sumspec" `T.isSuffixOf` getUri uri)
           r @?= range 29 0 4
         _ -> assertBool "one location" False
+  , testCase "the definition of a base's pattern, in the base's file" $ do
+      defs <- withServer $ do
+        doc <- openDoc "test/check/pattern-base.sumspec" "sumspec"
+        _ <- waitForDiagnostics
+        getDefinitions doc (Position 21 31)
+      case defs of
+        InL (Definition (InL (Location uri r))) -> do
+          assertBool
+            "in base-patterns.sumspec"
+            ("base-patterns.sumspec" `T.isSuffixOf` getUri uri)
+          r @?= range 12 10 15
+        _ -> assertBool "one location" False
+  , testCase "a base's pattern, qualified, with its expansion" $ do
+      result <- withServer $ do
+        doc <- openDoc "test/check/pattern-base.sumspec" "sumspec"
+        _ <- waitForDiagnostics
+        getHover doc (Position 21 31)
+      case result of
+        Just (Hover (InL (MarkupContent _ text)) _) ->
+          mapM_
+            (\e -> assertBool (T.unpack (e <> " in: " <> text)) (e `T.isInfixOf` text))
+            [ "__pattern core.Ready = core.Core(core.Link.Up * core.Mode.On)"
+            , "Expands to"
+            ]
+        _ -> assertBool "a hover" False
   , testCase "after a qualifier, what the base declares" $ do
       items <- withServer $ do
         doc <- createDoc "example/layer.sumspec" "sumspec" layer
