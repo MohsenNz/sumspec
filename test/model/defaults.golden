@@ -1,0 +1,37 @@
+types
+  About : sum of Closed, Open, default Closed
+  App : product of About, Level, Zoom, Gain, Label, First, Volume, Sound
+  First : newtype of Zoom, default Start
+  Gain : newtype of Ratio, default 1
+  Int : atomic __int
+  Label : newtype of Name, default "untitled"
+  Level : sum of Low, High, default High.Partial
+  Name : atomic __text
+  Panel : product of Tab, Zoom
+  Ratio : atomic __float
+  Sound : newtype of Volume
+  Tab : sum of Info, Credits, default Info
+  Volume : sum of Low, Loud, default Quiet
+  Zoom : newtype of Int, default 16
+variants
+  Closed : About
+  Credits : Tab
+  Full : Level.High
+  High : Level
+  Info : Tab
+  Loud : Volume
+  Low : Level
+  Low : Volume
+  Open : About
+  Partial : Level.High
+constants
+  Quiet : Volume
+  Start : First
+events
+  close : 1 transition
+  credits : 1 transition
+  lower : 1 transition
+  open : 1 transition
+  raise : 1 transition
+annotations
+root App

@@ -278,7 +278,7 @@ The two sides of a transition are read differently:
 - The **source** side is a precondition. A part that is left out may have any value.
 - The **target** side is the effect. A part that is left out, or written without a prime, keeps its value. A primed part, `A'`, gets a new value, set by the transition; a prime goes only on a part that keeps its place, not inside a new state. A name or a computed value (`Attempts(n + 1)`, `Attempts(0)`) sets the part to that value. A part whose variant differs from the source's is a **new state**.
 
-A new state didn't exist before the transition, so nothing in it can keep its value: inside a new state, a part that is left out, or written without a prime, may have any value, and nothing takes a prime.
+A new state didn't exist before the transition, so nothing in it can keep its value: inside a new state, a part that is left out, or written without a prime, takes its type's default or may have any value (see "Defaults"), and nothing takes a prime.
 
 A part keeps its value only where the source fixes the same variants along its path. In `Page -> Page.Plan(PMode.JustMap)`, the source may have been `Page.Home`, so `Plan` is a new state.
 
@@ -836,19 +836,62 @@ how versions are numbered.
 
 `P` is a whole new state: nothing has a value before it, and no event brings an input. So:
 
-- A part that is left out may have any value.
+- A part that is left out takes its type's default, or may have any value (see "Defaults").
 - Nothing in it takes a prime (`__init :: App(Mode')` is an error).
 - Nothing in it is named or uses a name (`Text#t`, `x`), and it has no element path (`Todos[id]`). It may give a value with literals and constants: `Attempts(0)`, `Count(Start + 1)` (see "Computed values").
 - `__init` isn't listed in `__events`, and no `->` follows the `::`.
 
 `__atomics` and `__events` are written before any type, transition or `__init`.
 
+## Defaults (__default)
+
+A type may give the value a part of it starts with: its **default**. It's written after the type's name, or after a newtype's body, before the annotations:
+
+```
+About __default Closed
+  = Closed
+  | Open Panel
+
+Panel __default Info = Info | Credits
+
+Zoom = Int __default 16 @range 3..20
+```
+
+A part left out of `__init` or of a new state, or written there as a bare type (`Page.Plan(PMode)`), takes its type's default. Without a default, it's built from its parts:
+
+- a product: each factor is taken this way;
+- a newtype: its base is (so `Sound = Volume` starts with `Volume`'s default);
+- a sum: any variant, with its payload taken this way;
+- a list, or an atomic: any value.
+
+A primed part, a name and a computed value are still any value. A source, and a part that keeps its value, are read as before.
+
+```haskell
+-- About.Open is a new state: its Panel takes Panel's default, Info.
+openAbout :: App => About.Closed -> About.Open
+```
+
+The value is written without the type, since the definition names it:
+
+- A **literal**, on a newtype that resolves to an atomic with a base, with the rules of "Comparing values": `__default 16`, `__default 1.5`, `__default "untitled"`. An integer fits a `__float`.
+- A **variant**, on a sum or on a newtype of one: `__default Closed`. A dotted path picks a variant inside an inline payload: `Level __default High.Partial = Low | High (Full | Partial)`. It takes no arguments: the variant's payload takes its own default.
+- A **constant** of the type: `First = Zoom __default Start`, with `__const Start = First(4)`. A name that is a variant of the sum is read as the variant.
+
+The checker reports:
+
+- A default on a product (give the defaults to its factors' types), on a list, on an atomic with no base, or on a newtype of one of those.
+- A default on a projection (`__from`): its value is read from the base.
+- A value that doesn't fit: a literal on a sum, a variant that isn't one of the sum's, a literal of the wrong kind, a constant of another type.
+- A second default on one type.
+
 ## Annotations (@name)
 
 An annotation is metadata: something the application needs that the
-types can't say, such as how a value is drawn, its default, or a side
-effect of a transition. SumSpec gives it no meaning; the target (the code
-generator) does.
+types can't say, such as how a value is drawn, the values it may take, or
+a side effect of a transition. SumSpec gives it no meaning; the target (the code
+generator) does. The checker checks an annotation's name and never its
+arguments: what the checker must understand is written in the language,
+not as an annotation.
 
 The annotations a spec uses are listed once in an `__annotations` block,
 next to `__atomics` and `__events` (the header blocks come in any order).
@@ -857,7 +900,7 @@ A comment next to each name documents it:
 ```
 __annotations {
   @control  -- the widget that edits a value or triggers a transition
-  @default  -- the value a part starts with
+  @range    -- the values a number may take, low..high
   @status   -- how a variant is shown: loading, error or empty
   @effect   -- a side effect of the transition
 }
@@ -869,8 +912,8 @@ it belongs to:
 
 | Written                                  | Belongs to              |
 |------------------------------------------|-------------------------|
-| `Plot @default Empty = Empty \| Drawn`   | the type `Plot`         |
-| `PortSetting = Port @default 14550`      | the type `PortSetting`  |
+| `Plot @control tabs = Empty \| Drawn`    | the type `Plot`         |
+| `PortSetting = Port @range 1..65535`     | the type `PortSetting`  |
 | `\| Failed FailureReason @status error`  | the variant `Failed`    |
 | `Mission = Name * Plot @control map`     | the member `Plot`       |
 | `go :: A -> B @control button`           | the transition          |
@@ -887,9 +930,9 @@ They run to the end of the line, to a comment, or to one of `@ = | * ::`,
 so another annotation, variant or member may follow on the same line:
 
 ```
-PortSetting = Port  @default 14550 @range 1..65535
+PortSetting = Port  @range 1..65535 @control stepper
 
-Screen @default Home
+Screen @control tabs
   = Home                @control tab
   | Failed Reason       @status error
 
@@ -1153,7 +1196,7 @@ A guard can separate two transitions whose sources overlap. They do not overlap 
 
 Comparisons of a name with a literal or a variant count too: `c < 15` and `c >= 15`, or `p == 1` and `p == 2`, exclude each other, and so do `n > 4` and `n < 5` on integers. Comparisons of two names are not read. Two transitions of one event that use the same name with the same type are taken to mean the same value.
 
-From `__init`, the type checker finds the variants the app can reach: a transition can happen once every variant its source writes has been reached, and its target then reaches the variants it writes. A part that may have any value (left out of `__init` or of a new state, or primed) reaches every variant inside it. The checker warns about a variant of a type inside the app's state that is never reached, and reports only the outermost one (not `Bolt` inside an unreached `Locked (Bolt | Chain)`). Parts of a source are tested one at a time and names are ignored, so a variant may be counted as reached when the app can't really get there, but never the other way around.
+From `__init`, the type checker finds the variants the app can reach: a transition can happen once every variant its source writes has been reached, and its target then reaches the variants it writes. A part that may have any value (primed, or left out of `__init` or of a new state with no default) reaches every variant inside it; a part that takes its default reaches only what the default picks (see "Defaults"). In a layer, a base's part may have any of its values. The checker warns about a variant of a type inside the app's state that is never reached, and reports only the outermost one (not `Bolt` inside an unreached `Locked (Bolt | Chain)`). Parts of a source are tested one at a time and names are ignored, so a variant may be counted as reached when the app can't really get there, but never the other way around.
 
 A transition whose source writes a variant that is never reached, or whose type no state holds (a type outside the app's state), can never happen, and the type checker warns about it, naming the outermost variant its source needs. Such a transition also adds nothing, so what only it would reach is reported as never reached as well.
 

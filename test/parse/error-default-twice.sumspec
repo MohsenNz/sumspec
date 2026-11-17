@@ -1,0 +1,10 @@
+-- A type has one default.
+__atomics { Int = __int }
+__events { go }
+__init :: A(Zoom)
+
+A = Zoom * Mode
+Zoom __default 4 = Int __default 16
+Mode = On | Off
+
+go :: A(Mode.On) -> A(Mode.Off)

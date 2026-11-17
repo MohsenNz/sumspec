@@ -1,0 +1,6 @@
+test/parse/error-default-value.sumspec:6:13:
+  |
+6 | A __default = B | C
+  |             ^
+unexpected '='
+expecting default value: a literal, a variant or a constant

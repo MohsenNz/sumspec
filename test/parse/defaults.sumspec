@@ -1,0 +1,28 @@
+-- Defaults: after a type's name, or after a newtype's body, before the
+-- annotations. The value is a literal, a variant (a path into an inline
+-- sum) or a constant.
+__atomics { Int = __int  Ratio = __float  Name = __text }
+__events { open }
+__annotations { @range @control }
+
+__const Start = Zoom(4)
+
+__init :: App(About.Closed)
+
+App = About * Level * Zoom * Gain * Offset * Label * First
+
+About __default Closed
+  = Closed
+  | Open Name
+
+Level __default High.Partial @control slider
+  = Low
+  | High (Full | Partial)
+
+Zoom = Int __default 16 @range 1..20
+Gain __default 1.5 = Ratio
+Offset = Int __default -1
+Label = Name __default "untitled"
+First = Zoom __default Start
+
+open :: App(About.Closed) -> App(About.Open)

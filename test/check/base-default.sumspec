@@ -1,0 +1,12 @@
+-- A base spec for error-default-projection.sumspec. Its default holds in
+-- its own state. It is a case of its own too.
+__atomics { }
+__events { flip }
+
+__init :: Core
+
+Core = Link * Power
+Link __default Down = Up | Down
+Power = On | Off
+
+flip :: Core => Link.Down -> Link.Up

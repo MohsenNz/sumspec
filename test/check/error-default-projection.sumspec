@@ -1,0 +1,21 @@
+-- A projection is read from the base, so it takes no default.
+__imports {
+  core "base-default.sumspec"
+}
+
+__atomics { }
+__events { show }
+
+__init :: App(View.Hidden)
+
+App = View * core.Core
+
+View
+  = Hidden
+  | Shown Status
+
+Status __from core.Core / core.Link __default Down
+  = Up
+  | Down
+
+show :: App => View.Hidden -> View.Shown

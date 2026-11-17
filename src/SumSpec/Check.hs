@@ -43,6 +43,7 @@ import SumSpec.Model
   , isType
   , modelWith
   , step
+  , typeDefault
   , underlying
   , variantOwnerPath
   , variantPath
@@ -160,6 +161,7 @@ checkSpecWith imports file source raw
         , checkInit file env inits
         , checkTypeDefs env typeDefs
         , checkConsts env consts
+        , checkDefaults env typeDefs
         , checkEvents env spec events
         , concatMap checkWrittenKeys events
         , checkTransitions env transitions
@@ -397,7 +399,7 @@ checkLayerRoot env inits =
              <> " is the root of "
              <> T.pack (baseInfoFile b)
              <> ", so it is a factor of this spec's root only"
-       | TypeDef d _ body _ <- Map.elems (modelTypeDefs env)
+       | TypeDef d _ _ body _ <- Map.elems (modelTypeDefs env)
        , isNothing (nameQualifier d)
        , n <- termNames body
        , Just q <- [nameQualifier n]
@@ -733,7 +735,7 @@ checkProjectionTypes env inits targets
       [ errorAt (NE.head path) $
           "a projection reads a base spec's state, and this spec imports none; "
             <> "list the base in __imports"
-      | TypeDef _ _ _ (Just path) <- Map.elems projections
+      | TypeDef _ _ _ _ (Just path) <- Map.elems projections
       ]
   | otherwise =
       concat
@@ -755,7 +757,7 @@ checkProjectionTypes env inits targets
                         <> "start its path with "
                         <> T.intercalate " or " (map nameText roots)
                   ]
-        | TypeDef d _ body (Just path) <- Map.elems projections
+        | TypeDef d _ _ body (Just path) <- Map.elems projections
         ]
         <> [ errorAt n $
                "projection "
@@ -787,7 +789,7 @@ checkProjectionTypes env inits targets
     nested =
       Set.fromList
         [ t
-        | TypeDef _ _ body _ <- Map.elems projections
+        | TypeDef _ _ _ body _ <- Map.elems projections
         , t <- exprTypes body
         , isProjection t
         ]
@@ -930,7 +932,7 @@ checkProjectionTypes env inits targets
     part seen src whole n
       | isProjection (nameText n) =
           case Map.lookup (nameText n) projections of
-            Just (TypeDef d _ body (Just path))
+            Just (TypeDef d _ _ body (Just path))
               | Set.member (nameText d) seen -> []
               | otherwise -> case resolveFrom (Just src) path of
                   Left e -> [e]
@@ -989,7 +991,7 @@ annotationUses :: Spec -> [Annotation]
 annotationUses spec = concatMap fromDefinition (specDefinitions spec)
   where
     fromDefinition = \case
-      DefType (TypeDef _ notes body _) -> notes <> fromExpr body
+      DefType (TypeDef _ _ notes body _) -> notes <> fromExpr body
       DefEvent (Event _ _ transitions) ->
         [ a
         | Transition _ branches <- NE.toList transitions
@@ -1083,10 +1085,10 @@ checkInit file env inits = case inits of
 checkTypeDefs :: Model -> [TypeDef] -> [CheckError]
 checkTypeDefs env defs =
   [ errorAt n (nameText n <> " is defined twice (first on line " <> lineOf first <> ")")
-  | (TypeDef n _ _ _, TypeDef first _ _ _) <- repeats (nameText . typeDefName) defs
+  | (TypeDef n _ _ _ _, TypeDef first _ _ _ _) <- repeats (nameText . typeDefName) defs
   ]
     <> [ errorAt n (nameText n <> " is declared in __atomics and also defined")
-       | TypeDef n _ _ _ <- defs
+       | TypeDef n _ _ _ _ <- defs
        , Map.member (nameText n) (modelAtomics env)
        ]
     <> concatMap (checkTypeExpr env . typeDefBody) defs
@@ -1131,6 +1133,109 @@ constValueErrors env (ConstDef _ ty value)
             ]
       ConstVariant v -> variantRefErrors env "a constant variant" ty v
 
+-- | Defaults (@T __default v@): a type takes one when a part of it can be
+-- a value: a sum takes one of its variants, a newtype of an atomic with a
+-- base a literal that fits it, and either a constant of the type. A
+-- product's default is its factors', and a list, an atomic with no base
+-- and a projection take none. See "Defaults" in spec-v1.md.
+checkDefaults :: Model -> [TypeDef] -> [CheckError]
+checkDefaults env defs =
+  concat [check d k v | d@TypeDef {typeDefDefault = Just (Default k v)} <- defs]
+  where
+    check d k value
+      | Just _ <- typeDefFrom d =
+          [ errorAt k $
+              t
+                <> " is a projection: its value is read from the base, so it has no default"
+          ]
+      | otherwise = case typeInfoShape <$> underlying env t of
+          Nothing -> [] -- an unknown type or a newtype cycle, reported elsewhere
+          Just (ShapeSum _) -> case value of
+            DefaultLiteral pos _ ->
+              [ errorAtPos pos $
+                  t <> " is a sum, so its default is one of its variants, such as " <> firstVariant
+              ]
+            DefaultName (n :| rest) -> case followPath body (n : rest) of
+              Nothing -> []
+              Just (v, err)
+                | null rest, v == n, Just c <- constant n -> constantOf c n
+                | otherwise -> [variantError v err]
+          Just (ShapeAtomic Nothing) ->
+            [ errorAt k $
+                t
+                  <> " is an atomic with no base, so no value of it is written; "
+                  <> "it has no default"
+            ]
+          Just (ShapeAtomic (Just _)) -> case value of
+            DefaultLiteral pos lit
+              | literalFits (kindOf env t) lit -> []
+              | otherwise ->
+                  [ errorAtPos pos $
+                      t
+                        <> " is "
+                        <> describeKind (kindOf env t)
+                        <> ", so "
+                        <> renderLiteral lit
+                        <> " doesn't fit it"
+                  ]
+            DefaultName (n :| [])
+              | Just c <- constant n -> constantOf c n
+            DefaultName (n :| _) ->
+              [ errorAt n $
+                  t
+                    <> " is "
+                    <> describeKind (kindOf env t)
+                    <> ", so its default is a literal or a constant of "
+                    <> t
+                    <> "; there's no constant "
+                    <> nameText n
+              ]
+          Just (ShapeProduct _) ->
+            [ errorAt k $
+                t
+                  <> " is a product, so it takes no default: a factor left out "
+                  <> "takes its own type's; give the default to the factor's type"
+            ]
+          Just (ShapeList _ _) ->
+            [ errorAt k $
+                t <> " is a list, so it takes no default; a list left out may hold any elements"
+            ]
+          Just (ShapeNewtype _) -> []
+      where
+        t = nameText (typeDefName d)
+        body = typeInfoBody =<< underlying env t
+        firstVariant = case body of
+          Just (TypeSum (v : _)) -> nameText (variantName v)
+          _ -> "V"
+        -- The first name that isn't a variant where the path is.
+        followPath here = \case
+          [] -> Nothing
+          v : more -> either (Just . (v,)) (\(_, here') -> followPath here' more) (step env here v)
+        constant n = Map.lookup (nameText n) (modelConsts env)
+        constantOf c n
+          | nameText (constType c) == t = []
+          | otherwise =
+              [ errorAt n $
+                  nameText n
+                    <> " is a constant of "
+                    <> nameText (constType c)
+                    <> ", so it isn't a default of "
+                    <> t
+              ]
+        variantError v = \case
+          NotAVariant ->
+            errorAt v $
+              nameText v
+                <> " is not a variant here; "
+                <> t
+                <> "'s default is one of its variants, such as "
+                <> firstVariant
+          _ ->
+            errorAt v $
+              "a default picks a variant inside an inline sum only, and "
+                <> nameText v
+                <> " comes after a variant whose payload isn't one"
+
 -- | Whether a literal fits a value of this kind: an integer an @__int@ or a
 -- @__float@, a decimal only a @__float@, a string only a @__text@.
 literalFits :: Kind -> Literal -> Bool
@@ -1163,7 +1268,7 @@ checkTerm env term =
 -- | A newtype that leads back to itself (@A = B@, @B = A@) has no
 -- structure at all. Reported at the definition, with the chain.
 newtypeCycle :: Model -> TypeDef -> Maybe CheckError
-newtypeCycle env (TypeDef start _ _ _) = go [nameText start] (nameText start)
+newtypeCycle env (TypeDef start _ _ _ _) = go [nameText start] (nameText start)
   where
     go seen current = case typeBody env current of
       Just (TypeTerm (TermName next))
@@ -2672,6 +2777,81 @@ anyType env start = (foldMap labelsOf types, types)
     labelsOf = Set.fromList . fst . contentsOf
     contentsOf t = maybe ([], []) (exprContents t) (typeBody env t)
 
+-- | The variants and types of a fresh value of a type: one a new state or
+-- @__init@ leaves out, or writes as a bare type. It is the type's default
+-- (@__default@), and without one it is built from its parts: each factor
+-- of a product, any variant of a sum with a fresh payload, the base of a
+-- newtype. A list or an atomic may have any value, and so may a base's
+-- part in a layer. See "Defaults" in spec-v1.md.
+freshType :: Model -> Text -> (Set Label, Set Text)
+freshType env t = freshAt env t (typeBody env t)
+
+-- | A fresh value at a place: a type, by its name, or a variant's payload,
+-- by its label (@Page.Plan@).
+freshAt :: Model -> Label -> Maybe TypeExpr -> (Set Label, Set Text)
+freshAt env = go Set.empty
+  where
+    go seen label body
+      | isType env label, Set.member label seen = mempty
+      -- A base's part changes with the base's own events, which this
+      -- spec's transitions don't follow: it may hold any of its values.
+      | Just _ <- nameQualifier . typeInfoName =<< Map.lookup label (modelTypes env) =
+          anyType env label
+      | isType env label =
+          (mempty, Set.singleton label)
+            <> fromMaybe (fromBody (Set.insert label seen) label body) (fromDefault seen label)
+      | otherwise = fromBody seen label body
+    fromBody seen label = \case
+      Nothing -> mempty
+      Just (TypeSum variants) ->
+        mconcat
+          [ (Set.singleton l, mempty) <> go seen l payload
+          | Variant n payload _ <- variants
+          , let l = label <> "." <> nameText n
+          ]
+      Just (TypeProduct (map factorTerm -> terms)) -> foldMap (ofTerm seen) terms
+      Just (TypeTerm term) -> ofTerm seen term
+    ofTerm seen = \case
+      TermName n -> go seen (nameText n) (typeBody env (nameText n))
+      list@(TermList _ _) -> foldMap (anyType env) (termRefs list)
+    -- A default: the variants its path picks, or a constant's variant,
+    -- then a fresh payload. A literal holds no variant.
+    fromDefault seen t = do
+      Default _ value <- typeDefault env t
+      sumType <- underlying env t
+      let
+        s = nameText (typeInfoName sumType)
+        chain = (mempty, newtypeChain t)
+      -- A default that doesn't fit is reported by 'checkDefaults' and read
+      -- here as none.
+      (chain <>) <$> case (value, typeInfoShape sumType) of
+        (DefaultLiteral _ _, ShapeSum _) -> Nothing
+        (DefaultLiteral _ _, _) -> Just mempty
+        (DefaultName ns, _) -> case followDefault s (typeInfoBody sumType) (NE.toList ns) of
+          Just found -> Just found
+          Nothing -> case (ns, Map.lookup (nameText (NE.head ns)) (modelConsts env)) of
+            (_ :| [], Just (ConstDef _ ty (ConstVariant v)))
+              | nameText ty == t -> Just (Set.singleton (s <> "." <> nameText v), mempty)
+            (_ :| [], Just (ConstDef _ ty (ConstLiteral _ _)))
+              | nameText ty == t -> Just mempty
+            _ -> Nothing
+      where
+        followDefault label here = \case
+          [] -> Just (go (Set.insert t seen) label here)
+          v : more -> case step env here v of
+            Right (_, payload) ->
+              let l = label <> "." <> nameText v
+              in  ((Set.singleton l, mempty) <>) <$> followDefault l payload more
+            Left _ -> Nothing
+    -- The newtypes on the way from a type to what it stands for.
+    newtypeChain = goChain Set.empty
+      where
+        goChain seen t
+          | Set.member t seen = seen
+          | otherwise = case typeBody env t of
+              Just (TypeTerm (TermName n)) -> goChain (Set.insert t seen) (nameText n)
+              _ -> Set.insert t seen
+
 -- | The variants a type expression defines, under the label @prefix@, and
 -- the types it names directly.
 exprContents :: Label -> TypeExpr -> ([Label], [Text])
@@ -2751,18 +2931,21 @@ reach env names fixed = goPattern []
                 (Set.singleton l', mempty) <> go f' l' payload seen' more
             _ -> mempty
     -- The arguments at the end of a path, and what the left-out parts are.
-    goNode at fill label body args = case body of
+    -- A whole part left out of a new state is a fresh value (see
+    -- 'freshType'): a type's default, or built from its parts.
+    goNode at fill label body args
+      | null args, fill == AnyValue = freshAt env label body
+      | otherwise = goNode' at fill body args
+    goNode' at fill body args = case body of
       Nothing -> mempty
-      Just expr@(TypeSum _)
-        | null args, fill == AnyValue -> anyExpr label expr
-        | otherwise -> mempty
+      Just (TypeSum _) -> mempty
       Just (TypeProduct (map factorTerm -> factors)) ->
         let given = Map.fromList [(k, a) | a <- args, Just k <- [argKey env names a]]
         in  mconcat
               [ case Map.lookup (termKey factor) given of
                   Just a -> goPattern at fill a
                   Nothing
-                    | fill == AnyValue -> foldMap anyOf (termRefs factor)
+                    | fill == AnyValue -> foldMap (freshType env) (termRefs factor)
                     | otherwise -> mempty
               | factor <- factors
               ]
@@ -2770,12 +2953,7 @@ reach env names fixed = goPattern []
         -- A computed value is any value of the type it sets.
         [a] | PatternExpr _ <- bare a -> foldMap anyOf (termRefs term)
         [a] -> goPattern at fill a
-        []
-          | fill == AnyValue -> foldMap anyOf (termRefs term)
         _ -> mempty
-    anyExpr label expr =
-      let (labels, refs) = exprContents label expr
-      in  (Set.fromList labels, mempty) <> foldMap anyOf refs
     anyOf = anyType env
     typeOnly t = (mempty, Set.singleton t)
 

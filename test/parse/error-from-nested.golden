@@ -3,4 +3,4 @@ test/parse/error-from-nested.sumspec:6:22:
 6 | View __from core.Core(core.Link) = A | B
   |                      ^
 unexpected '('
-expecting '/', '=', or '@'
+expecting "__default", '/', '=', or '@'

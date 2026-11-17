@@ -21,7 +21,7 @@ types
   PMode : sum of JustMap, Plot, Flight, ShowMission
   Page : sum of Home, Plan, Devices
   Path : sum of Partial, Total
-  Plot : sum of Empty, Drawn
+  Plot : sum of Empty, Drawn, default Empty
   PlotOrigin : sum of Draft, Editing
   Point : atomic
   Points : list of Point
@@ -85,7 +85,6 @@ events
   takeOff : 1 transition
 annotations
   @control
-  @default
   @effect
   @status
 root App

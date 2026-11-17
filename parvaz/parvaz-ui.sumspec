@@ -24,7 +24,6 @@ __imports {
 }
 
 __annotations {
-  @default
   @range         -- permitted values of a numeric part, low..high, inclusive
   @step          -- the increment a @control stepper moves by
   @after         -- the measure that fires an occurrence: @after <member> <value>
@@ -225,8 +224,8 @@ App         @platform Android
   * Map                 -- outlives the plan page, so it opens where it was left
   * core.Core           -- the core's state: only the core's events change it
 
-Page        @view hierarchical_navigation
-            @default Home
+Page        __default Home
+            @view hierarchical_navigation
   = Home    HomePage
   | Plan    PlanPage
   | Devices DevicesPage
@@ -242,7 +241,7 @@ HomePage
   * LinkStatus
   * HomeAircraft
 
-About                 @default Closed
+About                 __default Closed
   = Closed
   | Open AppVersion   @view dialog -- the app's name, version and build
 
@@ -278,7 +277,7 @@ LogsPage              @view browsing
   * LogTagFilter
   * LogList
 
-LogLevelFilter        @default All
+LogLevelFilter        __default All
   = All
   | Warnings          -- Warning and Error
   | Errors
@@ -295,7 +294,7 @@ LogList               __from core.Core / core.Logs
 ------------------------------------------------------------------------------------
 -- The device page
 
-DevicesPage                 @default Listing
+DevicesPage                 __default Listing
   = Listing DeviceListing   @view browsing
   | Editing DeviceForm      @view form
 
@@ -328,12 +327,12 @@ DeviceOrigin                  -- what saveDevice does with the form
   = New                       -- addDevice: append a device
   | Existing core.DeviceId    -- editDevice: rewrite that device in place
 
-LinkKind            @default Udp  -- the form's choice of LinkSettings variant
+LinkKind            __default Udp  -- the form's choice of LinkSettings variant
   = Udp
   | Tcp
   | Serial
 
-Host                @default Unset -- the form's draft of a HostName
+Host                __default Unset -- the form's draft of a HostName
   = Unset
   | Named core.HostName
 
@@ -345,15 +344,15 @@ Map                 @region canvas
   * Zoom
   * DeviceLocation
 
-TileStatus          @default Loading
+TileStatus          __default Loading
   = Loading         @status loading  -- tiles not yet drawn
   | Ready
   | Offline         @status error    -- no tiles for this area; cached view only
 
-Zoom = core.Int     @default 16
+Zoom = core.Int     __default 16
                     @range 3..20
 
-DeviceLocation      @default Unknown
+DeviceLocation      __default Unknown
                     @region canvas   -- where the operator is standing, read
                                      -- from the device's own receiver
   = Unknown
@@ -366,7 +365,7 @@ DeviceLocation      @default Unknown
 ------------------------------------------------------------------------------------
 -- The plan page
 
-PlanPage                          @default JustMap
+PlanPage                          __default JustMap
   = JustMap                       -- a plain map, for exploring
   | Plot           PlotEditor     @view editing
   | ShowMission    MissionPanel
@@ -391,7 +390,7 @@ PlotOrigin            -- what savePlot does with the result
   = Draft             -- newPlot: a new mission
   | Editing core.At   -- editSelectedMission: the mission it came from
 
-PlotController        @default Field
+PlotController        __default Field
                       @region panel
                       @placement right
                       @control segmented
@@ -404,7 +403,7 @@ PlotController        @default Field
                       -- path within the field, and there is no within until
                       -- the edge closes
 
-PointType             @default BoundaryPoint
+PointType             __default BoundaryPoint
                       -- what the next pointAdd places. BoundaryPoint builds the
                       -- one Boundary; the other five each build a Marking. It
                       -- chooses what a new shape would be, so setting it
@@ -420,15 +419,15 @@ PointHistory
   = Undo
   * Redo
 
-Undo                @default Empty
+Undo                __default Empty
   = Ready
   | Empty
 
-Redo                @default Empty
+Redo                __default Empty
   = Ready
   | Empty
 
-ShapeSelection      @default Empty
+ShapeSelection      __default Empty
                     -- which shape pointAdd adds to. Selected, a Point joins
                     -- that shape: extending it while open, joining its
                     -- nearest edge once Enclosed. The selected shape is
@@ -444,21 +443,21 @@ Shape               -- what a selection acts on: the one Boundary, or one of
   = Boundary
   | Marking
 
-PointSelection      @default Empty
+PointSelection      __default Empty
                     -- which placed Point pointDelete and pointMove act on. The
                     -- map marks it with a drag handle. Only inside the
                     -- selected shape
   = Empty
   | Selected core.Point
 
-CornerPick          @default Idle
+CornerPick          __default Idle
                     -- whether a map tap on a Boundary point chooses the
                     -- StartCorner
   = Idle
   | Picking         -- every Boundary point drawn as a candidate, the current
                     -- StartCorner marked among them
 
-EdgePick            @default Idle
+EdgePick            __default Idle
                     -- whether a map tap on a Boundary edge chooses one to set
                     -- its own margin
   = Idle
@@ -564,7 +563,7 @@ AircraftPose        __from core.AircraftStatus
   * core.Heading
   * core.GPSFix
 
-BatteryFigure       @default Voltage  -- which figure the BATT tile shows
+BatteryFigure       __default Voltage  -- which figure the BATT tile shows
   = Voltage
   | Charge
 
@@ -572,12 +571,12 @@ AircraftCanvas
   = FCamera
   * MapFollow
 
-MapFollow           @default Following
+MapFollow           __default Following
   = Following       -- the map recentres on the aircraft as it moves
   | Free            -- released by a manual pan, so the operator can look
                     -- elsewhere while the aircraft keeps flying
 
-FCamera             @default Minimized
+FCamera             __default Minimized
                     @region canvas
                     -- the aircraft's own camera, shown as it arrives
   = Maximized       -- covers the map

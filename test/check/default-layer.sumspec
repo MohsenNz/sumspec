@@ -1,0 +1,19 @@
+-- A layer over base-default.sumspec. The layer's __init leaves the base's
+-- state out, and the base's own events change it, so the layer reads any
+-- of its values: core.Link.Up counts as reached though core.Link's default
+-- is Down. The layer's own default holds as usual.
+__imports {
+  core "base-default.sumspec"
+}
+
+__atomics { }
+__events { show hide }
+
+__init :: App(View.Hidden)
+
+App = View * core.Core
+
+View __default Hidden = Hidden | Shown
+
+show :: App => View.Hidden * core.Core(core.Link.Up) -> View.Shown
+hide :: App => View.Shown -> View.Hidden

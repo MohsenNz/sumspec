@@ -1,5 +1,5 @@
 types
-  About : sum of Closed, Open
+  About : sum of Closed, Open, default Closed
   AircraftCanvas : product of FCamera, MapFollow
   AircraftGauges : product of core.Satellites, core.SprayFlow, core.Altitude, core.RangefinderAlt, core.OffsetAlt, core.Speed, core.Heading, core.Battery, from core.AircraftStatus
   AircraftIndicators : product of core.ArmState, core.FlightMode, core.GPSFix, from core.AircraftStatus
@@ -9,70 +9,70 @@ types
   App : product of Page, Map, core.Core
   AppVersion : newtype of core.Text
   Battery : newtype of core.BatteryCharge, from core.AircraftStatus / core.Battery
-  BatteryFigure : sum of Voltage, Charge
-  CornerPick : sum of Idle, Picking
+  BatteryFigure : sum of Voltage, Charge, default Voltage
+  CornerPick : sum of Idle, Picking, default Idle
   DeviceForm : product of DeviceOrigin, core.DeviceName, LinkKind, Host, core.Port, core.Baud
   DeviceListing : product of DeviceRows, LinkStatus
-  DeviceLocation : sum of Unknown, Locating, Denied, Failed, Located
+  DeviceLocation : sum of Unknown, Locating, Denied, Failed, Located, default Unknown
   DeviceOrigin : sum of New, Existing
   DeviceRow : product of core.DeviceName, core.LinkSettings, core.LastSystemId, from core.Device
   DeviceRows : list of DeviceRow by core.DeviceId, from core.Core / core.Devices
-  DevicesPage : sum of Listing, Editing
-  EdgePick : sum of Idle, Picking, Selected
-  FCamera : sum of Maximized, Minimized, Hidden
+  DevicesPage : sum of Listing, Editing, default Listing
+  EdgePick : sum of Idle, Picking, Selected, default Idle
+  FCamera : sum of Maximized, Minimized, Hidden, default Minimized
   HomeAircraft : sum of Disconnected, Connected, from core.Core / core.AircraftLink
   HomeIndicators : product of core.GPSFix, core.Satellites, core.ArmState, from core.AircraftStatus
   HomeMarker : newtype of core.HomePoint, from core.Aircraft
   HomePage : product of About, LinkStatus, HomeAircraft
-  Host : sum of Unset, Named
-  LinkKind : sum of Udp, Tcp, Serial
+  Host : sum of Unset, Named, default Unset
+  LinkKind : sum of Udp, Tcp, Serial, default Udp
   LinkStatus : product of core.LinkSession, core.AircraftLink, from core.Core
-  LogLevelFilter : sum of All, Warnings, Errors
+  LogLevelFilter : sum of All, Warnings, Errors, default All
   LogList : list of core.LogEntry, from core.Core / core.Logs
   LogTagFilter : list of core.LogTag
   LogsPage : product of LogLevelFilter, LogTagFilter, LogList
   Map : product of TileStatus, Zoom, DeviceLocation
-  MapFollow : sum of Following, Free
+  MapFollow : sum of Following, Free, default Following
   MissionPanel : sum of List, Selected
   MissionRow : product of core.MissionName, core.MissionState, core.GroundMeasurements, from core.Mission
   MissionRows : list of MissionRow by core.At, from core.Core / core.Missions
   NewName : product of core.At, core.MissionName
-  Page : sum of Home, Plan, Devices, Logs
-  PlanPage : sum of JustMap, Plot, ShowMission, MissionRun, ManualAircraft
-  PlotController : sum of Field, Route
+  Page : sum of Home, Plan, Devices, Logs, default Home
+  PlanPage : sum of JustMap, Plot, ShowMission, MissionRun, ManualAircraft, default JustMap
+  PlotController : sum of Field, Route, default Field
   PlotEditor : product of PlotOrigin, core.Plot, PointHistory, PlotController, ShapeSelection, CornerPick, EdgePick
   PlotOrigin : sum of Draft, Editing
   PointHistory : product of Undo, Redo
-  PointSelection : sum of Empty, Selected
-  PointType : sum of BoundaryPoint, Obstacle, RoundObstacle, PowerLine, NonSprayArea, MarkPoint
-  Redo : sum of Ready, Empty
+  PointSelection : sum of Empty, Selected, default Empty
+  PointType : sum of BoundaryPoint, Obstacle, RoundObstacle, PowerLine, NonSprayArea, MarkPoint, default BoundaryPoint
+  Redo : sum of Ready, Empty, default Empty
   RunPanel : sum of Idle, Active, from core.Core / core.Run
   RunView : product of RunPanel, AircraftPanel, AircraftCanvas, BatteryFigure
   Shape : sum of Boundary, Marking
-  ShapeSelection : sum of Empty, Selected
-  TileStatus : sum of Loading, Ready, Offline
-  Undo : sum of Ready, Empty
-  Zoom : newtype of core.Int
+  ShapeSelection : sum of Empty, Selected, default Empty
+  TileStatus : sum of Loading, Ready, Offline, default Loading
+  Undo : sum of Ready, Empty, default Empty
+  Zoom : newtype of core.Int, default 16
   core.Aircraft : product of core.AircraftStatus, core.Feed, core.HomePoint, core.BatteryReserve, core.SystemId
-  core.AircraftLink : sum of Disconnected, Connected
+  core.AircraftLink : sum of Disconnected, Connected, default Disconnected
   core.AircraftStatus : product of core.ArmState, core.FlightMode, core.GPSFix, core.Satellites, core.Battery, core.SprayFlow, core.Altitude, core.RangefinderAlt, core.OffsetAlt, core.Speed, core.Heading, core.Latitude, core.Longitude
   core.Altitude : newtype of core.Meters
   core.Area : newtype of core.Hectares
-  core.ArmState : sum of Disarmed, Armed
+  core.ArmState : sum of Disarmed, Armed, default Disarmed
   core.At : newtype of core.Timestamp
   core.Battery : product of core.BatteryVoltage, core.BatteryCharge
   core.BatteryCharge : newtype of core.Percent
-  core.BatteryReserve : sum of Enough, Low
+  core.BatteryReserve : sum of Enough, Low, default Enough
   core.BatteryVoltage : newtype of core.Volts
-  core.Baud : newtype of core.Int
+  core.Baud : newtype of core.Int, default 57600
   core.Boundary : newtype of core.Ring
   core.BreakPoint : newtype of core.Point
   core.CopyOf : newtype of core.At
   core.Core : product of core.Missions, core.Run, core.AircraftLink, core.Devices, core.LinkSession, core.LastDevice, core.Logs
-  core.Course : sum of Auto, Manual
+  core.Course : sum of Auto, Manual, default Auto
   core.CourseAngle : newtype of core.Degrees
-  core.CoverageArea : sum of RouteOnly, RouteAndBoundary, BoundaryOnly
-  core.DefaultEdgeMargin : newtype of core.Meters
+  core.CoverageArea : sum of RouteOnly, RouteAndBoundary, BoundaryOnly, default RouteOnly
+  core.DefaultEdgeMargin : newtype of core.Meters, default 1.5
   core.Degrees : atomic __float
   core.Device : product of core.DeviceName, core.LinkSettings, core.LastSystemId
   core.DeviceId : newtype of core.Timestamp
@@ -86,22 +86,22 @@ types
   core.FPhase : sum of Approaching, Spraying, Holding, PilotControl, Returning
   core.FailureReason : atomic __text
   core.Feed : sum of Live, Stale
-  core.FlightMode : sum of Unknown, Named
+  core.FlightMode : sum of Unknown, Named, default Unknown
   core.FlownTo : product of core.At, core.Point
   core.GPSFix : sum of NoFix, Fix2D, Fix3D, DGPS, RTKFix
   core.GroundMeasurements : product of core.Distance, core.Area, core.RouteProgress
   core.Heading : newtype of core.Degrees
   core.Hectares : atomic __float
-  core.HomePoint : sum of Unknown, Known
+  core.HomePoint : sum of Unknown, Known, default Unknown
   core.HostName : newtype of core.Text
   core.Int : atomic __int
-  core.LastDevice : sum of None, Known
-  core.LastSystemId : sum of Unheard, Heard
+  core.LastDevice : sum of None, Known, default None
+  core.LastSystemId : sum of Unheard, Heard, default Unheard
   core.Latitude : atomic __float
   core.LinkFailure : newtype of core.Text
   core.LinkQuality : newtype of core.Percent
-  core.LinkSession : sum of Closed, Open, Failed
-  core.LinkSettings : sum of Udp, Tcp, Serial
+  core.LinkSession : sum of Closed, Open, Failed, default Closed
+  core.LinkSettings : sum of Udp, Tcp, Serial, default Udp
   core.LitersPerMin : atomic __float
   core.LogEntry : product of core.Timestamp, core.LogLevel, core.LogTag, core.Text
   core.LogLevel : sum of Info, Warning, Error
@@ -117,36 +117,36 @@ types
   core.MissionFlight : sum of Arming, Flying, Failed
   core.MissionName : newtype of core.Text
   core.MissionRun : product of core.At, core.MissionFlight
-  core.MissionState : sum of NotStarted, Completed, Stopped
+  core.MissionState : sum of NotStarted, Completed, Stopped, default NotStarted
   core.Missions : list of core.Mission by core.At
   core.NewMission : product of core.At, core.MissionName, core.Plot
-  core.ObstacleBoundary : newtype of core.Meters
-  core.OffsetAlt : sum of NoSensor, NoReading, Reading
+  core.ObstacleBoundary : newtype of core.Meters, default 1.5
+  core.OffsetAlt : sum of NoSensor, NoReading, Reading, default NoSensor
   core.Path : sum of Partial, Total
   core.Percent : atomic __float
-  core.Plot : sum of Empty, Drawn
+  core.Plot : sum of Empty, Drawn, default Empty
   core.PlotDrawn : product of core.Boundary, core.Markings, core.RouteSettings
   core.PlotUpdate : product of core.At, core.MissionName, core.Plot
   core.Point : product of core.Latitude, core.Longitude
   core.Points : list of core.Point
-  core.Port : newtype of core.Int
-  core.RangefinderAlt : sum of NoSensor, NoReading, Reading
-  core.ReturnHeight : newtype of core.Meters
+  core.Port : newtype of core.Int, default 14550
+  core.RangefinderAlt : sum of NoSensor, NoReading, Reading, default NoSensor
+  core.ReturnHeight : newtype of core.Meters, default 15
   core.Ring : sum of Partial, Closeable, Enclosed
   core.RouteEntry : sum of FromStart, FromBreakPoint
   core.RouteProgress : newtype of core.Percent
   core.RouteSettings : product of core.RouteSpacing, core.SprayHeight, core.ReturnHeight, core.SpraySpeed, core.DefaultEdgeMargin, core.EdgeMargins, core.StartCorner, core.CoverageArea, core.ObstacleBoundary, core.SingleSideSpraying, core.Course
-  core.RouteSpacing : newtype of core.Meters
+  core.RouteSpacing : newtype of core.Meters, default 8
   core.Run : sum of Idle, Active
   core.Satellites : newtype of core.Int
   core.SavedDevice : product of core.DeviceId, core.DeviceName, core.LinkSettings
   core.Seconds : atomic __float
-  core.SingleSideSpraying : sum of Off, On
+  core.SingleSideSpraying : sum of Off, On, default Off
   core.Speed : newtype of core.MetersPerSec
   core.Spot : newtype of core.Point
   core.SprayFlow : newtype of core.LitersPerMin
-  core.SprayHeight : newtype of core.Meters
-  core.SpraySpeed : newtype of core.MetersPerSec
+  core.SprayHeight : newtype of core.Meters, default 3
+  core.SpraySpeed : newtype of core.MetersPerSec, default 5
   core.Sprayer : newtype of core.Unimplemented
   core.StartCorner : newtype of core.Point
   core.StopReason : sum of Commanded, BatteryLow, LinkLost, ManualTakeover, GpsLost
@@ -359,7 +359,6 @@ annotations
   @announce
   @aspectRatio
   @control
-  @default
   @orientation
   @overflow
   @placement

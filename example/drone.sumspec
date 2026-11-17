@@ -34,7 +34,6 @@ __events {
 -- SumSpec only checks that every annotation used is listed here.
 __annotations {
   @control  -- the widget that edits a value or triggers a transition
-  @default  -- the value a part starts with
   @status   -- how a variant is shown: loading, error or empty
   @effect   -- a side effect of the transition
 }
@@ -99,7 +98,7 @@ StopReason = Commanded | BatteryLow | LinkLost
 
 BreakPoint = Point
 
-Plot @default Empty
+Plot __default Empty
   = Empty
   | Drawn
       ( Boundary

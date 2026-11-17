@@ -22,7 +22,8 @@ UI in one file. It is being rewritten as layered specs:
 | `Bool` | a sum named for its meaning (`SingleSideSpraying = Off \| On`) |
 | atomics without bases | bases: `Int = __int`, `Meters = __float`, `Text = __text`, ... |
 | `CourseAngle_` (the form's choice) | `Course = Auto (CourseAngle) \| Manual (CourseAngle)` in RouteSettings |
-| `BatteryLowThreshold = Percent @default 15` | a constant, `BatteryLowThreshold = Percent(15)` |
+| `BatteryLowThreshold = Percent @default 15` | a constant, `__const BatteryLowThreshold = Percent(15)` |
+| `Plot @default Empty`, `RouteSpacing = Meters @default 8` | a checked default: `Plot __default Empty`, `RouteSpacing = Meters __default 8`; `StartCorner`'s (the first point added) isn't a value, so it's a comment |
 | `Telemetry @from Aircraft = AircraftStatus` | the input is `AircraftStatus` |
 | `... <-` (both sides the same) | written out: `Feed.Live -> Feed.Live(LinkQuality') ...` |
 | `X => Y => ...` (chained shared paths) | `X / Y => ...` |

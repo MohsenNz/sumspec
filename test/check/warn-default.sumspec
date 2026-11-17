@@ -1,0 +1,23 @@
+-- A part left out of __init or of a new state takes its type's default, so
+-- the other variants are reached only by a transition. Without a default
+-- it may have any value, and every variant is reached.
+__atomics { }
+__events { open stop close }
+
+__init :: App(Page.Home)
+
+App = Page * Mode * Light
+
+Mode __default Off = On | Off  -- On is never reached
+Light = Red | Green            -- no default: both reached
+
+Page
+  = Home
+  | Settings Tab
+
+Tab __default General = General | Advanced  -- Advanced is never reached
+
+open  :: App => Page.Home -> Page.Settings
+close :: App => Page.Settings -> Page.Home
+-- Can never happen: nothing puts Mode in On.
+stop  :: App => Mode.On -> Mode.Off

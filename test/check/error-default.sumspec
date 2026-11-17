@@ -1,0 +1,26 @@
+-- Errors in defaults: each value must fit its type, and some types take
+-- none.
+__atomics { Int = __int  Name = __text  Stamp }
+__events { go }
+
+__const Big = Zoom(100)
+
+__init :: App(Mode.On)
+
+App = Mode * Zoom * Label * Pair * Items * At * Level * Other * Course
+
+Mode __default Maybe = On | Off        -- not a variant
+Zoom = Int __default "big"             -- a string on an __int
+Label = Name __default 3               -- an integer on a __text
+Pair __default On = Mode * Zoom         -- a product
+Items = [Mode] __default Off           -- a list
+At = Stamp __default 0                 -- an atomic with no base
+Level __default 2 = Low | High         -- a literal on a sum
+Other = Int __default Big              -- a constant of another type
+Course __default Auto.Fast             -- a dot after a named payload
+  = Auto Speed
+  | Manual
+Speed = Fast | Slow
+Size = Int __default Large             -- no such constant
+
+go :: App(Mode.On) -> App(Mode.Off)

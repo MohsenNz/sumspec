@@ -1,0 +1,18 @@
+test/check/warn-default.sumspec:11:22:
+   |
+11 | Mode __default Off = On | Off  -- On is never reached
+   |                      ^
+warning: Mode.On is never reached: neither __init nor any transition that can happen puts the app there
+
+test/check/warn-default.sumspec:18:35:
+   |
+18 | Tab __default General = General | Advanced  -- Advanced is never reached
+   |                                   ^
+warning: Tab.Advanced is never reached: neither __init nor any transition that can happen puts the app there
+
+test/check/warn-default.sumspec:23:17:
+   |
+23 | stop  :: App => Mode.On -> Mode.Off
+   |                 ^
+warning: stop: this transition can never happen: its source needs Mode.On, which is never reached
+

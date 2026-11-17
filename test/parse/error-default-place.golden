@@ -1,0 +1,5 @@
+test/parse/error-default-place.sumspec:6:5:
+  |
+6 | A = B __default B | C
+  |     ^
+a default goes after the type's name in a sum or a product (T __default V = ...), or after the body of a newtype

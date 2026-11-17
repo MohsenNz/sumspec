@@ -11,6 +11,8 @@ module SumSpec.Syntax
   , Import (..)
   , Definition (..)
   , TypeDef (..)
+  , Default (..)
+  , DefaultValue (..)
   , ConstDef (..)
   , ConstValue (..)
   , PatternDef (..)
@@ -102,6 +104,9 @@ data Definition
 -- | @T = expr@
 data TypeDef = TypeDef
   { typeDefName :: Name
+  , typeDefDefault :: Maybe Default
+  -- ^ @T __default v = ...@ or @T = A __default v@: the value a part of
+  -- the type takes when it's left out of a new state.
   , typeDefAnnotations :: [Annotation]
   -- ^ The annotations of the type: after its name (@T \@a = ...@), or
   -- after the body of a newtype or a list (@T = A \@a@).
@@ -111,6 +116,19 @@ data TypeDef = TypeDef
   -- type names, outermost first (@core.Core / core.AircraftLink@). A
   -- projection is read from the base's state and never written.
   }
+  deriving stock (Eq, Show)
+
+-- | @__default v@: a type's default. The name is the @__default@ keyword,
+-- for its position.
+data Default = Default Name DefaultValue
+  deriving stock (Eq, Show)
+
+data DefaultValue
+  = -- | @16@: a literal, with the position it starts at.
+    DefaultLiteral SourcePos Literal
+  | -- | @Closed@ or @High.Partial@: a variant of the type's sum, or a
+    -- named constant of the type.
+    DefaultName (NonEmpty Name)
   deriving stock (Eq, Show)
 
 -- | @C = T(literal)@ or @C = T.V@: a named constant, a fixed value with a

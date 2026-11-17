@@ -276,19 +276,62 @@ constDef = do
         , ConstVariant <$> (symbol "." *> upperName)
         ]
 
--- type_def = UPPER , [ "__from" , type_path ] , { annotation } , "=" ,
---            type_expr ;
+-- type_def = UPPER , [ "__from" , type_path ] , [ default ] ,
+--            { annotation } , "=" , type_body ;
 --
--- The annotations of a newtype or a list may also follow its body; they
--- belong to the type either way.
+-- The default and the annotations of a newtype or a list may also follow
+-- its body; they belong to the type either way. A type has one default.
 typeDef :: Parser TypeDef
 typeDef = do
   name <- upperName
   from <- optional (keyword "__from" *> typePath)
-  before <- many annotation
+  before <- optional defaultValue
+  notes <- many annotation
   equals
-  (body, after) <- typeExpr
-  pure (TypeDef name (before <> after) body from)
+  offset <- getOffset
+  (body, after, notes') <- typeBodyExpr
+  dflt <- case (before, after) of
+    (Just _, Just _) ->
+      failAt offset $
+        "a type has one default, and "
+          <> T.unpack (nameText name)
+          <> " has one after its name and one after its body; keep one"
+    _ -> pure (before <|> after)
+  pure (TypeDef name dflt (notes <> notes') body from)
+
+-- default = "__default" , ( literal | UPPER , { "." , UPPER } ) ;
+defaultValue :: Parser Default
+defaultValue = do
+  pos <- getSourcePos
+  keyword "__default"
+  Default (Name pos "__default")
+    <$> choice
+      [ uncurry DefaultLiteral <$> (numberLiteral <|> stringLiteral)
+      , DefaultName <$> ((:|) <$> upperName <*> many (symbol "." *> upperName))
+      ]
+    <?> "default value: a literal, a variant or a constant"
+
+-- type_body = sum | product | type_term , [ default ] , { annotation } ;
+--
+-- A type definition's body: a newtype or a list may take its default
+-- after it. A default after the first term of a sum or a product is
+-- reported: it belongs after the type's name.
+typeBodyExpr :: Parser (TypeExpr, Maybe Default, [Annotation])
+typeBodyExpr = do
+  offset <- getOffset
+  first <- typeTerm
+  dflt <- optional defaultValue
+  case dflt of
+    Nothing -> (\(body, notes) -> (body, Nothing, notes)) <$> typeExprAfter first
+    Just _ -> do
+      notes <- many annotation
+      more <- optional (lookAhead (symbol "|" <|> symbol "*"))
+      case more of
+        Just _ ->
+          failAt offset $
+            "a default goes after the type's name in a sum or a product "
+              <> "(T __default V = ...), or after the body of a newtype"
+        Nothing -> pure (TypeTerm first, dflt, notes)
 
 -- type_expr = sum | product | type_term , { annotation } ;
 --
@@ -297,8 +340,11 @@ typeDef = do
 -- annotations after a single term are returned: they belong to what the
 -- term defines.
 typeExpr :: Parser (TypeExpr, [Annotation])
-typeExpr = do
-  first <- typeTerm
+typeExpr = typeTerm >>= typeExprAfter
+
+-- | A type expression after its first term.
+typeExprAfter :: TypeTerm -> Parser (TypeExpr, [Annotation])
+typeExprAfter first = do
   notes <- many annotation
   let alone = pure (TypeTerm first, notes)
   case first of
@@ -342,16 +388,20 @@ factor = Factor <$> typeTerm <*> many annotation
 -- payload = type_term | "(" , type_expr , ")" ;
 --
 -- A bare UPPER followed by "=", or by annotations and then "=", or by
--- "__from", starts the next type definition, so it is never taken as a
--- payload. A payload in
--- parentheses gives the annotations after a single term inside them.
+-- "__from" or "__default", starts the next type definition, so it is
+-- never taken as a payload. A payload in parentheses gives the
+-- annotations after a single term inside them.
 payload :: Parser (TypeExpr, [Annotation])
 payload =
   choice
     [ parens typeExpr
     , (,[]) . TypeTerm . uncurry TermList <$> listTerm
     , (,[]) . TypeTerm . TermName
-        <$> try (typeName <* notFollowedBy (keyword "__from" <|> (many annotation *> equals)))
+        <$> try
+          ( typeName
+              <* notFollowedBy
+                (keyword "__from" <|> keyword "__default" <|> (many annotation *> equals))
+          )
     ]
 
 -- type_term = type_name | "[" , type_term , [ "by" , type_name ] , "]" ;

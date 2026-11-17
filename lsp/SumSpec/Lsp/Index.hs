@@ -19,6 +19,7 @@ module SumSpec.Lsp.Index
 import Data.Foldable (toList)
 import Data.List (find, sortOn)
 import Data.List.NonEmpty (NonEmpty (..))
+import Data.List.NonEmpty qualified as NE
 import Data.Map.Strict qualified as M
 import Data.Maybe (fromMaybe)
 import Data.Text (Text)
@@ -95,9 +96,10 @@ use kind n = Occurrence n kind False
 
 definition :: Model -> Definition -> [Occurrence]
 definition env = \case
-  DefType (TypeDef n annotations body from) ->
+  DefType (TypeDef n dflt annotations body from) ->
     define KType n
       : map (typeUse env) (foldMap toList from)
+        <> foldMap (defaultOcc env n) dflt
         <> map (annotation env) annotations
         <> typeExpr env body
   DefConst (ConstDef n t constant) ->
@@ -122,6 +124,18 @@ definition env = \case
       event = case nameQualifier n of
         Just _ -> baseEventUse env n
         Nothing -> define KEvent n
+
+-- | The names in a type's default: a variant of the sum the type is, or
+-- a constant.
+defaultOcc :: Model -> Name -> Default -> [Occurrence]
+defaultOcc env t (Default _ written) = case written of
+  DefaultLiteral _ _ -> []
+  DefaultName ns -> case (ns, M.lookup (nameText (NE.head ns)) (modelConsts env)) of
+    (n :| [], Just c)
+      | null [() | (_, RefVariant _) <- refs] -> [use KConst n (Just (constName c))]
+    _ -> map (refOcc KVariant) refs
+    where
+      refs = fst (resolveFrom env (typeInfoBody =<< underlying env (nameText t)) (toList ns))
 
 -- | A name of a base's event: a reaction, or a dispatch.
 baseEventUse :: Model -> Name -> Occurrence

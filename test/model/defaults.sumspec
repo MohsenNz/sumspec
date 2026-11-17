@@ -1,0 +1,40 @@
+-- The model of a spec with defaults: each type line gives its default.
+__atomics { Int = __int  Ratio = __float  Name = __text }
+__events { open close raise lower credits }
+
+__const Start = First(4)
+__const Quiet = Volume.Low
+
+__init :: App(About.Closed)
+
+App = About * Level * Zoom * Gain * Label * First * Volume * Sound
+
+About __default Closed
+  = Closed
+  | Open Panel
+
+Panel = Tab * Zoom
+
+Tab __default Info = Info | Credits
+
+Level __default High.Partial
+  = Low
+  | High (Full | Partial)
+
+Zoom  = Int __default 16
+Gain  = Ratio __default 1        -- an integer fits a __float
+Label = Name __default "untitled"
+First = Zoom __default Start     -- a constant of the type
+
+Volume __default Quiet = Low | Loud
+Sound = Volume                   -- takes Volume's default
+
+-- About.Open is a new state: its Panel's Tab takes Info.
+open  :: App => About.Closed -> About.Open
+close :: App => About.Open -> About.Closed
+
+raise :: App => Level.High.Partial * Volume.Low
+             -> Level.High.Full * Volume.Loud
+lower :: App => Level.High -> Level.Low
+
+credits :: App => About.Open(Panel(Tab.Info)) -> About.Open(Panel(Tab.Credits))

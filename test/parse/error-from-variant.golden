@@ -3,4 +3,4 @@ test/parse/error-from-variant.sumspec:6:34:
 6 | View __from core.Core / core.Link.Up = A | B
   |                                  ^
 unexpected '.'
-expecting '/', '=', or '@'
+expecting "__default", '/', '=', or '@'

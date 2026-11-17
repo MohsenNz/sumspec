@@ -30,6 +30,7 @@ module SumSpec.Model
   , qualifySpec
   , typeShape
   , typeBodyOf
+  , typeDefault
   , isType
   , underlying
   , step
@@ -59,7 +60,7 @@ import SumSpec.Expand
   , pathDefs
   , patternDefs
   )
-import SumSpec.Pretty (renderTypePath)
+import SumSpec.Pretty (renderDefaultValue, renderTypePath)
 import SumSpec.Syntax
 
 data Model = Model
@@ -307,13 +308,20 @@ qualifySpec q raw =
       _ -> False
     qn (Name pos t) = Name pos (q <> "." <> t)
     definition = \case
-      DefType (TypeDef n notes body from) ->
-        DefType (TypeDef (qn n) notes (typeExpr body) (fmap qn <$> from))
+      DefType (TypeDef n dflt notes body from) ->
+        DefType
+          (TypeDef (qn n) (defaultValue <$> dflt) notes (typeExpr body) (fmap qn <$> from))
       DefConst (ConstDef n ty v) -> DefConst (ConstDef (qn n) (qn ty) v)
       DefInit k p -> DefInit k (pat p)
       DefPattern (PatternDef n params body) -> DefPattern (PatternDef (qn n) params (pat body))
       DefPath d -> DefPath d
       DefEvent (Event n input ts) -> DefEvent (Event (qn n) (pat <$> input) (fmap transition ts))
+    -- A constant in a default is the base's, a variant its type's own.
+    defaultValue = \case
+      Default k (DefaultName (n :| []))
+        | nameText n `elem` [nameText (constName c) | DefConst c <- specDefinitions spec] ->
+            Default k (DefaultName (qn n :| []))
+      d -> d
     typeExpr = \case
       TypeSum vs -> TypeSum [v {variantPayload = typeExpr <$> variantPayload v} | v <- vs]
       TypeProduct fs -> TypeProduct [f {factorTerm = term (factorTerm f)} | f <- fs]
@@ -373,6 +381,10 @@ typeShape = \case
 -- unknown name.
 typeBodyOf :: Model -> Name -> Here
 typeBodyOf m n = M.lookup (nameText n) (modelTypes m) >>= typeInfoBody
+
+-- | A type's default (@T __default v@), if it has one.
+typeDefault :: Model -> Text -> Maybe Default
+typeDefault m t = typeDefDefault =<< M.lookup t (modelTypeDefs m)
 
 -- | Whether a type of this name is declared or defined. A constant is not
 -- a type.
@@ -509,7 +521,7 @@ renderModel :: Model -> Text
 renderModel m =
   T.unlines $
     ["types"]
-      <> [ "  " <> name <> " : " <> shape (typeInfoShape t) <> from name
+      <> [ "  " <> name <> " : " <> shape (typeInfoShape t) <> from name <> dflt name
          | (name, t) <- M.toList (modelTypes m)
          ]
       <> ["variants"]
@@ -587,6 +599,9 @@ renderModel m =
     -- A projection's path.
     from name = case M.lookup name (modelTypeDefs m) >>= typeDefFrom of
       Just p -> ", from " <> renderTypePath p
+      Nothing -> ""
+    dflt name = case typeDefault m name of
+      Just (Default _ v) -> ", default " <> renderDefaultValue v
       Nothing -> ""
     segment = T.intercalate "." . map nameText . toList
     params [] = ""

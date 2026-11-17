@@ -1,0 +1,8 @@
+-- A default needs a value.
+__atomics { }
+__events { go }
+__init :: A.B
+
+A __default = B | C
+
+go :: A.B -> A.C

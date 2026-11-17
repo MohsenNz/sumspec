@@ -24,8 +24,8 @@ __init :: App(Screen.Home)
 App = Screen * Settings @control form
 Screen @default Home = Home @control tab "Home | start" | Busy (Loading @status loading | Failed Text @status error) | Detail Info @from Settings
 Settings = PortSetting @control stepper * Info
-PortSetting @default 14550 @range 1..65535 = Port
-Info @control text_field = Text
+PortSetting = Port @default 14550 @range 1..65535
+Info = Text @control text_field
 Mode = On | Off
 Level @default Low = Low | High
 open :: Screen.Home -> Screen.Busy @control button @effect log "opened"

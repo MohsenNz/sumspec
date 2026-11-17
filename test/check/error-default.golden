@@ -1,0 +1,60 @@
+test/check/error-default.sumspec:12:16:
+   |
+12 | Mode __default Maybe = On | Off        -- not a variant
+   |                ^
+Maybe is not a variant here; Mode's default is one of its variants, such as On
+
+test/check/error-default.sumspec:13:22:
+   |
+13 | Zoom = Int __default "big"             -- a string on an __int
+   |                      ^
+Zoom is an __int, so "big" doesn't fit it
+
+test/check/error-default.sumspec:14:24:
+   |
+14 | Label = Name __default 3               -- an integer on a __text
+   |                        ^
+Label is a __text, so 3 doesn't fit it
+
+test/check/error-default.sumspec:15:6:
+   |
+15 | Pair __default On = Mode * Zoom         -- a product
+   |      ^
+Pair is a product, so it takes no default: a factor left out takes its own type's; give the default to the factor's type
+
+test/check/error-default.sumspec:16:16:
+   |
+16 | Items = [Mode] __default Off           -- a list
+   |                ^
+Items is a list, so it takes no default; a list left out may hold any elements
+
+test/check/error-default.sumspec:17:12:
+   |
+17 | At = Stamp __default 0                 -- an atomic with no base
+   |            ^
+At is an atomic with no base, so no value of it is written; it has no default
+
+test/check/error-default.sumspec:18:17:
+   |
+18 | Level __default 2 = Low | High         -- a literal on a sum
+   |                 ^
+Level is a sum, so its default is one of its variants, such as Low
+
+test/check/error-default.sumspec:19:23:
+   |
+19 | Other = Int __default Big              -- a constant of another type
+   |                       ^
+Big is a constant of Zoom, so it isn't a default of Other
+
+test/check/error-default.sumspec:20:23:
+   |
+20 | Course __default Auto.Fast             -- a dot after a named payload
+   |                       ^
+a default picks a variant inside an inline sum only, and Fast comes after a variant whose payload isn't one
+
+test/check/error-default.sumspec:24:22:
+   |
+24 | Size = Int __default Large             -- no such constant
+   |                      ^
+Size is an __int, so its default is a literal or a constant of Size; there's no constant Large
+

@@ -99,7 +99,6 @@ __events {
 }
 
 __annotations {
-  @default
   @range
   @step
   @after
@@ -122,45 +121,45 @@ __annotations {
 
 __init :: App(Page.Home)
 App @platform Android @targets mobile @orientation landscape @theme light @aspectRatio 20:9 = Page * Map * core.Core
-Page @view hierarchical_navigation @default Home = Home HomePage | Plan PlanPage | Devices DevicesPage | Logs LogsPage
+Page __default Home @view hierarchical_navigation = Home HomePage | Plan PlanPage | Devices DevicesPage | Logs LogsPage
 HomePage = About * LinkStatus * HomeAircraft
-About @default Closed = Closed | Open AppVersion @view dialog
+About __default Closed = Closed | Open AppVersion @view dialog
 AppVersion = core.Text
 LinkStatus __from core.Core @view status = core.LinkSession * core.AircraftLink
 HomeAircraft __from core.Core / core.AircraftLink @view tiles = Disconnected | Connected (core.BatteryReserve * Battery * HomeIndicators)
-Battery __from core.AircraftStatus / core.Battery @view tile = core.BatteryCharge
+Battery __from core.AircraftStatus / core.Battery = core.BatteryCharge @view tile
 HomeIndicators __from core.AircraftStatus = core.GPSFix @view status_tile * core.Satellites @view tile * core.ArmState @view status_tile
 LogsPage @view browsing = LogLevelFilter * LogTagFilter * LogList
-LogLevelFilter @default All = All | Warnings | Errors
+LogLevelFilter __default All = All | Warnings | Errors
 LogTagFilter = [core.LogTag]
-LogList __from core.Core / core.Logs @overflow scroll = [core.LogEntry]
-DevicesPage @default Listing = Listing DeviceListing @view browsing | Editing DeviceForm @view form
+LogList __from core.Core / core.Logs = [core.LogEntry] @overflow scroll
+DevicesPage __default Listing = Listing DeviceListing @view browsing | Editing DeviceForm @view form
 DeviceListing = DeviceRows * LinkStatus @when LinkSession.{Open | Failed}
-DeviceRows __from core.Core / core.Devices @overflow scroll = [DeviceRow by core.DeviceId]
+DeviceRows __from core.Core / core.Devices = [DeviceRow by core.DeviceId] @overflow scroll
 DeviceRow __from core.Device @view row = core.DeviceName * core.LinkSettings * core.LastSystemId
 DeviceForm = DeviceOrigin * core.DeviceName * LinkKind * Host @when LinkKind.Tcp * core.Port @when LinkKind.{Udp | Tcp} * core.Baud @when LinkKind.Serial
 DeviceOrigin = New | Existing core.DeviceId
-LinkKind @default Udp = Udp | Tcp | Serial
-Host @default Unset = Unset | Named core.HostName
+LinkKind __default Udp = Udp | Tcp | Serial
+Host __default Unset = Unset | Named core.HostName
 Map @region canvas = TileStatus * Zoom * DeviceLocation
-TileStatus @default Loading = Loading @status loading | Ready | Offline @status error
-Zoom @default 16 @range 3..20 = core.Int
-DeviceLocation @default Unknown @region canvas = Unknown | Locating @status loading | Denied @status error | Failed @status error | Located core.Point
-PlanPage @default JustMap = JustMap | Plot PlotEditor @view editing | ShowMission MissionPanel | MissionRun RunView @view monitoring | ManualAircraft AircraftView @view monitoring
+TileStatus __default Loading = Loading @status loading | Ready | Offline @status error
+Zoom = core.Int __default 16 @range 3..20
+DeviceLocation __default Unknown @region canvas = Unknown | Locating @status loading | Denied @status error | Failed @status error | Located core.Point
+PlanPage __default JustMap = JustMap | Plot PlotEditor @view editing | ShowMission MissionPanel | MissionRun RunView @view monitoring | ManualAircraft AircraftView @view monitoring
 PlotEditor = PlotOrigin * core.Plot * PointHistory * PlotController * ShapeSelection * CornerPick * EdgePick
 PlotOrigin = Draft | Editing core.At
-PlotController @default Field @region panel @placement right @control segmented = Field PointType @size (1/4*screen) | Route @size (1/3*screen) @view form @overflow scroll
-PointType @default BoundaryPoint = BoundaryPoint | Obstacle | RoundObstacle | PowerLine | NonSprayArea | MarkPoint
+PlotController __default Field @region panel @placement right @control segmented = Field PointType @size (1/4*screen) | Route @size (1/3*screen) @view form @overflow scroll
+PointType __default BoundaryPoint = BoundaryPoint | Obstacle | RoundObstacle | PowerLine | NonSprayArea | MarkPoint
 PointHistory = Undo * Redo
-Undo @default Empty = Ready | Empty
-Redo @default Empty = Ready | Empty
-ShapeSelection @default Empty = Empty | Selected (Shape * PointSelection)
+Undo __default Empty = Ready | Empty
+Redo __default Empty = Ready | Empty
+ShapeSelection __default Empty = Empty | Selected (Shape * PointSelection)
 Shape = Boundary | Marking
-PointSelection @default Empty = Empty | Selected core.Point
-CornerPick @default Idle = Idle | Picking
-EdgePick @default Idle = Idle | Picking | Selected core.Edge
+PointSelection __default Empty = Empty | Selected core.Point
+CornerPick __default Idle = Idle | Picking
+EdgePick __default Idle = Idle | Picking | Selected core.Edge
 MissionPanel @view browsing @region panel @size (1/4*screen) @placement right = List MissionRows | Selected core.At @view summary
-MissionRows __from core.Core / core.Missions @overflow scroll = [MissionRow by core.At]
+MissionRows __from core.Core / core.Missions = [MissionRow by core.At] @overflow scroll
 MissionRow __from core.Mission @view row = core.MissionName * core.MissionState * core.GroundMeasurements
 RunView = RunPanel * AircraftPanel * AircraftCanvas * BatteryFigure
 RunPanel __from core.Core / core.Run @region panel @placement right @size (1/4*screen) @overflow scroll = Idle | Active core.MissionFlight
@@ -168,12 +167,12 @@ AircraftView = AircraftPanel @region panel @placement right @size (1/4*screen) *
 AircraftPanel __from core.Core / core.AircraftLink = Disconnected | Connected (AircraftIndicators * AircraftGauges * core.Feed * HomeMarker * AircraftPose)
 AircraftIndicators __from core.AircraftStatus = core.ArmState @view status_tile * core.FlightMode @view status_tile * core.GPSFix @view status_tile
 AircraftGauges __from core.AircraftStatus = core.Satellites @view tile * core.SprayFlow @view tile * core.Altitude @view tile * core.RangefinderAlt @view tile * core.OffsetAlt @view tile * core.Speed @view tile * core.Heading @view tile * core.Battery @view tile
-HomeMarker __from core.Aircraft @region canvas @when HomePoint.Known = core.HomePoint
+HomeMarker __from core.Aircraft = core.HomePoint @region canvas @when HomePoint.Known
 AircraftPose __from core.AircraftStatus @region canvas @when GPSFix.{Fix2D | Fix3D | DGPS | RTKFix} = core.Latitude * core.Longitude * core.Heading * core.GPSFix
-BatteryFigure @default Voltage = Voltage | Charge
+BatteryFigure __default Voltage = Voltage | Charge
 AircraftCanvas = FCamera * MapFollow
-MapFollow @default Following = Following | Free
-FCamera @default Minimized @region canvas = Maximized | Minimized @view popup | Hidden
+MapFollow __default Following = Following | Free
+FCamera __default Minimized @region canvas = Maximized | Minimized @view popup | Hidden
 __pattern InPlan(m) = App(Page.Plan(m))
 __path Editor = App / Page.Plan / PlanPage.Plot
 __pattern RouteForm = PlanPage.Plot(PlotController.Route * core.Plot.Drawn)

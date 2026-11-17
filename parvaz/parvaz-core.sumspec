@@ -19,7 +19,6 @@
 __version 1.0
 
 __annotations {
-  @default  -- the value a part starts with, or that a new one takes
   @range    -- permitted values of a numeric part, low..high, inclusive
   @after    -- the measure that fires an occurrence: @after <member> <value>
   @stream   -- an occurrence that refreshes values in place, continuously
@@ -113,7 +112,7 @@ Point = Latitude * Longitude        -- a position on the map
 
 Points = [Point]
 
-Plot                @default Empty
+Plot                __default Empty
   = Empty
   | Drawn PlotDrawn                 @region canvas
 
@@ -161,23 +160,23 @@ RouteSettings
   * SingleSideSpraying
   * Course
 
-RouteSpacing  = Meters  @default 8
+RouteSpacing  = Meters  __default 8
                         @range 2..12      -- swath width the nozzles cover at
                                           -- SprayHeight
-SprayHeight   = Meters  @default 3
+SprayHeight   = Meters  __default 3
                         @range 1..10      -- height the route is flown at, above
                                           -- the ground under the aircraft, as
                                           -- RangefinderAlt; takeoff climbs to it
                                           -- above the HomePoint
-ReturnHeight  = Meters  @default 15
+ReturnHeight  = Meters  __default 15
                         @range 12..50     -- height every return home is flown at,
                                           -- above the HomePoint: route done,
                                           -- returnToHome, BatteryLow and the
                                           -- aircraft's own failsafes. The low end
                                           -- clears SprayHeight's top
-SpraySpeed    = MetersPerSec @default 5
+SpraySpeed    = MetersPerSec __default 5
                         @range 1..10      -- ground speed while Spraying
-DefaultEdgeMargin = Meters @default 1.5
+DefaultEdgeMargin = Meters __default 1.5
                         @range 0..10      -- inset from every Boundary edge with no
                                           -- EdgeMargin of its own; 0 sprays to the
                                           -- edge
@@ -195,28 +194,28 @@ Edge          = Point                     -- the Boundary edge from this point t
 
 EdgeInset     = Meters  @range 0..10
 
-StartCorner   = Point   @default first_added_point
-                                          -- one of the Boundary's points, followed if
-                                          -- it moves; if it is deleted the default
-                                          -- stands in. The route starts at a swath
+StartCorner   = Point                     -- one of the Boundary's points, followed if
+                                          -- it moves; the first point added by
+                                          -- default, which stands in if it is
+                                          -- deleted. The route starts at a swath
                                           -- end by it: the RouteStart. Not where the
                                           -- aircraft takes off; see HomePoint
 
-CoverageArea  @default RouteOnly
+CoverageArea  __default RouteOnly
   = RouteOnly
   | RouteAndBoundary
   | BoundaryOnly
 
-ObstacleBoundary = Meters @default 1.5
+ObstacleBoundary = Meters __default 1.5
                         @range 0.5..10    -- keep-out around an Obstacle, PowerLine or
                                           -- RoundObstacle; never 0, by intent
 
-SingleSideSpraying @default Off
+SingleSideSpraying __default Off
   = Off
   | On
 
 -- The swaths' bearing, clockwise from north; 0 and 180 are the same line.
-Course        @default Auto
+Course        __default Auto
   = Auto   (CourseAngle)                  -- the bearing of least braking, worked
                                           -- out by the app
   | Manual (CourseAngle)                  -- the operator's bearing
@@ -241,7 +240,7 @@ At = Timestamp                            -- when the mission was saved: its key
                                           -- Set once and never rewritten: a
                                           -- mission is edited in place
 
-MissionState              @default NotStarted
+MissionState              __default NotStarted
   = NotStarted                            -- nothing sprayed yet: never flown, or
                                           -- stopped before reaching its RouteStart
   | Completed                             -- the route was finished
@@ -331,7 +330,7 @@ Sprayer = Unimplemented                   -- the pump: on along each swath while
 ------------------------------------------------------------------------------------
 -- The aircraft
 
-AircraftLink        @default Disconnected -- whether an aircraft is connected
+AircraftLink        __default Disconnected -- whether an aircraft is connected
   = Disconnected
   | Connected (Aircraft)
 
@@ -359,11 +358,11 @@ AircraftStatus                            -- one telemetry frame
   * Latitude
   * Longitude
 
-ArmState            @default Disarmed     -- reported by the aircraft; armedEvent is
+ArmState            __default Disarmed     -- reported by the aircraft; armedEvent is
   = Disarmed                              -- it turning Armed
   | Armed
 
-FlightMode          @default Unknown      -- the mode the aircraft reports, by its own
+FlightMode          __default Unknown      -- the mode the aircraft reports, by its own
                                           -- name; shown, never interpreted
   = Unknown                               -- not reported yet, or a mode the app
                                           -- cannot name
@@ -386,13 +385,13 @@ BatteryCharge   = Percent       -- remaining charge, as the aircraft estimates i
 
 Battery = BatteryVoltage * BatteryCharge
 
-RangefinderAlt      @default NoSensor     -- above the ground under the aircraft,
+RangefinderAlt      __default NoSensor     -- above the ground under the aircraft,
                                           -- from its downward rangefinder
   = NoSensor                              -- none fitted, or silent
   | NoReading                             -- fitted, but out of range or invalid
   | Reading (Meters)
 
-OffsetAlt           @default NoSensor     -- the altitude offset the aircraft's own
+OffsetAlt           __default NoSensor     -- the altitude offset the aircraft's own
                                           -- onboard script reports
   = NoSensor                              -- no script, or silent
   | NoReading                             -- reported, but not a number
@@ -410,13 +409,13 @@ Feed
                                           -- linkLossEvent is where the app stops
                                           -- waiting
 
-HomePoint           @default Unknown      -- where the aircraft returns to; it
+HomePoint           __default Unknown      -- where the aircraft returns to; it
                                           -- reports one at its first GPS fix and
                                           -- again at each arming
   = Unknown
   | Known (Point)
 
-BatteryReserve      @default Enough       -- computed by the app, never reported:
+BatteryReserve      __default Enough       -- computed by the app, never reported:
                                           -- Low once BatteryCharge is at or below
                                           -- BatteryLowThreshold. Sticky: it stays
                                           -- Low until the link is made again
@@ -441,27 +440,27 @@ Device                                    -- a saved way to reach an aircraft. T
 DeviceId    = Timestamp                   -- when the device was added: its key
 DeviceName  = Text                        -- what the operator calls it
 
-LinkSettings        @default Udp          -- a saved link: only what its kind uses
+LinkSettings        __default Udp          -- a saved link: only what its kind uses
   = Udp    (Port)                         -- listen on Port
   | Tcp    (HostName * Port)              -- connect to HostName at Port
   | Serial (Baud)                         -- the serial port wired to the phone
 
 HostName  = Text                          -- a name or an address; never blank
 
-Port      = Int   @default 14550
+Port      = Int   __default 14550
                   @range 1..65535
 
-Baud      = Int   @default 57600
+Baud      = Int   __default 57600
                   @range 1200..921600
 
 SystemId  = Int   @range 1..255           -- the MAVLink system id the aircraft
                                           -- names itself with
 
-LastSystemId        @default Unheard
+LastSystemId        __default Unheard
   = Unheard                               -- never answered on this device
   | Heard (SystemId)                      -- what it answered with last time
 
-LinkSession         @default Closed       -- what the app is doing to reach an
+LinkSession         __default Closed       -- what the app is doing to reach an
                                           -- aircraft; AircraftLink says whether
                                           -- one answered. Remembered: at launch
                                           -- the app reopens the device it left
@@ -472,7 +471,7 @@ LinkSession         @default Closed       -- what the app is doing to reach an
 
 LinkFailure = Text                        -- why the device could not open the link
 
-LastDevice          @default None         -- the device last linked; kept after
+LastDevice          __default None         -- the device last linked; kept after
                                           -- closeLink, so it can be reconnected
   = None
   | Known (DeviceId)

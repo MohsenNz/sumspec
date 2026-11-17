@@ -11,6 +11,8 @@ module SumSpec.Pretty
   , renderAtomic
   , renderPattern
   , renderLiteral
+  , renderDefault
+  , renderDefaultValue
   , renderArith
   , renderValue
   , renderKey
@@ -53,12 +55,20 @@ renderAtomic (Atomic name base) =
 
 renderDefinition :: Definition -> Text
 renderDefinition = \case
-  DefType (TypeDef name notes body from) ->
+  -- The default and the annotations of a newtype or a list follow its
+  -- body; those of a sum or a product follow its name.
+  DefType (TypeDef name dflt notes body from) ->
     nameText name
       <> maybe "" ((" __from " <>) . renderTypePath) from
-      <> renderAnnotations notes
+      <> (if term then "" else extras)
       <> " = "
       <> renderTypeExpr body
+      <> (if term then extras else "")
+    where
+      term = case body of
+        TypeTerm _ -> True
+        _ -> False
+      extras = maybe "" ((" " <>) . renderDefault) dflt <> renderAnnotations notes
   DefConst (ConstDef name ty value) ->
     "__const " <> nameText name <> " = " <> nameText ty <> case value of
       ConstLiteral _ lit -> "(" <> renderLiteral lit <> ")"
@@ -181,6 +191,15 @@ renderFactor (Factor term notes) = renderTerm term <> renderAnnotations notes
 -- | Annotations after what they belong to, each with a space before it.
 -- They go on one line: the arguments stop at the same characters when
 -- they're read back.
+-- | @__default 16@, @__default Closed@.
+renderDefault :: Default -> Text
+renderDefault (Default _ value) = "__default " <> renderDefaultValue value
+
+renderDefaultValue :: DefaultValue -> Text
+renderDefaultValue = \case
+  DefaultLiteral _ lit -> renderLiteral lit
+  DefaultName names -> T.intercalate "." (map nameText (NE.toList names))
+
 renderAnnotations :: [Annotation] -> Text
 renderAnnotations = T.concat . map render
   where

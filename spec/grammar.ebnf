@@ -41,7 +41,7 @@ primitive     = "__int" | "__float" | "__text" ;
 events_block  = "__events" , "{" , { LOWER } , "}" ;
 
 (* The annotations a spec may use (see "Annotations" in spec-v1.md):
-     __annotations { @control  @default  @effect }                      *)
+     __annotations { @control  @range  @effect }                        *)
 annotations_block = "__annotations" , "{" , { ANNOTATION } , "}" ;
 
 definition    = init_state
@@ -79,16 +79,29 @@ path_def      = "__path" , UPPER , "=" , path , { "/" , path } ;
 (* ---------- Type definitions ---------- *)
 
 (* Annotations after the name belong to the type; so do those after the
-   body of a newtype or a list:
-     Plot @default Empty = Empty | Drawn Shape
-     PortSetting = Port @default 14550 @range 1..65535
+   body of a newtype or a list. A default goes in the same places, before
+   the annotations, once per type (see "Defaults" in spec-v1.md):
+     Plot __default Empty @control tabs = Empty | Drawn Shape
+     PortSetting = Port __default 14550 @range 1..65535
    "__from" right after the name makes the type a projection: it reads
    the part of a base's state at the path, the base's types joined by
    "/", and is never written (see "Projections" in spec-v1.md):
      HomeAircraft __from core.Core / core.AircraftLink @view tiles
        = Disconnected | Connected (core.BatteryReserve * Battery)        *)
-type_def      = UPPER , [ "__from" , type_path ] , { annotation } , "=" ,
-                type_expr ;
+type_def      = UPPER , [ "__from" , type_path ] , [ default ] ,
+                { annotation } , "=" , type_body ;
+
+(* A type's default: the value a part of it takes when a new state or
+   __init leaves it out. A literal, a variant of the type's sum (a path
+   into an inline payload), or a constant of the type:
+     __default 16    __default Closed    __default High.Partial         *)
+default       = "__default" , ( literal | UPPER , { "." , UPPER } ) ;
+
+(* A type definition's body: a newtype or a list may take its default
+   after the term. *)
+type_body     = sum
+              | product
+              | type_term , [ default ] , { annotation } ;
 
 (* Types, outermost first, each holding the next. *)
 type_path     = type_name , { "/" , type_name } ;
@@ -481,6 +494,16 @@ character     = ? any Unicode character ? ;
      on the target side or in __init, never a factor, a payload, a
      pattern, an input or a list element. See "Named constants" in
      spec-v1.md;
+   - a default fits its type: on a sum (or a newtype of one), a variant
+     of it, a dotted path picking one inside an inline payload; on a
+     newtype of an atomic with a base, a literal that fits it as a
+     constant's does; on either, a constant of the type. A product, a
+     list, an atomic with no base, a newtype of one of those and a
+     projection take none. A part left out of __init or of a new state,
+     or written there bare, takes its type's default; without one it is
+     built from its parts (a product's factors, a sum's variants with
+     their payloads, a newtype's base), and a list or an atomic is any
+     value. See "Defaults" in spec-v1.md;
    - no name is listed twice in __atomics, __events or __annotations;
    - every annotation used is listed in __annotations (a spec without
      the block uses none). Its arguments are not checked. See
@@ -623,7 +646,9 @@ character     = ? any Unicode character ? ;
      target" and "Named values" in spec-v1.md;
    - a variant of a type inside the root that the app never reaches:
      neither __init nor a transition that can happen puts the app
-     there. Only the outermost unreached variant is reported;
+     there. A part that takes its default reaches only what the default
+     picks; in a layer, a base's part may hold any of its values. Only
+     the outermost unreached variant is reported;
    - a transition that can never happen: its source writes a variant
      that is never reached, or its type is one no state holds;
    - two transitions of one event, on the same type, whose sources can

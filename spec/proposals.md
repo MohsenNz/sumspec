@@ -27,28 +27,6 @@ Means:
 
     X(Y(A' * B')) <-
 
-## Annotation argument kinds
-
-Version impact: additive.
-
-Builds on annotations (see "Annotations (@name)" in `spec-v1.md`), whose
-arguments are opaque text today. A declaration may state its argument
-kind, so the checker validates it:
-
-    __annotations {
-      @unless <pattern>   -- unavailable while this state holds
-      @when   <pattern>
-      @control <name>
-    }
-
-For a `<pattern>` argument the checker can resolve every name against the
-types, and warn when the pattern can never hold, always holds, or
-contradicts the transition's source (`@unless Page.Home` on a transition
-from `Page.Home`).
-
-An atomic takes no annotations: a type that needs `@default` or `@range`
-is a newtype of it.
-
 ## Layered specs, more
 
 Version impact: additive. Builds on layered specs (see "Layered specs
@@ -74,25 +52,55 @@ today keeps its meaning.
   by reading the base and by forms that hold a draft and dispatch a base
   event with it.
 
-## Checking `@default` and `@range`
+## Warning for a sum left open without a default
 
-Version impact: additive.
+Version impact: additive (a warning; no valid spec becomes invalid).
 
-Builds on the primitive types and the comparisons of v1 (see "Primitive
-types" and "Comparing values" in `spec-v1.md`), and on annotations
-(see "Annotations (@name)" in `spec-v1.md`). A newtype over an atomic
-carries the annotations, since an atomic takes none:
+Builds on defaults (see "Defaults (__default)" in `spec-v1.md`). A part
+that `__init` or a new state leaves out, or writes bare, takes its type's
+default; without one it may have any value, silently. The checker would
+warn when that part is a sum with no default, since the app may then
+start in any of its variants:
 
-    __atomics { Port = __int  Meters = __float }
+    Mode = On | Off
+    __init :: App(Page.Home)          -- warning: Mode is left out and has
+                                      -- no default; give Mode a default
+                                      -- or write a variant
 
-    PortSetting = Port    @default 14550 @range 1..65535
-    SprayHeight = Meters  @default 3 @range 1..10
+Only sums are warned about. A product is fine once its factors are, and a
+list or an atomic has no default to give. A part written with a variant,
+a prime, a name or a computed value is not left open. Writing the sum
+bare in a source, or reading it through a projection, isn't affected.
 
-The checker can then verify that a `@default` is a literal of the type,
-that `@range low..high` has `low <= high`, and that the default lies
-inside the range. Today these are opaque tokens. `Percent` (`0..100`) and
-`Degrees` (`0..360`) would be `__float` newtypes with a `@range` instead
-of atomics with a comment.
+Pros:
+
+- It catches a forgotten default: the app may start in, or enter, a
+  variant nobody meant (an `About.Open` dialog at launch).
+- The reachability warnings rely on defaults; a sum left open makes every
+  variant reached and hides a dead one. The warning points at the cause.
+- A generator reading the spec must pick some value for "any". The
+  warning makes the author pick it instead.
+
+Cons:
+
+- "Any value" is often the meaning: `PMode.ShowMission.List` is `Empty`
+  or `NonEmpty` by what the missions hold, and a new state may leave a
+  part to the target. The warning would fire where nothing is wrong, and
+  silencing it needs a default that isn't true, or a new way to say "any
+  on purpose".
+- It's noisy on existing specs: `drone`, `todomvc`, `git` and Parvaz
+  leave many sums open in `__init` and in targets.
+- A new state reached from several transitions repeats the warning at
+  each target, or needs a rule for where to report it once.
+
+Open questions:
+
+- A form that says "any value, on purpose" (a bare `T` written out,
+  rather than left out?), and whether `__init` and targets are treated
+  alike or only `__init` is warned about.
+- Whether a sum whose every variant is reached anyway (by some
+  transition) is exempt, which cuts the noise but makes the warning
+  depend on the reachability analysis.
 
 ## Literal patterns
 
@@ -205,8 +213,8 @@ Nothing is reserved. A declaration or definition of the same name in the user's 
 replaces the prelude's, so a spec that needs its own `Text` just defines
 it. `Bool` is an ordinary sum, so patterns work on it
 (`SingleSideSpraying.True`) and `@control toggle` is a hint over a
-two-variant sum. The variants are capitalized, so `@default false` becomes
-`@default False`.
+two-variant sum. The variants are capitalized, so a default is
+`__default False`, not `__default false`.
 
 ## Dependent type
 
@@ -288,8 +296,7 @@ cases:
 
 The "reason" text is lost in the conversion: a guard only blocks. So
 `@unless` stays where the UI must say why a control is disabled; the
-target can derive the reason from the unmet pattern or guard. A checker
-lint could flag an `@unless` that a source pattern expresses.
+target can derive the reason from the unmet pattern or guard.
 
 ## Generic type
 

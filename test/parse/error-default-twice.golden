@@ -1,0 +1,5 @@
+test/parse/error-default-twice.sumspec:7:20:
+  |
+7 | Zoom __default 4 = Int __default 16
+  |                    ^
+a type has one default, and Zoom has one after its name and one after its body; keep one

@@ -10,6 +10,19 @@ release" in `VERSIONING.md`).
 
 ### Language
 
+- Defaults: `About __default Closed = Closed | Open Panel` and
+  `Zoom = Int __default 16` give the value a part of a type takes when
+  `__init` or a new state leaves it out, or writes it bare. Without a
+  default a part is built from its parts (a product's factors, a sum's
+  variants, a newtype's base), and a list or an atomic is any value. It
+  goes after the type's name, or after a newtype's body, before the
+  annotations. The value is a literal, a variant (a path into an inline
+  payload) or a constant of the type, and the checker checks it fits; a
+  product, a list, an atomic with no base and a projection take none.
+  The reachability warnings read defaults: a variant only a missing
+  default reached is now reported, and in a layer a base's part may
+  hold any of its values. It replaces the opaque `@default` annotation,
+  which the examples and the Parvaz specs no longer use.
 - A layer uses its bases' named patterns, qualified like their types:
   `core.ReadyToFly` stands for the base's `ReadyToFly`, its body's
   names qualified too (`core.AircraftLink.Connected(...)`). It goes

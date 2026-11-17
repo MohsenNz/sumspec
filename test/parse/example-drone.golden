@@ -30,7 +30,6 @@ __events {
 
 __annotations {
   @control
-  @default
   @status
   @effect
 }
@@ -52,7 +51,7 @@ Distance = Meters
 MissionState = NotStarted | Completed | Stopped (StopReason * BreakPoint)
 StopReason = Commanded | BatteryLow | LinkLost
 BreakPoint = Point
-Plot @default Empty = Empty | Drawn (Boundary * Markings)
+Plot __default Empty = Empty | Drawn (Boundary * Markings)
 Boundary = Ring
 Markings = [Marking]
 Marking = Obstacle Ring | RoundObstacle Spot | PowerLine Path | NonSprayArea Ring | MarkPoint Spot

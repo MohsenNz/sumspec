@@ -193,9 +193,25 @@ definitionTests =
       keyDefinitionOf (Position 10 65) ==> Just (range 10 40 41)
   , testCase "the list of each in xs, to its #xs" $
       keyDefinitionOf (Position 11 41) ==> Just (range 11 11 13)
+  , testCase "a variant in a default" $
+      defaultDefinitionOf (Position 5 18) ==> Just (range 5 25 31)
+  , testCase "a constant in a default" $
+      defaultDefinitionOf (Position 6 22) ==> Just (range 2 8 13)
   ]
   where
     action ==> expected = action >>= (@?= expected)
+    defaultDefinitionOf pos = do
+      result <- withServer $ do
+        doc <- createDoc "defaults.sumspec" "sumspec" defaults
+        _ <- waitForDiagnostics
+        getDefinitions doc pos
+      pure $ case result of
+        InL (Definition (InL location)) -> Just location._range
+        _ -> Nothing
+    defaults =
+      "__atomics { Int = __int }\n__events { go }\n__const Start = Zoom(4)\n\
+      \__init :: App\nApp = About * Zoom\nAbout __default Closed = Closed | Open\n\
+      \Zoom = Int __default Start\ngo :: App => About.Closed -> About.Open\n"
     keyDefinitionOf pos = do
       result <- withServer $ do
         doc <- createDoc "keys.sumspec" "sumspec" keys

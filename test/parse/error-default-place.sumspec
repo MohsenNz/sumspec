@@ -1,0 +1,8 @@
+-- A sum's default goes after its name, not after its first variant.
+__atomics { }
+__events { go }
+__init :: A.B
+
+A = B __default B | C
+
+go :: A.B -> A.C

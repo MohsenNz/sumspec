@@ -271,9 +271,12 @@ Decision:
 - **"Any value" stays.** A new state need not give every part, and a part
   it leaves out is unspecified. The same holds for `__init`, which is a
   new state too (gap 6).
-- **No defaults on types.** The language does not depend on annotations
-  (`@default` is not type-checked), and types declare no default value.
-  Where a value matters, the transition writes it.
+- **Defaults on types, in the language.** At first types declared no
+  default (`@default` was an opaque annotation). Now a type may give one,
+  `About __default Closed`, `Zoom = Int __default 16`, which the checker
+  checks: a part a new state or `__init` leaves out takes its type's
+  default, and is unspecified only without one (see "Defaults" in
+  `spec-v1.md`).
 - **A literal in a target sets the value**, as a constant that fits its
   type: `Footer(ItemsLeft(1))`. It only narrows "any value" to one value,
   as a variant in a target already does. It also works in `__init`

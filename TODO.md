@@ -4,6 +4,7 @@
 
 ### Open questions
 
+
 ### Closer to an EFSM (`spec/efsm-gaps.md`)
 Decide on each gap, one at a time, then move it to `proposals.md`:
 - [ ] Where a local transition applies (decided in part; waits for
@@ -86,8 +87,6 @@ update before any code:
 - [ ] Branches on a guard (`f :: T(Int#i) // i < 10 -> ... // i >= 10 -> ...`).
 - [x] Annotations (`__annotations`), also on transitions: names
       checked, arguments opaque.
-- [ ] Argument kinds for annotations (`@unless <pattern>`), and checking
-      `@default` and `@range` (see proposals.md).
 - [x] Layered specs (core and UI): `__imports`, qualified names, events
       that dispatch base events (`>>`) or react to them (see "Layered
       specs" in `spec/spec-v1.md`).
@@ -124,6 +123,9 @@ update before any code:
       writing the whole list (`Missions'`).
 - [ ] The overlap check reads `x == V` and `x != V` on a sum with payloads,
       as it does on an enumeration.
+- [x] `__default`: a type's default (`About __default Closed`,
+      `Zoom = Int __default 16`), checked against the type; a part
+      `__init` or a new state leaves out takes it. Replaces `@default`.
 - [x] `__const`: a named constant written with a keyword,
       `__const MaxPort = Port(100)`, so it no longer reads like a newtype
       and the parser needs no lookahead to tell it from a type. The plain
@@ -164,3 +166,6 @@ update before any code:
 - [ ] Literal patterns in sources, guards and inputs (see "Literal
       patterns" in `spec/proposals.md`); decide whether a literal may be
       a variant's payload directly, as a value in a target already is.
+- [ ] default on List, e.g: `Items = [Mode] __default [On, Off, Off]` or `__default []` as an
+      empty list as default
+- [ ] accept `__from` in newtype after type-body too, just like `__default` and annotations
